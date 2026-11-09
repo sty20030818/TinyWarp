@@ -7510,3 +7510,58 @@ fn test_add_guest_failure() {
         assert!(db_events(&update_manager_struct).is_empty());
     });
 }
+
+#[test]
+fn local_terminal_keeps_cached_objects_without_polling_or_opening_websockets() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        initialize_app(&mut app);
+        let mut client = MockObjectClient::new();
+        client.expect_fetch_changed_objects().times(0);
+        client.expect_fetch_single_cloud_object().times(0);
+        client
+            .expect_fetch_environment_last_task_run_timestamps()
+            .times(0);
+        client.expect_get_warp_drive_updates().times(0);
+        client.expect_grab_notebook_edit_access().times(0);
+        client.expect_give_up_notebook_edit_access().times(0);
+        let client = Arc::new(client);
+        let fixture = create_update_manager_struct(&mut app, client.clone());
+        let update_manager = fixture.update_manager.clone();
+        let cached_id = ClientId::new();
+        create_notebook(&mut app, &update_manager, cached_id);
+        app.read(|ctx| assert!(CloudModel::as_ref(ctx).has_non_welcome_objects()));
+        let listener = app.add_singleton_model(|ctx| {
+            crate::server::cloud_objects::listener::Listener::new(client, ctx)
+        });
+
+        let fetch = update_manager.update(&mut app, |manager, ctx| {
+            manager.start_polling_for_updated_objects(ctx);
+            manager.refresh_updated_objects(ctx);
+            let server_id = ServerId::from(8675309);
+            manager.grab_notebook_edit_access(server_id.into(), true, ctx);
+            manager.give_up_notebook_edit_access(server_id.into(), ctx);
+            manager.fetch_single_cloud_object(
+                &server_id,
+                FetchSingleObjectOption::ForceOverwrite,
+                ctx,
+            )
+        });
+        assert!(fetch.await.is_err());
+        update_manager.read(&app, |manager, _| {
+            assert!(!manager.should_poll_for_updated_objects);
+            assert!(!manager.has_completed_initial_load());
+            assert!(manager.spawned_futures().is_empty());
+        });
+        listener.read(&app, |listener, _| {
+            assert!(!listener.has_current_subscription_abort_handle());
+        });
+        CloudModel::handle(&app).read(&app, |model, _| {
+            assert!(model.get_by_uid(&cached_id.to_string()).is_some());
+        });
+        SyncQueue::handle(&app).read(&app, |queue, _| {
+            assert!(!queue.is_dequeueing());
+            assert_eq!(queue.queue().len(), 1);
+        });
+    });
+}

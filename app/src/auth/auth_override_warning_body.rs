@@ -351,6 +351,11 @@ impl TypedActionView for AuthOverrideWarningBody {
         action: &AuthOverrideWarningBodyAction,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         match action {
             AuthOverrideWarningBodyAction::Close => {
                 ctx.emit(AuthOverrideWarningBodyEvent::Close);

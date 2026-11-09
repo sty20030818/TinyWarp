@@ -80,3 +80,37 @@ fn pane_name_actions_save_workspace_state() {
     // `rename_pane` which mutates `pane_configuration`.
     assert!(WorkspaceAction::RenameActivePane.should_save_app_state_on_action());
 }
+
+#[test]
+fn local_terminal_action_gate_keeps_local_settings_and_input_synchronization() {
+    use crate::settings_view::{SettingsAction, SettingsSection};
+
+    for action in [
+        WorkspaceAction::LogOut,
+        WorkspaceAction::Reauth,
+        WorkspaceAction::SignupAnonymousUser,
+        WorkspaceAction::ShowUpgrade,
+        WorkspaceAction::ShowReferralSettingsPage,
+        WorkspaceAction::BrowseTeams,
+        WorkspaceAction::ToggleWarpDrive,
+        WorkspaceAction::CreatePersonalWorkflow,
+        WorkspaceAction::ShowSettingsPage(SettingsSection::Account),
+        WorkspaceAction::DispatchToSettingsTab(SettingsAction::SelectAndRefresh(
+            SettingsSection::Teams,
+        )),
+    ] {
+        assert!(action.blocked_in_local_terminal(), "{action:?}");
+    }
+    for action in [
+        WorkspaceAction::ShowSettings,
+        WorkspaceAction::ShowSettingsPage(SettingsSection::Appearance),
+        WorkspaceAction::ShowSettingsPage(SettingsSection::Scripting),
+        WorkspaceAction::ShowSettingsPage(SettingsSection::Warpify),
+        WorkspaceAction::ToggleSyncAllTerminalInputsInAllTabs,
+        WorkspaceAction::ToggleSyncTerminalInputsInTab,
+        WorkspaceAction::DisableTerminalInputSync,
+        WorkspaceAction::ReopenClosedSession,
+    ] {
+        assert!(!action.blocked_in_local_terminal(), "{action:?}");
+    }
+}

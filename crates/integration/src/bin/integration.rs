@@ -24,18 +24,39 @@ pub struct Args {
 }
 
 pub fn main() -> Result<()> {
+    let args = Args::parse();
+    let local_terminal_test = args.integration_test_name.as_deref().is_some_and(|name| {
+        matches!(
+            name,
+            "test_local_terminal_first_launch_without_account"
+                | "test_local_terminal_preserves_legacy_account_history_and_tabs"
+        )
+    });
+    let test_app_id = if local_terminal_test {
+        AppId::new(
+            "dev",
+            "warp",
+            warp::integration_testing::local_terminal::TEST_APP_NAME,
+        )
+    } else {
+        AppId::new(
+            "dev",
+            "warp",
+            if cfg!(target_os = "macos") {
+                "Warp-Integration"
+            } else {
+                "WarpIntegration"
+            },
+        )
+    };
     ChannelState::set(ChannelState::new(
-        Channel::Integration,
+        if local_terminal_test {
+            Channel::Oss
+        } else {
+            Channel::Integration
+        },
         ChannelConfig {
-            app_id: AppId::new(
-                "dev",
-                "warp",
-                if cfg!(target_os = "macos") {
-                    "Warp-Integration"
-                } else {
-                    "WarpIntegration"
-                },
-            ),
+            app_id: test_app_id.clone(),
             logfile_name: "warp_integration.log".into(),
             server_config: WarpServerConfig {
                 firebase_auth_api_key: "".into(),
@@ -60,7 +81,13 @@ pub fn main() -> Result<()> {
         },
     ));
 
-    let args = Args::parse();
+    if local_terminal_test {
+        assert_eq!(
+            ChannelState::app_id().to_string(),
+            test_app_id.to_string(),
+            "L1 integration identity must not be replaced by a running application bundle"
+        );
+    }
 
     if let Some(command) = &args.command {
         match command {
@@ -107,7 +134,15 @@ pub fn main() -> Result<()> {
     }
 
     #[cfg_attr(not(unix), allow(unreachable_code))]
-    warp::run_integration_test(driver)
+    if local_terminal_test {
+        assert!(
+            warp::integration_testing::local_terminal::is_configured(),
+            "L1 fixture must be configured before application initialization"
+        );
+        warp::run_local_terminal_integration_test(driver)
+    } else {
+        warp::run_integration_test(driver)
+    }
 }
 
 /// Type of a function that produces an integration test builder.
@@ -127,6 +162,8 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     }
 
     // Add new tests here
+    register_test!(test_local_terminal_first_launch_without_account);
+    register_test!(test_local_terminal_preserves_legacy_account_history_and_tabs);
     register_test!(test_single_command);
     register_test!(test_add_and_close_session);
     register_test!(test_child_pill_after_reopening_closed_parent_tab);

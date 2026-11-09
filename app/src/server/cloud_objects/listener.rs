@@ -11,6 +11,7 @@ use warpui::{Entity, ModelContext, ModelHandle, RequestState, SingletonEntity};
 
 use super::update_manager::UpdateManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::local_terminal;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::server::retry_strategies::LISTENER_RETRY_STRATEGY;
 use crate::server::server_api::object::ObjectClient;
@@ -83,6 +84,10 @@ impl Listener {
             last_disconnected_at: None,
             pending_refresh_abort_handle: None,
         };
+
+        if local_terminal::is_enabled(ctx) {
+            return listener;
+        }
 
         // When the websocket signals readiness, decide whether to refresh cloud objects
         // based on how long the connection was down.
@@ -233,6 +238,10 @@ impl Listener {
     }
 
     fn start_listener(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !self.should_subscribe_to_updates {
             self.should_subscribe_to_updates = true;
             self.get_warp_drive_updates(ctx);
@@ -301,6 +310,10 @@ impl Listener {
     }
 
     fn get_warp_drive_updates(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let object_client = self.cloud_objects_client.clone();
         let (message_sender, message_receiver) = async_channel::unbounded();
         let subscription_ready_tx = self.subscription_ready_tx.clone();

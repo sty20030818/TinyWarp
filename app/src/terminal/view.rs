@@ -17906,20 +17906,22 @@ impl TerminalView {
                 }
 
                 items.push(MenuItem::Separator);
-                items.push(
-                    MenuItemFields::new(share_block_label)
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::OpenShareBlockModal {
-                                block_index: tail_block_index,
-                            },
-                        ))
-                        .with_key_shortcut_label(keybinding_name_to_display_string(
-                            "terminal:open_share_block_modal",
-                            ctx,
-                        ))
-                        .with_disabled(is_share_disabled)
-                        .into_item(),
-                );
+                if !crate::local_terminal::is_enabled(ctx) {
+                    items.push(
+                        MenuItemFields::new(share_block_label)
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::OpenShareBlockModal {
+                                    block_index: tail_block_index,
+                                },
+                            ))
+                            .with_key_shortcut_label(keybinding_name_to_display_string(
+                                "terminal:open_share_block_modal",
+                                ctx,
+                            ))
+                            .with_disabled(is_share_disabled)
+                            .into_item(),
+                    );
+                }
 
                 if FeatureFlag::CreatingSharedSessions.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled()
@@ -17933,11 +17935,13 @@ impl TerminalView {
 
                     let has_session_link = Manager::as_ref(ctx)
                         .has_session_link(&ctx.view_id(), model.shared_session_status());
-                    items.extend(self.session_sharing_context_menu_items(
-                        &model,
-                        is_share_session_disabled,
-                        has_session_link,
-                    ));
+                    if !crate::local_terminal::is_enabled(ctx) {
+                        items.extend(self.session_sharing_context_menu_items(
+                            &model,
+                            is_share_session_disabled,
+                            has_session_link,
+                        ));
+                    }
                 }
 
                 if WarpDriveSettings::is_warp_drive_enabled(ctx) {
@@ -18128,11 +18132,13 @@ impl TerminalView {
                 {
                     let has_session_link = Manager::as_ref(ctx)
                         .has_session_link(&ctx.view_id(), model.shared_session_status());
-                    items.extend(self.session_sharing_context_menu_items(
-                        &model,
-                        false,
-                        has_session_link,
-                    ));
+                    if !crate::local_terminal::is_enabled(ctx) {
+                        items.extend(self.session_sharing_context_menu_items(
+                            &model,
+                            false,
+                            has_session_link,
+                        ));
+                    }
                 }
 
                 items
@@ -18635,7 +18641,13 @@ impl TerminalView {
         {
             let has_session_link = Manager::as_ref(ctx)
                 .has_session_link(&ctx.view_id(), model.shared_session_status());
-            items.extend(self.session_sharing_context_menu_items(&model, false, has_session_link));
+            if !crate::local_terminal::is_enabled(ctx) {
+                items.extend(self.session_sharing_context_menu_items(
+                    &model,
+                    false,
+                    has_session_link,
+                ));
+            }
         }
 
         // Section 2: AI Command Search, Ask Warp AI
@@ -18883,11 +18895,13 @@ impl TerminalView {
         {
             let has_session_link = Manager::as_ref(ctx)
                 .has_session_link(&ctx.view_id(), model.shared_session_status());
-            menu_items.extend(self.session_sharing_context_menu_items(
-                &model,
-                false,
-                has_session_link,
-            ));
+            if !crate::local_terminal::is_enabled(ctx) {
+                menu_items.extend(self.session_sharing_context_menu_items(
+                    &model,
+                    false,
+                    has_session_link,
+                ));
+            }
         }
         let current_shell = model.shell_launch_state().available_shell();
         let mut pane_context_menu_items = self.pane_context_menu_items(current_shell, ctx);
@@ -22344,6 +22358,10 @@ impl TerminalView {
         block_index: BlockIndex,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         if AuthStateProvider::as_ref(ctx)
             .get()
             .is_anonymous_or_logged_out()
@@ -28015,6 +28033,10 @@ impl TypedActionView for TerminalView {
 
     fn handle_action(&mut self, action: &TerminalAction, ctx: &mut ViewContext<Self>) {
         use TerminalAction::*;
+        if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         let input_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
 
         match action {

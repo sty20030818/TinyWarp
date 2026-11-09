@@ -508,6 +508,11 @@ impl LoginSlideView {
     /// Starts the browser sign-up flow. Shared by the Continue button and the
     /// skip dialog's cancel button.
     fn start_login(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         self.send_account_first_action("create_account", "continue_signup", ctx);
         send_telemetry_from_ctx!(
             TelemetryEvent::LoginButtonClicked {
@@ -1292,6 +1297,11 @@ impl TypedActionView for LoginSlideView {
     type Action = LoginSlideAction;
 
     fn handle_action(&mut self, action: &LoginSlideAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         match action {
             LoginSlideAction::Enter => {
                 // When the skip dialog is open, Enter should confirm skip instead.

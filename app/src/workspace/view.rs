@@ -4686,6 +4686,10 @@ impl Workspace {
     }
 
     fn open_share_session_modal(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         // Focus on the clicked tab
         if index >= self.tab_count() {
             return;
@@ -6361,6 +6365,9 @@ impl Workspace {
         appearance: &Appearance,
         ctx: &AppContext,
     ) -> Option<Box<dyn Element>> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return None;
+        }
         let user_workspaces = UserWorkspaces::as_ref(ctx);
         let current_team = user_workspaces.team_for_window(self.window_id);
         let has_joinable_teams = user_workspaces
@@ -6799,6 +6806,10 @@ impl Workspace {
                 );
             }
             LeftPanelEvent::SignInRequested => {
+                if crate::local_terminal::is_enabled(ctx) {
+                    crate::local_terminal::show_unavailable(ctx);
+                    return;
+                }
                 self.open_require_login_modal(AuthViewVariant::RequireLoginCloseable, ctx);
                 self.require_login_modal.update(ctx, |modal, ctx| {
                     modal.start_sign_in(ctx);
@@ -9525,6 +9536,12 @@ impl Workspace {
         explicit_user_action: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            if explicit_user_action {
+                crate::local_terminal::show_unavailable(ctx);
+            }
+            return;
+        }
         // Closing all left panels will also close warp drive so we need to retrieve
         // whether warp drive was open first, and toggle based on the initial value.
         let was_warp_drive_open = self.current_workspace_state.is_warp_drive_open;
@@ -10018,7 +10035,8 @@ impl Workspace {
 
     fn user_menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
         let mut items = Vec::new();
-        if !self.auth_state.is_anonymous_or_logged_out() {
+        if !crate::local_terminal::is_enabled(app) && !self.auth_state.is_anonymous_or_logged_out()
+        {
             let name = self.auth_state.username_for_display().unwrap_or_default();
             items.push(MenuItemFields::new(name).with_disabled(true).into_item())
         }
@@ -10112,6 +10130,10 @@ impl Workspace {
                 .into_item(),
             MenuItem::Separator,
         ]);
+
+        if crate::local_terminal::is_enabled(app) {
+            return items;
+        }
 
         if self.auth_state.is_anonymous_or_logged_out() {
             items.push(
@@ -14927,6 +14949,10 @@ impl Workspace {
     }
 
     fn open_warp_drive_palette(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         self.palette.update(ctx, |view, ctx| {
             view.reset(ctx);
             view.set_active_query_filter(QueryFilter::Drive, ctx);
@@ -15034,6 +15060,10 @@ impl Workspace {
     }
 
     fn open_require_login_modal(&mut self, variant: AuthViewVariant, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         self.require_login_modal.update(ctx, |modal, ctx| {
             modal.set_variant(ctx, variant);
         });
@@ -15049,6 +15079,10 @@ impl Workspace {
         auth_payload: AuthRedirectPayload,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         self.close_all_overlays(ctx);
         self.auth_override_warning_modal.update(ctx, |modal, _| {
             modal.set_interrupted_auth_payload(auth_payload);
@@ -19031,6 +19065,14 @@ impl Workspace {
         section: Option<SettingsSection>,
         ctx: &mut ViewContext<Self>,
     ) {
+        let section = if crate::local_terminal::is_enabled(ctx)
+            && section.is_some_and(|section| !section.is_available_in_local_terminal())
+        {
+            crate::local_terminal::show_unavailable(ctx);
+            Some(SettingsSection::Features)
+        } else {
+            section
+        };
         self.close_all_overlays(ctx);
         self.open_settings_pane(section, None, ctx);
     }
@@ -19041,10 +19083,22 @@ impl Workspace {
         section: Option<SettingsSection>,
         ctx: &mut ViewContext<Self>,
     ) {
+        let section = if crate::local_terminal::is_enabled(ctx)
+            && section.is_some_and(|section| !section.is_available_in_local_terminal())
+        {
+            crate::local_terminal::show_unavailable(ctx);
+            Some(SettingsSection::Features)
+        } else {
+            section
+        };
         self.close_all_overlays(ctx);
         self.open_settings_pane(section, Some(search_query), ctx);
     }
     fn browse_teams(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         let show_join_modal = UserWorkspaces::as_ref(ctx)
             .team_for_window(self.window_id)
             .is_some();
@@ -19063,6 +19117,10 @@ impl Workspace {
         email_invite: Option<&String>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         self.show_settings_with_section(Some(SettingsSection::Teams), ctx);
 
         self.settings_pane.update(ctx, |view, ctx| {
@@ -21767,7 +21825,7 @@ impl Workspace {
             target.add_child(pill);
         }
 
-        if FeatureFlag::AvatarInTabBar.is_enabled() {
+        if FeatureFlag::AvatarInTabBar.is_enabled() && !crate::local_terminal::is_enabled(ctx) {
             target.add_child(
                 Container::new(self.render_avatar_button(appearance, ctx))
                     .with_margin_left(TAB_BAR_PADDING_LEFT)
@@ -21775,7 +21833,10 @@ impl Workspace {
             );
         } else {
             let resource_center_closed = !self.current_workspace_state.is_resource_center_open;
-            if resource_center_closed && ContextFlag::WarpEssentials.is_enabled() {
+            if resource_center_closed
+                && ContextFlag::WarpEssentials.is_enabled()
+                && !crate::local_terminal::is_enabled(ctx)
+            {
                 target.add_child(
                     Container::new(self.render_resource_center_button(appearance, ctx))
                         .with_margin_left(TAB_BAR_PADDING_LEFT)
@@ -24008,6 +24069,10 @@ impl Workspace {
         entrypoint: AnonymousUserSignupEntrypoint,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         if self.auth_state.is_user_anonymous().unwrap_or_default() {
             // User has a Firebase anonymous account — use the linking flow.
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
@@ -24183,7 +24248,9 @@ impl Workspace {
                 entry_focus: GlobalSearchEntryFocus::Results,
             });
         }
-        if *WarpDriveSettings::as_ref(ctx).enable_warp_drive {
+        if *WarpDriveSettings::as_ref(ctx).enable_warp_drive
+            && !crate::local_terminal::is_enabled(ctx)
+        {
             views.push(ToolPanelView::WarpDrive);
         }
         views
@@ -24262,6 +24329,17 @@ impl TypedActionView for Workspace {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         use WorkspaceAction::*;
         let window_id = ctx.window_id();
+
+        if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+            crate::local_terminal::show_unavailable(ctx);
+            if matches!(
+                action,
+                ShowSettingsPage(_) | ShowSettingsPageWithSearch { .. }
+            ) {
+                self.show_settings_with_section(Some(SettingsSection::Features), ctx);
+            }
+            return;
+        }
 
         if self.auth_state.is_anonymous_or_logged_out() && action.blocked_for_anonymous_user() {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {

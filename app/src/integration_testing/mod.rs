@@ -20,6 +20,7 @@ pub mod goto_line;
 pub mod input;
 pub mod keybindings;
 pub mod launch_configs;
+pub mod local_terminal;
 pub mod navigation_palette;
 pub mod notebook;
 pub mod orchestration_navigation;

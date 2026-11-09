@@ -1159,3 +1159,79 @@ fn team_member_is_disabled_round_trips_through_sqlite_cache() {
     assert!(!active_member.is_disabled);
     assert!(disabled_member.is_disabled);
 }
+
+#[test]
+fn local_terminal_logged_out_restore_preserves_legacy_tabs_and_history() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("legacy-account.sqlite");
+    let mut conn = setup_database(&database_path).expect("fixture database should initialize");
+    let mut window = test_terminal_window_snapshot(true);
+    window.tabs.clear();
+    for index in 0..3 {
+        let mut tab = test_terminal_window_snapshot(true).tabs.remove(0);
+        tab.custom_title = Some(format!("旧标签 {index} {{原值}}"));
+        tab.pinned = index == 0;
+        if let PaneNodeSnapshot::Leaf(LeafSnapshot {
+            contents: LeafContents::Terminal(terminal),
+            ..
+        }) = &mut tab.root
+        {
+            terminal.uuid = vec![index + 1];
+            terminal.cwd = Some(format!("/tmp/旧目录 {index} {{原值}}"));
+        }
+        window.tabs.push(tab);
+    }
+    let app_state = AppState {
+        windows: vec![window],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: Default::default(),
+    };
+    save_app_state(&mut conn, &app_state).expect("legacy tabs should save");
+    let command = "printf '旧历史 {用户输入}'";
+    super::insert_command(
+        &mut conn,
+        StartedCommandMetadata {
+            command: command.to_owned(),
+            start_ts: Some(Local::now()),
+            pwd: Some("/tmp/旧目录 {原值}".to_owned()),
+            shell: Some("zsh".to_owned()),
+            username: Some("fixture-user".to_owned()),
+            hostname: Some("fixture-host".to_owned()),
+            session_id: Some(SessionId::from(1)),
+            git_branch: Some("feature/旧分支".to_owned()),
+            cloud_workflow_id: None,
+            workflow_command: None,
+            is_agent_executed: false,
+        },
+    )
+    .expect("legacy command should save");
+
+    // 同一 fixture 先按旧账号读取，再按真实 None 读取；不清库、不迁移身份。
+    for user in [Some(UserUid::new("l1-fixture-user")), None] {
+        let restored = read_sqlite_data(&mut conn, user, PersistedDataScope::Full)
+            .expect("legacy data should load with and without an account");
+        let state = restored
+            .app_state
+            .expect("GUI sessions should remain available");
+        assert_eq!(state.windows.len(), 1);
+        assert_eq!(state.windows[0].tabs.len(), 3);
+        assert!(state.windows[0].tabs[0].pinned);
+        for (index, tab) in state.windows[0].tabs.iter().enumerate() {
+            assert_eq!(
+                tab.custom_title.as_deref(),
+                Some(format!("旧标签 {index} {{原值}}").as_str())
+            );
+        }
+        assert_eq!(restored.command_history.len(), 1);
+        assert_eq!(restored.command_history[0].command, command);
+        assert_eq!(
+            restored.command_history[0].pwd.as_deref(),
+            Some("/tmp/旧目录 {原值}")
+        );
+        assert_eq!(
+            restored.command_history[0].git_branch.as_deref(),
+            Some("feature/旧分支")
+        );
+    }
+}

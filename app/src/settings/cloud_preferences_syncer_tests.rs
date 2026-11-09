@@ -1756,3 +1756,20 @@ fn test_offline_ui_change_does_not_update_hash_until_sync_succeeds() {
         );
     })
 }
+
+#[test]
+fn local_terminal_preferences_syncer_stays_inert_without_cloud_services() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let syncer = app.add_singleton_model(|ctx| {
+            CloudPreferencesSyncer::new(false, std::path::PathBuf::new(), true, ctx)
+        });
+
+        syncer.update(&mut app, |syncer, ctx| {
+            syncer.sync(ForceCloudToMatchLocal::Yes, ctx);
+            assert!(!syncer.sync_enabled);
+            assert!(!syncer.has_completed_initial_load());
+            assert!(syncer.dirty_local_prefs.is_empty());
+        });
+    });
+}

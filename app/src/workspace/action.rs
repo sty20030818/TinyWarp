@@ -903,6 +903,67 @@ impl From<&WorkspaceAction> for LoginGatedFeature {
 }
 
 impl WorkspaceAction {
+    /// 只限制账户与云服务入口；本地配置和终端输入同步仍可用。
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        use WorkspaceAction::*;
+        match self {
+            ShowSettingsPage(section) => !section.is_available_in_local_terminal(),
+            ShowSettingsPageWithSearch {
+                section: Some(section),
+                ..
+            } => !section.is_available_in_local_terminal(),
+            DispatchToSettingsTab(action) => action.blocked_in_local_terminal(),
+            OpenPalette {
+                mode: PaletteMode::WarpDrive,
+                ..
+            }
+            | TogglePalette {
+                mode: PaletteMode::WarpDrive,
+                ..
+            } => true,
+            ShowCommandSearch(options)
+                if matches!(options.filter, Some(search::QueryFilter::Drive)) =>
+            {
+                true
+            }
+            LogOut
+            | Reauth
+            | SignupAnonymousUser
+            | SignInAnonymousWebUser
+            | ShowUpgrade
+            | ShowReferralSettingsPage
+            | AttemptLoginGatedAIUpgrade
+            | CopyAccessTokenToClipboard
+            | BrowseTeams
+            | ShowTeamSwitcherMenu
+            | OpenNewWindowForTeam { .. }
+            | ExportAllWarpDriveObjects
+            | ImportToPersonalDrive
+            | ImportToTeamDrive
+            | CreatePersonalNotebook
+            | CreateTeamNotebook
+            | CreatePersonalWorkflow
+            | CreateTeamWorkflow
+            | CreatePersonalFolder
+            | CreateTeamFolder
+            | CreatePersonalEnvVarCollection
+            | CreateTeamEnvVarCollection
+            | CreatePersonalAIPrompt
+            | CreateTeamAIPrompt
+            | ToggleWarpDrive
+            | OpenWarpDrive
+            | HandleConflictingWorkflow(_)
+            | HandleConflictingEnvVarCollection(_)
+            | OpenShareSessionModal(_)
+            | CopySharedSessionLinkFromTab { .. }
+            | OpenSharedSessionQrCode { .. }
+            | ViewObjectInWarpDrive(_)
+            | OpenObjectSharingSettings { .. }
+            | UndoTrash(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn blocked_for_anonymous_user(&self) -> bool {
         use WorkspaceAction::*;
         matches!(

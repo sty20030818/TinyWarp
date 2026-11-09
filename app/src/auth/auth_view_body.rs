@@ -837,6 +837,11 @@ impl TypedActionView for AuthViewBody {
     type Action = AuthViewBodyAction;
 
     fn handle_action(&mut self, action: &AuthViewBodyAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         match action {
             AuthViewBodyAction::Login => {
                 send_telemetry_from_ctx!(

@@ -2880,3 +2880,74 @@ fn test_wasm_details_panel_button_hidden_for_shared_session() {
         });
     });
 }
+
+#[test]
+fn local_terminal_direct_share_attempt_keeps_status_and_emits_no_sharing_events() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        app.update(crate::local_terminal::enable_for_test);
+        let sharing_events = Rc::new(RefCell::new(0usize));
+        let sharing_events_for_subscription = sharing_events.clone();
+        let link_events = Rc::new(RefCell::new(0usize));
+        let link_events_for_subscription = link_events.clone();
+        let pane_configuration = terminal.read(&app, |view, _| view.pane_configuration().clone());
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if matches!(
+                    event,
+                    crate::terminal::view::Event::StartSharingCurrentSession { .. }
+                ) {
+                    *sharing_events_for_subscription.borrow_mut() += 1;
+                }
+            });
+            ctx.subscribe_to_model(&pane_configuration, move |_, event, _| {
+                if matches!(event, PaneConfigurationEvent::SharedSessionLinkChanged) {
+                    *link_events_for_subscription.borrow_mut() += 1;
+                }
+            });
+        });
+
+        // 分别覆盖直接输入事件和旧快照 bootstrap 回调到达的同一底层入口。
+        for restored_pending_share in [false, true] {
+            terminal.update(&mut app, |view, ctx| {
+                let source = SharedSessionSource::user(Some("fixture-restored-source".to_owned()));
+                view.model
+                    .lock()
+                    .set_shared_session_status(if restored_pending_share {
+                        SharedSessionStatus::SharePendingPreBootstrap {
+                            source: source.clone(),
+                        }
+                    } else {
+                        SharedSessionStatus::NotShared
+                    });
+                view.pending_share_source = Some(SharedSessionActionSource::CommandPalette);
+                view.attempt_to_share_session(
+                    SharedSessionScrollbackType::All,
+                    Some(SharedSessionActionSource::FooterChip),
+                    source,
+                    true,
+                    ctx,
+                );
+                assert_eq!(
+                    view.pending_share_source,
+                    Some(SharedSessionActionSource::CommandPalette)
+                );
+                let model = view.model.lock();
+                match model.shared_session_status() {
+                    SharedSessionStatus::NotShared => assert!(!restored_pending_share),
+                    SharedSessionStatus::SharePendingPreBootstrap { source } => {
+                        assert!(restored_pending_share);
+                        assert_eq!(
+                            source.source_task_id.as_deref(),
+                            Some("fixture-restored-source")
+                        );
+                    }
+                    _ => panic!("本地入口不能改变原共享状态"),
+                }
+            });
+        }
+        assert_eq!(*sharing_events.borrow(), 0);
+        assert_eq!(*link_events.borrow(), 0);
+    });
+}

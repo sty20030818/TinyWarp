@@ -5,6 +5,7 @@ use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::Icon;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
+use warp_i18n::tr;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
     Align, ChildView, ConstrainedBox, Container, CrossAxisAlignment, DragBarSide, Element, Empty,
@@ -98,6 +99,11 @@ pub(crate) enum ToolPanelAvailability {
 
 impl ToolPanelView {
     fn availability(self, app: &AppContext) -> ToolPanelAvailability {
+        if crate::local_terminal::is_enabled(app)
+            && matches!(self, Self::WarpDrive | Self::ConversationListView)
+        {
+            return ToolPanelAvailability::RequiresAccount;
+        }
         match self {
             ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. } => {
                 ToolPanelAvailability::Available
@@ -253,36 +259,47 @@ impl LeftPanelView {
         appearance: &Appearance,
         view: ToolPanelView,
         availability: ToolPanelAvailability,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        let (title, description) = match (view, availability) {
-            (ToolPanelView::WarpDrive, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Warp Drive",
-                "Create an account to save and share workflows, notebooks, prompts, and more.",
-            ),
-            (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Agent conversations",
-                "Create an account and enable AI to access your conversation history.",
-            ),
-            (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAi) => (
-                "Turn on AI to access Agent conversations",
-                "Enable Warp AI to access your conversation history.",
-            ),
+        let (title, description) = if crate::local_terminal::is_enabled(app) {
             (
-                ToolPanelView::ProjectExplorer
-                | ToolPanelView::GlobalSearch { .. }
-                | ToolPanelView::WarpDrive,
-                ToolPanelAvailability::RequiresAi,
+                tr("local_terminal.panel.title", "Cloud service unavailable"),
+                tr(
+                    "local_terminal.panel.description",
+                    "This local terminal does not use accounts or cloud services.",
+                ),
             )
-            | (
-                ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. },
-                ToolPanelAvailability::RequiresAccount,
-            )
-            | (_, ToolPanelAvailability::Available) => {
-                debug_assert!(false, "unexpected locked tool-panel state");
+        } else {
+            match (view, availability) {
+                (ToolPanelView::WarpDrive, ToolPanelAvailability::RequiresAccount) => (
+                    "Sign in to access Warp Drive",
+                    "Create an account to save and share workflows, notebooks, prompts, and more.",
+                ),
+                (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAccount) => (
+                    "Sign in to access Agent conversations",
+                    "Create an account and enable AI to access your conversation history.",
+                ),
+                (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAi) => (
+                    "Turn on AI to access Agent conversations",
+                    "Enable Warp AI to access your conversation history.",
+                ),
                 (
-                    "Feature unavailable",
-                    "This feature is currently unavailable.",
+                    ToolPanelView::ProjectExplorer
+                    | ToolPanelView::GlobalSearch { .. }
+                    | ToolPanelView::WarpDrive,
+                    ToolPanelAvailability::RequiresAi,
                 )
+                | (
+                    ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. },
+                    ToolPanelAvailability::RequiresAccount,
+                )
+                | (_, ToolPanelAvailability::Available) => {
+                    debug_assert!(false, "unexpected locked tool-panel state");
+                    (
+                        "Feature unavailable",
+                        "This feature is currently unavailable.",
+                    )
+                }
             }
         };
         let theme = appearance.theme();
@@ -314,7 +331,9 @@ impl LeftPanelView {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(title)
             .with_child(Container::new(description).with_margin_top(8.).finish());
-        if availability == ToolPanelAvailability::RequiresAccount {
+        if availability == ToolPanelAvailability::RequiresAccount
+            && !crate::local_terminal::is_enabled(app)
+        {
             let sign_in = appearance
                 .ui_builder()
                 .button(
@@ -1119,6 +1138,12 @@ impl LeftPanelView {
         force_open: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx)
+            && matches!(action, LeftPanelAction::WarpDrive | LeftPanelAction::SignIn)
+        {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         match action {
             LeftPanelAction::ProjectExplorer => {
                 active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
@@ -1334,7 +1359,7 @@ impl View for LeftPanelView {
         let content_area: Box<dyn Element> = if availability != ToolPanelAvailability::Available {
             Shrinkable::new(
                 1.0,
-                self.render_unavailable_panel(appearance, active_view, availability),
+                self.render_unavailable_panel(appearance, active_view, availability, app),
             )
             .finish()
         } else {

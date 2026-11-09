@@ -426,6 +426,11 @@ impl TypedActionView for PasteAuthTokenModalView {
     type Action = PasteAuthTokenModalAction;
 
     fn handle_action(&mut self, action: &PasteAuthTokenModalAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         match action {
             PasteAuthTokenModalAction::Confirm => {
                 self.submit(ctx);

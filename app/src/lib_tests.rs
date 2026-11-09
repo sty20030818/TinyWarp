@@ -204,6 +204,7 @@ fn startup_auth_is_non_blocking_only_for_tui() {
         LaunchMode::Test {
             driver: Box::new(None),
             is_integration_test: false,
+            local_terminal: false,
         },
         LaunchMode::RemoteServerProxy,
         LaunchMode::RemoteServerDaemon {
@@ -234,6 +235,7 @@ fn launch_modes_select_expected_logging_frontend() {
     let test = LaunchMode::Test {
         driver: Box::new(None),
         is_integration_test: false,
+        local_terminal: false,
     };
 
     assert_eq!(tui.log_frontend(), LogFrontend::Tui);

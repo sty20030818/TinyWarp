@@ -234,6 +234,11 @@ impl PrivacySettings {
             handle,
             ctx
         );
+        if crate::local_terminal::is_enabled(ctx) {
+            Self::handle(ctx).update(ctx, |settings, ctx| {
+                settings.initialize_default_regexes_once(ctx)
+            });
+        }
     }
 
     /// Returns a new PrivacySettings object initialized from locally cached values. Server-side
@@ -712,6 +717,10 @@ impl PrivacySettings {
     /// 2) update the warp drive prefs to match the values from the legacy user_settings endpoint so
     ///    that we can use warp drive prefs going forward.
     pub fn maybe_sync_with_warp_drive_prefs(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            self.initialize_default_regexes_once(ctx);
+            return;
+        }
         // Wait for cloud objects to load, and, if telemetry & crash reporting are synced to warp drive
         // initialize from the warp drive values.
         let update_manager = UpdateManager::as_ref(ctx);

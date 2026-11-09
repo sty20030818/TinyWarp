@@ -64,7 +64,7 @@ const MAX_RECENT_REPOS_IN_MENU: usize = 10;
 
 /// Creates the root app menu bar
 pub fn menu_bar(ctx: &mut AppContext) -> MenuBar {
-    MenuBar::new(vec![
+    let mut menus = vec![
         make_new_app_menu(ctx),
         make_new_file_menu(ctx),
         make_new_edit_menu(ctx),
@@ -72,10 +72,12 @@ pub fn menu_bar(ctx: &mut AppContext) -> MenuBar {
         make_new_tab_menu(ctx),
         make_new_blocks_menu(ctx),
         make_new_ai_menu(ctx),
-        make_new_drive_menu(ctx),
-        make_new_window_menu(),
-        make_new_help_menu(),
-    ])
+    ];
+    if !crate::local_terminal::is_enabled(ctx) {
+        menus.push(make_new_drive_menu(ctx));
+    }
+    menus.extend([make_new_window_menu(), make_new_help_menu()]);
+    MenuBar::new(menus)
 }
 
 // Creates the app dock menu
@@ -152,11 +154,13 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
         ))
     }
 
-    menu_items.extend([
-        MenuItem::Separator,
-        updateable_custom_item_without_checkmark(CustomAction::ReferAFriend, ctx),
-        MenuItem::Separator,
-    ]);
+    if !crate::local_terminal::is_enabled(ctx) {
+        menu_items.extend([
+            MenuItem::Separator,
+            updateable_custom_item_without_checkmark(CustomAction::ReferAFriend, ctx),
+            MenuItem::Separator,
+        ]);
+    }
 
     let preferences_menu_items = vec![
         updateable_custom_item_without_checkmark(CustomAction::ShowSettings, ctx),
@@ -233,21 +237,23 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
         None,
     )));
     menu_items.push(MenuItem::Separator);
-    menu_items.push(MenuItem::Custom(CustomMenuItem::new(
-        tr("menu.log_out", "Log out"),
-        auth::maybe_log_out,
-        move |_, ctx| {
-            let is_anonymous = AuthStateProvider::handle(ctx)
-                .as_ref(ctx)
-                .get()
-                .is_anonymous_or_logged_out();
-            MenuItemPropertyChanges {
-                disabled: Some(is_anonymous),
-                ..Default::default()
-            }
-        },
-        None,
-    )));
+    if !crate::local_terminal::is_enabled(ctx) {
+        menu_items.push(MenuItem::Custom(CustomMenuItem::new(
+            tr("menu.log_out", "Log out"),
+            auth::maybe_log_out,
+            move |_, ctx| {
+                let is_anonymous = AuthStateProvider::handle(ctx)
+                    .as_ref(ctx)
+                    .get()
+                    .is_anonymous_or_logged_out();
+                MenuItemPropertyChanges {
+                    disabled: Some(is_anonymous),
+                    ..Default::default()
+                }
+            },
+            None,
+        )));
+    }
     menu_items.push(MenuItem::Standard(StandardAction::Quit));
     Menu::new("TinyWarp", menu_items)
 }
@@ -378,9 +384,14 @@ fn make_new_edit_menu(ctx: &AppContext) -> Menu {
 }
 
 fn make_new_view_menu(ctx: &AppContext) -> Menu {
-    let mut items = vec![
-        updateable_custom_item_without_checkmark(CustomAction::ToggleWarpDrive, ctx),
-        MenuItem::Separator,
+    let mut items = vec![];
+    if !crate::local_terminal::is_enabled(ctx) {
+        items.extend([
+            updateable_custom_item_without_checkmark(CustomAction::ToggleWarpDrive, ctx),
+            MenuItem::Separator,
+        ]);
+    }
+    items.extend([
         updateable_custom_item_without_checkmark(CustomAction::CommandPalette, ctx),
         updateable_custom_item_without_checkmark(CustomAction::NavigationPalette, ctx),
         updateable_custom_item_without_checkmark(CustomAction::LaunchConfigPalette, ctx),
@@ -439,7 +450,7 @@ fn make_new_view_menu(ctx: &AppContext) -> Menu {
             },
             None,
         )),
-    ];
+    ]);
 
     let is_compact_mode = matches!(
         TerminalSettings::handle(ctx)
@@ -569,9 +580,13 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
         ctx,
     ));
     items.push(MenuItem::Separator);
+    if !crate::local_terminal::is_enabled(ctx) {
+        items.extend([
+            updateable_custom_item_without_checkmark(CustomAction::CreateBlockPermalink, ctx),
+            non_updateable_custom_item(CustomAction::ViewSharedBlocks, ctx),
+        ]);
+    }
     items.extend([
-        updateable_custom_item_without_checkmark(CustomAction::CreateBlockPermalink, ctx),
-        non_updateable_custom_item(CustomAction::ViewSharedBlocks, ctx),
         updateable_custom_item_without_checkmark(CustomAction::ToggleBookmarkBlock, ctx),
         updateable_custom_item_without_checkmark(CustomAction::FindWithinBlock, ctx),
         MenuItem::Separator,

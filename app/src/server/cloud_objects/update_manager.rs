@@ -68,6 +68,7 @@ use crate::drive::drive_helpers::{
 use crate::drive::folders::{CloudFolderModel, FolderId};
 use crate::drive::sharing::SharingAccessLevel;
 use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
+use crate::local_terminal;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
@@ -207,18 +208,20 @@ impl UpdateManager {
         object_client: Arc<dyn ObjectClient>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let network_status = NetworkStatus::handle(ctx);
-        ctx.subscribe_to_model(&network_status, |me, _, event, ctx| {
-            me.handle_network_status_changed(event, ctx);
-        });
+        if !local_terminal::is_enabled(ctx) {
+            let network_status = NetworkStatus::handle(ctx);
+            ctx.subscribe_to_model(&network_status, |me, _, event, ctx| {
+                me.handle_network_status_changed(event, ctx);
+            });
 
-        let team_tester_status = TeamTesterStatus::handle(ctx);
-        ctx.subscribe_to_model(&team_tester_status, Self::handle_team_tester_status_changed);
+            let team_tester_status = TeamTesterStatus::handle(ctx);
+            ctx.subscribe_to_model(&team_tester_status, Self::handle_team_tester_status_changed);
 
-        let sync_queue = SyncQueue::handle(ctx);
-        ctx.subscribe_to_model(&sync_queue, |me, _, event, ctx| {
-            me.handle_model_event(event, ctx);
-        });
+            let sync_queue = SyncQueue::handle(ctx);
+            ctx.subscribe_to_model(&sync_queue, |me, _, event, ctx| {
+                me.handle_model_event(event, ctx);
+            });
+        }
 
         Self {
             model_event_sender,
@@ -603,6 +606,10 @@ impl UpdateManager {
         cloud_object_type_and_id: &CloudObjectTypeAndId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             if let Some(object) = cloud_model.get_mut_by_uid(&cloud_object_type_and_id.uid()) {
                 let queue_item = object
@@ -624,6 +631,10 @@ impl UpdateManager {
     }
 
     pub fn start_polling_for_updated_objects(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let is_online = NetworkStatus::as_ref(ctx).is_online();
 
         if !self.should_poll_for_updated_objects && is_online {
@@ -634,6 +645,10 @@ impl UpdateManager {
 
     /// Out-of-band (from the regular poll) refresh of updated objects.
     pub fn refresh_updated_objects(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let object_client = self.object_client.clone();
         let cloud_model = CloudModel::as_ref(ctx);
         let versions_for_all_objects = cloud_model.get_versions_for_all_objects(ctx);
@@ -677,6 +692,10 @@ impl UpdateManager {
     }
 
     fn poll_for_updated_objects(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.abort_existing_poll();
 
         if !self.should_poll_for_updated_objects {
@@ -1128,6 +1147,10 @@ impl UpdateManager {
     /// Fetches environment "last used" timestamps from the server and merges them
     /// into the in-memory environment objects.
     fn fetch_and_merge_environment_timestamps(&mut self, ctx: &mut ModelContext<UpdateManager>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let object_client = self.object_client.clone();
         let future = ctx.spawn(
             async move {
@@ -1253,6 +1276,10 @@ impl UpdateManager {
         message: ObjectUpdateMessage,
         ctx: &mut ModelContext<Self>,
     ) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         match message {
             ObjectUpdateMessage::ObjectContentChanged {
                 server_object,
@@ -1482,9 +1509,13 @@ impl UpdateManager {
         fetch_single_object_option: FetchSingleObjectOption,
         ctx: &mut ModelContext<Self>,
     ) -> Receiver<()> {
+        let (fetch_cloud_object_tx, fetch_cloud_object_rx) = oneshot::channel::<()>();
+        if local_terminal::is_enabled(ctx) {
+            // 保持失败时的取消语义，不能把未执行的云请求报告为成功。
+            return fetch_cloud_object_rx;
+        }
         let object_client = self.object_client.clone();
         let server_id_copy = *server_id;
-        let (fetch_cloud_object_tx, fetch_cloud_object_rx) = oneshot::channel::<()>();
         let future = ctx.spawn(
             async move {
                 object_client
@@ -4079,6 +4110,10 @@ impl UpdateManager {
         optimistically_grant_access: bool,
         ctx: &mut ModelContext<Self>,
     ) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // If the object isn't known to the server yet, we should not proceed
         let SyncId::ServerId(server_id) = notebook_id else {
             return;
@@ -4157,6 +4192,10 @@ impl UpdateManager {
         notebook_id: SyncId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // If the object isn't known to the server yet, we should not proceed
         let SyncId::ServerId(server_id) = notebook_id else {
             return;

@@ -1089,5 +1089,8 @@
   "workspace.toolbar.rearrange": "调整工具栏项目",
   "workspace.toolbar.search": "搜索会话、智能体、文件…",
   "workspace.toolbar.tabs_panel": "标签页面板",
-  "workspace.toolbar.tools_panel": "工具面板"
+  "workspace.toolbar.tools_panel": "工具面板",
+  "local_terminal.panel.title": "云服务不可用",
+  "local_terminal.panel.description": "TinyWarp 本地终端不使用账号或云服务。",
+  "local_terminal.unavailable": "TinyWarp 本地终端不提供登录、账号或云服务功能。"
 }

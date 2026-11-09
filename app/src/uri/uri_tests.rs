@@ -1116,3 +1116,45 @@ fn test_decode_uuid_hex_rejects_wrong_length() {
 fn test_decode_uuid_hex_rejects_invalid_chars() {
     assert!(super::decode_uuid_hex("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ").is_none());
 }
+
+#[test]
+fn local_terminal_blocks_account_and_cloud_routes_but_keeps_local_links() {
+    for (host, url) in [
+        (UriHost::Auth, "warposs://auth?token=fixture"),
+        (UriHost::Team, "warposs://team"),
+        (UriHost::Drive, "warposs://drive/notebook"),
+        (UriHost::ChatGPTLink, "warposs://chatgpt-link"),
+        (
+            UriHost::Settings,
+            "warposs://settings/teams?invite=fixture@example.invalid",
+        ),
+        (UriHost::Settings, "warposs://settings/account"),
+        (UriHost::Settings, "warposs://settings/billing_and_usage"),
+        (UriHost::Settings, "warposs://settings/environments"),
+        (UriHost::Settings, "warposs://settings/platform"),
+        (
+            UriHost::Action,
+            "warposs://action/new_cloud_agent_conversation",
+        ),
+        (UriHost::Action, "warposs://action/create_environment"),
+    ] {
+        assert!(
+            host.requires_cloud_account(&Url::parse(url).unwrap()),
+            "{url}"
+        );
+    }
+    for (host, url) in [
+        (UriHost::Settings, "warposs://settings/appearance"),
+        (UriHost::Settings, "warposs://settings/features"),
+        (UriHost::Action, "warposs://action/new_tab?path=/tmp"),
+        (UriHost::Action, "warposs://action/new_window"),
+        (UriHost::TabConfig, "warposs://tab_config/local"),
+        (UriHost::Launch, "warposs://launch/local"),
+        (UriHost::Session, "warposs://session/local"),
+    ] {
+        assert!(
+            !host.requires_cloud_account(&Url::parse(url).unwrap()),
+            "{url}"
+        );
+    }
+}

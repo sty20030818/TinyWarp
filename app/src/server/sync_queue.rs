@@ -40,6 +40,7 @@ use crate::cloud_object::{
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::folders::CloudFolderModel;
 use crate::env_vars::CloudEnvVarCollectionModel;
+use crate::local_terminal;
 use crate::notebooks::CloudNotebookModel;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::settings::cloud_preferences::CloudPreferenceModel;
@@ -386,7 +387,10 @@ impl SyncQueue {
             queue_dependencies: Default::default(),
         };
 
-        sync_queue.initialize_queue_dependencies(ctx);
+        // 无账号时重建依赖可能把旧任务标记失败；本地模式保留原队列。
+        if !local_terminal::is_enabled(ctx) {
+            sync_queue.initialize_queue_dependencies(ctx);
+        }
         sync_queue
     }
 
@@ -399,6 +403,10 @@ impl SyncQueue {
     }
 
     pub fn start_dequeueing(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.should_dequeue = true;
         self.dequeue(ctx)
     }
@@ -436,6 +444,10 @@ impl SyncQueue {
         item_id: &QueueItemId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let mut dependencies = match item {
             // Update requests will depend on any existing create/updates to the same object
             QueueItem::UpdateNotebook { id, .. }
@@ -711,6 +723,10 @@ impl SyncQueue {
 
     /// Dequeue a request from the queue.
     fn dequeue(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // In some cases, we shouldn't dequeue any items, such as when we're offline
         // or when initial load was unsuccessful
         if !self.should_dequeue {

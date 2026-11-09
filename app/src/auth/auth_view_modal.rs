@@ -388,6 +388,11 @@ impl TypedActionView for AuthView {
     type Action = AuthViewAction;
 
     fn handle_action(&mut self, action: &AuthViewAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         match action {
             AuthViewAction::PasteAuthUrl => {
                 self.last_login_failure_reason = None;

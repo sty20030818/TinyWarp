@@ -261,3 +261,58 @@ fn shortcut_filter_keeps_english_alias_and_original_binding_after_localization()
         );
     }
 }
+
+#[test]
+fn local_terminal_hides_account_candidates_without_removing_registered_bindings() {
+    use super::{CommandBinding, is_action_available_in_local_terminal};
+    use crate::settings_view::{SettingsAction, SettingsSection};
+
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            crate::local_terminal::enable_for_test(ctx);
+            ctx.register_editable_bindings([
+                EditableBinding::new("test:l1_log_out", "Log out", WorkspaceAction::LogOut),
+                EditableBinding::new(
+                    "test:l1_settings",
+                    "Settings",
+                    WorkspaceAction::ShowSettings,
+                ),
+                EditableBinding::new(
+                    "test:l1_share",
+                    "Share block",
+                    terminal::view::TerminalAction::OpenShareModal,
+                ),
+                EditableBinding::new(
+                    "test:l1_local_sync",
+                    "Synchronize local pane input",
+                    WorkspaceAction::ToggleSyncAllTerminalInputsInAllTabs,
+                ),
+            ]);
+            for (name, visible) in [
+                ("test:l1_log_out", false),
+                ("test:l1_settings", true),
+                ("test:l1_share", false),
+                ("test:l1_local_sync", true),
+            ] {
+                let lens = ctx
+                    .get_binding_by_name(name)
+                    .expect("旧 action 注册必须保留");
+                let id = lens.id;
+                let binding = CommandBinding::from_lens(lens, ctx);
+                assert_eq!(binding.is_some(), visible, "{name}");
+                if let Some(binding) = binding {
+                    assert_eq!(binding.id, id);
+                    assert_eq!(binding.name, name);
+                }
+            }
+            assert!(!is_action_available_in_local_terminal(
+                &SettingsAction::SelectAndRefresh(SettingsSection::Account),
+                ctx,
+            ));
+            assert!(is_action_available_in_local_terminal(
+                &SettingsAction::SelectAndRefresh(SettingsSection::Scripting),
+                ctx,
+            ));
+        });
+    });
+}

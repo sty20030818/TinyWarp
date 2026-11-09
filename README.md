@@ -6,7 +6,7 @@
 - [技术方案](docs/fork/2026-11-09-technical-plan.md)
 - [macOS 构建方法](docs/fork/build-macos.md)
 
-TinyWarp 保留 OSS 的数据身份，与已安装的 Warp Preview 分开保存配置和会话。H1/H2 已完成常用本地终端、菜单、历史与补全、标签/分屏、布局配置及本地设置汉化；账号、同步与 AI 精简按后续阶段推进。
+TinyWarp 保留 OSS 的数据身份，与已安装的 Warp Preview 分开保存配置和会话。H1/H2 已完成本地终端汉化；L1 已支持启动直接进入本地终端，停用账号与云同步入口及后台活动。后续继续精简 AI 和外围能力。
 
 以下保留上游项目说明和许可入口。
 

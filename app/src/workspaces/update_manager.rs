@@ -20,6 +20,7 @@ use super::workspace::WorkspaceUid;
 use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::CloudObjectEventEntrypoint;
+use crate::local_terminal;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::persistence::ModelEvent;
 use crate::pricing::PricingInfoModel;
@@ -72,11 +73,13 @@ impl TeamUpdateManager {
         model_event_sender: Option<SyncSender<ModelEvent>>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let network_status = NetworkStatus::handle(ctx);
-        ctx.subscribe_to_model(&network_status, Self::handle_network_status_changed);
+        if !local_terminal::is_enabled(ctx) {
+            let network_status = NetworkStatus::handle(ctx);
+            ctx.subscribe_to_model(&network_status, Self::handle_network_status_changed);
 
-        let team_tester_status = TeamTesterStatus::handle(ctx);
-        ctx.subscribe_to_model(&team_tester_status, Self::handle_team_tester_status_changed);
+            let team_tester_status = TeamTesterStatus::handle(ctx);
+            ctx.subscribe_to_model(&team_tester_status, Self::handle_team_tester_status_changed);
+        }
 
         Self {
             team_client,
@@ -146,6 +149,10 @@ impl TeamUpdateManager {
     /// Starts a periodic poll for workspace metadata changes, if there isn't already
     /// an existing poll queued up.
     pub fn start_polling_for_workspace_metadata_updates(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let is_online = NetworkStatus::as_ref(ctx).is_online();
         if !self.should_poll_for_workspace_metadata_updates && is_online {
             self.should_poll_for_workspace_metadata_updates = true;
@@ -165,7 +172,7 @@ impl TeamUpdateManager {
         ctx: &mut ModelContext<Self>,
     ) -> Receiver<Result<()>> {
         // Skip the refresh when logged out to avoid noisy auth errors.
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
+        if local_terminal::is_enabled(ctx) || !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             let (tx, rx) = oneshot::channel::<Result<()>>();
             let _ = tx.send(Ok(()));
             return rx;
@@ -185,10 +192,9 @@ impl TeamUpdateManager {
         retry_policy: WorkspaceMetadataRetryPolicy,
         ctx: &mut ModelContext<Self>,
     ) -> impl Spawnable<Output = Result<()>> + use<> {
-        let team_client = AuthStateProvider::as_ref(ctx)
-            .get()
-            .is_logged_in()
-            .then(|| self.team_client.clone());
+        let team_client = (!local_terminal::is_enabled(ctx)
+            && AuthStateProvider::as_ref(ctx).get().is_logged_in())
+        .then(|| self.team_client.clone());
         let foreground = ctx.spawner();
 
         async move {
@@ -274,6 +280,10 @@ impl TeamUpdateManager {
     /// the behaviour for polling workspace metadata, we should consider what ramifications
     /// that has on querying experiment state.
     fn poll_for_workspace_metadata_changes(&mut self, ctx: &mut ModelContext<Self>) {
+        if local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.abort_existing_poll();
 
         if !self.should_poll_for_workspace_metadata_updates {

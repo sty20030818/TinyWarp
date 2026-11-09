@@ -373,6 +373,20 @@ impl Display for SettingsSection {
 }
 
 impl SettingsSection {
+    pub(crate) fn is_available_in_local_terminal(self) -> bool {
+        !matches!(
+            self,
+            Self::Account
+                | Self::BillingAndUsage
+                | Self::Teams
+                | Self::Referrals
+                | Self::CloudEnvironments
+                | Self::WarpCloudAgentAPIKeys
+                | Self::SharedBlocks
+                | Self::WarpDrive
+        )
+    }
+
     /// Stable identifier for this section, used everywhere the section leaves
     /// the process: the SQLite session-restore key and the
     /// `surface.settings.open --page` warpctrl vocabulary.
@@ -1043,6 +1057,36 @@ pub enum SettingsAction {
     Debug(DebugSettingsAction),
 }
 
+impl SettingsAction {
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        match self {
+            Self::SelectAndRefresh(section) => !section.is_available_in_local_terminal(),
+            Self::MainPageToggle(_) | Self::WarpDrive(_) => true,
+            Self::PrivacyPageToggle(action) => action.blocked_in_local_terminal(),
+            Self::WarpAgent(action) => action.blocked_in_local_terminal(),
+            _ => false,
+        }
+    }
+}
+
+fn initial_settings_section(
+    page: Option<SettingsSection>,
+    scripting_enabled: bool,
+    is_local_terminal: bool,
+) -> SettingsSection {
+    let fallback = if is_local_terminal {
+        SettingsSection::Features
+    } else {
+        SettingsSection::Account
+    };
+    match page {
+        Some(SettingsSection::Scripting) if !scripting_enabled => fallback,
+        Some(section) if is_local_terminal && !section.is_available_in_local_terminal() => fallback,
+        Some(section) => section,
+        None => fallback,
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 enum CycleDirection {
     Up,
@@ -1210,7 +1254,7 @@ pub struct SettingsView {
     clipped_scroll_state: ClippedScrollStateHandle,
     context_menu: ViewHandle<Menu<SettingsAction>>,
     context_menu_state: Option<Vector2F>,
-    environments_page_handle: ViewHandle<EnvironmentsPageView>,
+    environments_page_handle: Option<ViewHandle<EnvironmentsPageView>>,
     /// Sidebar navigation items (pages + umbrellas). This is the single source
     /// of truth for which sections sit under which umbrella.
     nav_items: Vec<SettingsNavItem>,
@@ -1232,12 +1276,18 @@ impl SettingsView {
         let pane_configuration =
             ctx.add_model(|_ctx| PaneConfiguration::new(tr("settings.title", "Settings")));
 
+        let is_local_terminal = crate::local_terminal::is_enabled(ctx);
         let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
-        // Main settings page with accounts info
-        let main_page_handle = ctx.add_typed_action_view(MainSettingsPageView::new);
-        ctx.subscribe_to_view(&main_page_handle, |me, _, event, ctx| {
-            me.handle_main_page_event(event, ctx);
-        });
+        let main_page = if is_local_terminal {
+            None
+        } else {
+            // Main settings page with accounts info
+            let main_page_handle = ctx.add_typed_action_view(MainSettingsPageView::new);
+            ctx.subscribe_to_view(&main_page_handle, |me, _, event, ctx| {
+                me.handle_main_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(main_page_handle))
+        };
 
         // Appearance & themes page
         let appearance_page_handle = ctx.add_typed_action_view(AppearanceSettingsPageView::new);
@@ -1254,19 +1304,24 @@ impl SettingsView {
             me.handle_features_page_event(event, ctx);
         });
 
-        // Shared blocks page
-        let block_client = ServerApiProvider::as_ref(ctx).get_block_client();
-        let show_blocks_view_handle =
-            ctx.add_typed_action_view(|ctx| ShowBlocksView::new(block_client, ctx));
+        let shared_blocks_page = if is_local_terminal {
+            None
+        } else {
+            // Shared blocks page
+            let block_client = ServerApiProvider::as_ref(ctx).get_block_client();
+            let show_blocks_view_handle =
+                ctx.add_typed_action_view(|ctx| ShowBlocksView::new(block_client, ctx));
 
-        ctx.subscribe_to_view(&show_blocks_view_handle, |_, _, event, ctx| match event {
-            ShowBlocksEvent::ShowToast { message, flavor } => {
-                ctx.emit(SettingsViewEvent::ShowToast {
-                    message: message.clone(),
-                    flavor: *flavor,
-                })
-            }
-        });
+            ctx.subscribe_to_view(&show_blocks_view_handle, |_, _, event, ctx| match event {
+                ShowBlocksEvent::ShowToast { message, flavor } => {
+                    ctx.emit(SettingsViewEvent::ShowToast {
+                        message: message.clone(),
+                        flavor: *flavor,
+                    })
+                }
+            });
+            Some(SettingsPage::new(show_blocks_view_handle))
+        };
 
         // About page
         let about_page_handle = ctx.add_typed_action_view(AboutPageView::new);
@@ -1295,18 +1350,28 @@ impl SettingsView {
             me.handle_cli_agents_page_event(event, ctx);
         });
 
-        // Environments page
-        let environments_page_handle = ctx.add_typed_action_view(EnvironmentsPageView::new);
-        ctx.subscribe_to_view(&environments_page_handle, |me, _, event, ctx| {
-            me.handle_environments_page_event(event, ctx);
-        });
+        let environments_page_handle = if is_local_terminal {
+            None
+        } else {
+            // Environments page
+            let environments_page_handle = ctx.add_typed_action_view(EnvironmentsPageView::new);
+            ctx.subscribe_to_view(&environments_page_handle, |me, _, event, ctx| {
+                me.handle_environments_page_event(event, ctx);
+            });
+            Some(environments_page_handle)
+        };
 
-        // Billing & Usage page (internally, this routes to the v1 or v2 version. Depending on FFs and current plan).
-        let billing_and_usage_handle = ctx.add_typed_action_view(BillingAndUsageDispatchView::new);
-        ctx.subscribe_to_view(&billing_and_usage_handle, |me, _, event, ctx| {
-            me.handle_billing_and_usage_page_event(event, ctx);
-        });
-        let billing_and_usage_page = SettingsPage::new(billing_and_usage_handle);
+        let billing_and_usage_page = if is_local_terminal {
+            None
+        } else {
+            // Billing & Usage page (internally, this routes to the v1 or v2 version. Depending on FFs and current plan).
+            let billing_and_usage_handle =
+                ctx.add_typed_action_view(BillingAndUsageDispatchView::new);
+            ctx.subscribe_to_view(&billing_and_usage_handle, |me, _, event, ctx| {
+                me.handle_billing_and_usage_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(billing_and_usage_handle))
+        };
 
         // Keybindings page
         let keybindings_handle = ctx.add_typed_action_view(KeybindingsView::new);
@@ -1318,21 +1383,26 @@ impl SettingsView {
         });
         let editor_review_page_handle = ctx.add_typed_action_view(EditorAndCodeReviewPageView::new);
 
-        // Teams page, adding unconditionally, as `should_render` later on decides whether it
-        // should be shown to the user or not
-        let teams_page_handle = ctx.add_typed_action_view(TeamsPageView::new);
-        ctx.subscribe_to_view(&teams_page_handle, |_, _, event, ctx| match event {
-            TeamsPageViewEvent::TeamsChanged => ctx.notify(),
-            TeamsPageViewEvent::OpenWarpDrive => ctx.emit(SettingsViewEvent::OpenWarpDrive),
-            TeamsPageViewEvent::ShowToast { message, flavor } => {
-                ctx.emit(SettingsViewEvent::ShowToast {
-                    message: message.clone(),
-                    flavor: *flavor,
-                })
-            }
-            // Modal rendering is handled in get_modal_content_for_page
-            TeamsPageViewEvent::ModalVisibilityChanged => ctx.notify(),
-        });
+        let teams_page = if is_local_terminal {
+            None
+        } else {
+            // Teams page, adding unconditionally, as `should_render` later on decides whether it
+            // should be shown to the user or not
+            let teams_page_handle = ctx.add_typed_action_view(TeamsPageView::new);
+            ctx.subscribe_to_view(&teams_page_handle, |_, _, event, ctx| match event {
+                TeamsPageViewEvent::TeamsChanged => ctx.notify(),
+                TeamsPageViewEvent::OpenWarpDrive => ctx.emit(SettingsViewEvent::OpenWarpDrive),
+                TeamsPageViewEvent::ShowToast { message, flavor } => {
+                    ctx.emit(SettingsViewEvent::ShowToast {
+                        message: message.clone(),
+                        flavor: *flavor,
+                    })
+                }
+                // Modal rendering is handled in get_modal_content_for_page
+                TeamsPageViewEvent::ModalVisibilityChanged => ctx.notify(),
+            });
+            Some(SettingsPage::new(teams_page_handle))
+        };
 
         let warpify_page_handle = ctx.add_typed_action_view(WarpifyPageView::new);
         ctx.subscribe_to_view(&warpify_page_handle, |me, _, event, ctx| {
@@ -1345,29 +1415,46 @@ impl SettingsView {
             me.handle_privacy_page_event(event, ctx);
         });
 
-        let referrals_client = ServerApiProvider::as_ref(ctx).get_referrals_client();
-        let referrals_page_handle =
-            ctx.add_typed_action_view(|ctx| ReferralsPageView::new(referrals_client, ctx));
-        ctx.subscribe_to_view(&referrals_page_handle, |me, _, event, ctx| {
-            me.handle_referrals_page_event(event, ctx);
-        });
+        let referrals_page = if is_local_terminal {
+            None
+        } else {
+            let referrals_client = ServerApiProvider::as_ref(ctx).get_referrals_client();
+            let referrals_page_handle =
+                ctx.add_typed_action_view(|ctx| ReferralsPageView::new(referrals_client, ctx));
+            ctx.subscribe_to_view(&referrals_page_handle, |me, _, event, ctx| {
+                me.handle_referrals_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(referrals_page_handle))
+        };
+
         let scripting_page_handle = if FeatureFlag::WarpControlCli.is_enabled() {
             Some(ctx.add_typed_action_view(ScriptingSettingsPageView::new))
         } else {
             None
         };
 
-        // Warp Drive page
-        let warp_drive_page_handle =
-            ctx.add_typed_action_view(warp_drive_page::WarpDriveSettingsPageView::new);
-        ctx.subscribe_to_view(&warp_drive_page_handle, |me, _, event, ctx| {
-            me.handle_warp_drive_page_event(event, ctx);
-        });
+        let warp_drive_page = if is_local_terminal {
+            None
+        } else {
+            // Warp Drive page
+            let warp_drive_page_handle =
+                ctx.add_typed_action_view(warp_drive_page::WarpDriveSettingsPageView::new);
+            ctx.subscribe_to_view(&warp_drive_page_handle, |me, _, event, ctx| {
+                me.handle_warp_drive_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(warp_drive_page_handle))
+        };
 
-        let platform_page_handle = ctx.add_typed_action_view(platform_page::PlatformPageView::new);
-        ctx.subscribe_to_view(&platform_page_handle, |me, _, event, ctx| {
-            me.handle_platform_page_event(event, ctx);
-        });
+        let platform_page = if is_local_terminal {
+            None
+        } else {
+            let platform_page_handle =
+                ctx.add_typed_action_view(platform_page::PlatformPageView::new);
+            ctx.subscribe_to_view(&platform_page_handle, |me, _, event, ctx| {
+                me.handle_platform_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(platform_page_handle))
+        };
 
         // MCP Servers page
         let mcp_servers_page_handle = ctx.add_typed_action_view(MCPServersSettingsPageView::new);
@@ -1404,35 +1491,42 @@ impl SettingsView {
         });
 
         let mut settings_pages = vec![
-            SettingsPage::new(main_page_handle),
-            SettingsPage::new(warp_agent_page_handle),
-            SettingsPage::new(agent_profiles_page_handle),
-            SettingsPage::new(knowledge_page_handle),
-            SettingsPage::new(cli_agents_page_handle),
+            main_page,
+            Some(SettingsPage::new(warp_agent_page_handle)),
+            Some(SettingsPage::new(agent_profiles_page_handle)),
+            Some(SettingsPage::new(knowledge_page_handle)),
+            Some(SettingsPage::new(cli_agents_page_handle)),
             billing_and_usage_page,
-            SettingsPage::new(code_indexing_page_handle),
-            SettingsPage::new(editor_review_page_handle),
-            SettingsPage::new(teams_page_handle),
-            SettingsPage::new(appearance_page_handle),
-            SettingsPage::new(features_page_handle),
-            SettingsPage::new(keybindings_handle),
-            SettingsPage::new(platform_page_handle),
-            SettingsPage::new(warpify_page_handle),
-            SettingsPage::new(referrals_page_handle),
-            SettingsPage::new(show_blocks_view_handle),
-            SettingsPage::new(warp_drive_page_handle),
-        ];
+            Some(SettingsPage::new(code_indexing_page_handle)),
+            Some(SettingsPage::new(editor_review_page_handle)),
+            teams_page,
+            Some(SettingsPage::new(appearance_page_handle)),
+            Some(SettingsPage::new(features_page_handle)),
+            Some(SettingsPage::new(keybindings_handle)),
+            platform_page,
+            Some(SettingsPage::new(warpify_page_handle)),
+            referrals_page,
+            shared_blocks_page,
+            warp_drive_page,
+        ]
+        .into_iter()
+        .flatten()
+        .collect_vec();
 
         if let Some(scripting_page_handle) = scripting_page_handle {
             settings_pages.push(SettingsPage::new(scripting_page_handle));
         }
 
-        settings_pages.extend(vec![
-            SettingsPage::new(mcp_servers_page_handle),
-            SettingsPage::new(environments_page_handle.clone()),
-            SettingsPage::new(privacy_page_handle),
-            SettingsPage::new(about_page_handle),
-        ]);
+        settings_pages.extend(
+            [
+                Some(SettingsPage::new(mcp_servers_page_handle)),
+                environments_page_handle.clone().map(SettingsPage::new),
+                Some(SettingsPage::new(privacy_page_handle)),
+                Some(SettingsPage::new(about_page_handle)),
+            ]
+            .into_iter()
+            .flatten(),
+        );
 
         // Build sidebar nav items. Umbrellas group their subpages here and
         // nowhere else, so this list is the only place membership is declared.
@@ -1491,12 +1585,21 @@ impl SettingsView {
             );
         }
 
-        let initial_page = match page {
-            Some(SettingsSection::Scripting) if !FeatureFlag::WarpControlCli.is_enabled() => {
-                SettingsSection::Account
-            }
-            other => other.unwrap_or_default(),
-        };
+        if is_local_terminal {
+            nav_items.retain(|item| match item {
+                SettingsNavItem::Page(section) => section.is_available_in_local_terminal(),
+                SettingsNavItem::Umbrella(umbrella) => umbrella
+                    .subpages
+                    .iter()
+                    .any(|section| section.is_available_in_local_terminal()),
+            });
+        }
+
+        let initial_page = initial_settings_section(
+            page,
+            FeatureFlag::WarpControlCli.is_enabled(),
+            is_local_terminal,
+        );
 
         // Auto-expand the umbrella if the initial page is one of its subpages.
         for item in &mut nav_items {
@@ -2077,6 +2180,14 @@ impl SettingsView {
         allow_steal_focus: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        let section = if crate::local_terminal::is_enabled(ctx)
+            && !section.is_available_in_local_terminal()
+        {
+            crate::local_terminal::show_unavailable(ctx);
+            SettingsSection::Features
+        } else {
+            section
+        };
         // Every nav target owns its backing page. Check it exists.
         if self.settings_page(section).is_none() {
             return;
@@ -2146,6 +2257,11 @@ impl SettingsView {
     }
 
     fn should_render_page(&self, settings_page: &SettingsPage, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app)
+            && !settings_page.section.is_available_in_local_terminal()
+        {
+            return false;
+        }
         match &settings_page.view_handle {
             SettingsPageViewHandle::Main(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Teams(v) => v.as_ref(app).should_render(app),
@@ -2178,6 +2294,10 @@ impl SettingsView {
         email: Option<&String>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         if let Some(team_page) = self.settings_page(SettingsSection::Teams)
             && let SettingsPageViewHandle::Teams(view) = &team_page.view_handle
         {
@@ -2188,6 +2308,10 @@ impl SettingsView {
     }
 
     pub fn open_teams_page_join_modal(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         if let Some(team_page) = self.settings_page(SettingsSection::Teams)
             && let SettingsPageViewHandle::Teams(view) = &team_page.view_handle
         {
@@ -2719,22 +2843,19 @@ impl View for SettingsView {
             );
         }
 
-        // Render environment setup mode selector overlay when open.
-        if let Some(selector_handle) = self
-            .environments_page_handle
-            .as_ref(app)
-            .environment_setup_mode_selector_handle()
-        {
-            stack.add_child(ChildView::new(selector_handle).finish());
-        }
-
-        // Render agent-assisted environment modal overlay when open.
-        if let Some(modal_handle) = self
-            .environments_page_handle
-            .as_ref(app)
-            .agent_assisted_environment_modal_handle(app)
-        {
-            stack.add_child(ChildView::new(modal_handle).finish());
+        if let Some(environments_page) = &self.environments_page_handle {
+            if let Some(selector_handle) = environments_page
+                .as_ref(app)
+                .environment_setup_mode_selector_handle()
+            {
+                stack.add_child(ChildView::new(selector_handle).finish());
+            }
+            if let Some(modal_handle) = environments_page
+                .as_ref(app)
+                .agent_assisted_environment_modal_handle(app)
+            {
+                stack.add_child(ChildView::new(modal_handle).finish());
+            }
         }
 
         SavePosition::new(stack.finish(), POSITION_ID).finish()
@@ -2745,6 +2866,13 @@ impl TypedActionView for SettingsView {
     type Action = SettingsAction;
 
     fn handle_action(&mut self, action: &SettingsAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx)
+            && action.blocked_in_local_terminal()
+            && !matches!(action, SettingsAction::SelectAndRefresh(_))
+        {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         match action {
             SettingsAction::SelectAndRefresh(section) => {
                 self.set_and_refresh_current_page_internal(*section, false, true, ctx);

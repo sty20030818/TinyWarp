@@ -351,3 +351,158 @@ fn test_persist_skips_when_api_key_authenticated() {
         });
     });
 }
+
+#[test]
+fn local_terminal_auth_entrypoints_keep_existing_identity_and_emit_no_events() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let auth_state = app.read(|ctx| AuthStateProvider::as_ref(ctx).get().clone());
+        auth_state.set_credentials(Some(Credentials::Firebase(FirebaseAuthTokens {
+            id_token: "fixture-existing-id-token".to_owned(),
+            refresh_token: "fixture-existing-refresh-token".to_owned(),
+            expiration_time: chrono::Utc::now().fixed_offset() + chrono::Duration::days(365),
+        })));
+        let snapshot = || match auth_state.persist_action() {
+            crate::auth::auth_state::PersistAction::Persist(user) => {
+                serde_json::to_value(user).expect("人工旧身份应可序列化")
+            }
+            _ => panic!("此回归的旧身份应具有可持久化凭据"),
+        };
+        let original = snapshot();
+
+        let mut auth_client = MockAuthClient::new();
+        auth_client.expect_fetch_user().times(0);
+        auth_client.expect_get_or_refresh_access_token().times(0);
+        auth_client.expect_request_device_code().times(0);
+        auth_client.expect_exchange_device_access_token().times(0);
+        AuthManager::handle(&app).update(&mut app, |manager, _| {
+            manager.auth_client = Arc::new(auth_client);
+        });
+        let events = Arc::new(AtomicUsize::new(0));
+        let events_for_subscription = events.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_model(&AuthManager::handle(ctx), move |_, _, _| {
+                events_for_subscription.fetch_add(1, Ordering::Relaxed);
+            });
+        });
+
+        // 不注册 SecureStorage；persist 一旦越过本地边界就会因缺模型失败。
+        AuthManager::handle(&app).update(&mut app, |manager, ctx| {
+            let pending = manager.generate_auth_state();
+            manager.authenticate_api_key("fixture-incoming-key".to_owned(), ctx);
+            assert_eq!(snapshot(), original);
+            manager.refresh_user(ctx);
+            assert_eq!(snapshot(), original);
+            manager.initialize_user_from_auth_payload(
+                AuthRedirectPayload {
+                    refresh_token: RefreshToken::new("fixture-incoming-refresh-token"),
+                    user_uid: Some(UserUid::new("fixture-other-user")),
+                    deleted_anonymous_user: Some(false),
+                    state: Some("fixture-invalid-state".to_owned()),
+                },
+                true,
+                ctx,
+            );
+            assert_eq!(snapshot(), original);
+            manager.authorize_device(ctx);
+            assert_eq!(snapshot(), original);
+            manager.attempt_login_gated_feature(
+                "fixture-local-terminal",
+                crate::auth::auth_view_modal::AuthViewVariant::RequireLoginCloseable,
+                ctx,
+            );
+            assert_eq!(snapshot(), original);
+            manager.log_out(ctx);
+            assert_eq!(snapshot(), original);
+            manager.persist(ctx);
+            assert_eq!(snapshot(), original);
+            assert_eq!(
+                manager.pending_auth_state.as_deref(),
+                Some(pending.as_str())
+            );
+        });
+        warpui::r#async::Timer::after(Duration::from_millis(10)).await;
+        assert_eq!(events.load(Ordering::Relaxed), 0);
+        assert_eq!(snapshot(), original);
+    });
+}
+
+#[test]
+fn local_terminal_login_gate_does_not_emit_events_for_logged_out_user() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
+        app.add_singleton_model(|_| AuthStateProvider::new_logged_out_for_test());
+        app.add_singleton_model(AuthManager::new_for_test);
+        app.update(crate::local_terminal::enable_for_test);
+        let events = Arc::new(AtomicUsize::new(0));
+        let events_for_subscription = events.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_model(&AuthManager::handle(ctx), move |_, _, _| {
+                events_for_subscription.fetch_add(1, Ordering::Relaxed);
+            });
+        });
+        AuthManager::handle(&app).update(&mut app, |manager, ctx| {
+            manager.attempt_login_gated_feature(
+                "fixture-local-terminal",
+                crate::auth::auth_view_modal::AuthViewVariant::RequireLoginCloseable,
+                ctx,
+            );
+        });
+        assert_eq!(events.load(Ordering::Relaxed), 0);
+        app.read(|ctx| {
+            let auth = AuthStateProvider::as_ref(ctx).get();
+            assert!(auth.user_id().is_none());
+            assert!(auth.credentials().is_none());
+        });
+    });
+}
+
+#[test]
+fn local_terminal_logout_entrypoints_return_without_workspace_or_database_models() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        app.update(|ctx| {
+            assert!(!ctx.has_singleton_model::<AuthStateProvider>());
+            assert!(!ctx.has_singleton_model::<AuthManager>());
+            assert!(!ctx.has_singleton_model::<crate::GlobalResourceHandlesProvider>());
+            crate::auth::maybe_log_out(ctx);
+            crate::auth::log_out_and_open_web(ctx);
+            crate::auth::log_out(ctx);
+            assert!(!ctx.has_singleton_model::<AuthStateProvider>());
+            assert!(!ctx.has_singleton_model::<AuthManager>());
+            assert!(!ctx.has_singleton_model::<crate::GlobalResourceHandlesProvider>());
+        });
+    });
+}
+
+#[test]
+fn local_auth_initialization_stays_unpersisted_even_after_stale_identity_updates() {
+    App::test((), |mut app| async move {
+        // 此 helper 只注册内存 preferences；不注册平台凭据 store。
+        app.update(crate::settings::init_and_register_user_preferences);
+        app.read(|ctx| {
+            use crate::auth::auth_state::{AuthState, PersistAction};
+
+            let state = AuthState::initialize_local(ctx);
+            assert!(state.user_id().is_none());
+            assert!(state.credentials().is_none());
+            assert!(matches!(state.persist_action(), PersistAction::DoNothing));
+            state.set_user(Some(User::test()));
+            state.set_credentials(Some(Credentials::Firebase(FirebaseAuthTokens {
+                id_token: "fixture-stale-id-token".to_owned(),
+                refresh_token: "fixture-stale-refresh-token".to_owned(),
+                expiration_time: chrono::Utc::now().fixed_offset() + chrono::Duration::days(365),
+            })));
+            assert!(matches!(state.persist_action(), PersistAction::DoNothing));
+            state.set_credentials(Some(Credentials::ApiKey {
+                key: "fixture-stale-api-key".to_owned(),
+                owner_type: None,
+            }));
+            assert!(matches!(state.persist_action(), PersistAction::DoNothing));
+            state.set_user(None);
+            state.set_credentials(None);
+            assert!(matches!(state.persist_action(), PersistAction::DoNothing));
+        });
+    });
+}

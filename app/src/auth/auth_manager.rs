@@ -186,6 +186,11 @@ impl AuthManager {
         enforce_state_validation: bool,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         let AuthRedirectPayload {
             refresh_token,
             user_uid,
@@ -263,6 +268,11 @@ impl AuthManager {
         auth_payload: AuthRedirectPayload,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         let AuthRedirectPayload {
             refresh_token,
             user_uid: _,
@@ -287,6 +297,11 @@ impl AuthManager {
 
     #[cfg(target_family = "wasm")]
     pub fn initialize_user_from_session_cookie(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         let auth_client = self.auth_client.clone();
         let _ = ctx.spawn(
             async move {
@@ -300,6 +315,10 @@ impl AuthManager {
 
     /// Refreshes the user's auth state using their existing credentials.
     pub fn refresh_user(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let Some(credentials) = self.auth_state.credentials() else {
             log::warn!("Attempted to refresh user without credentials");
             return;
@@ -322,6 +341,11 @@ impl AuthManager {
     /// after the server accepts the key. A failed request leaves the client
     /// fully logged out.
     pub fn authenticate_api_key(&self, api_key: String, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         log::info!("Authenticating via pending API key");
         let api_key = if api_key.starts_with(API_KEY_PREFIX) {
             api_key
@@ -344,6 +368,11 @@ impl AuthManager {
     /// This is only used by the Warp CLI if running on a device that does not have the Warp app installed.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn authorize_device(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         // Clear any stale user state so old credentials don't interfere
         // with the fresh device auth flow.
         self.auth_state.set_credentials(None);
@@ -409,6 +438,10 @@ impl AuthManager {
         fetch_user_result: StdResult<FetchUserResult, UserAuthenticationError>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         match fetch_user_result {
             Ok(fetch_user_result) => {
                 let FetchUserResult {
@@ -616,6 +649,10 @@ impl AuthManager {
         credentials: Option<Credentials>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.auth_state.set_user(user);
         self.auth_state.set_credentials(credentials);
         self.persist(ctx);
@@ -624,6 +661,10 @@ impl AuthManager {
     /// Persists (or removes) the current user and credentials to/from secure storage,
     /// based on the current auth state.
     fn persist(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         match self.auth_state.persist_action() {
             PersistAction::Persist(persisted_user) => {
                 if persisted_user.auth_tokens.refresh_token.is_empty() {
@@ -648,6 +689,10 @@ impl AuthManager {
     /// it doesn't shut down any other user-dependent parts of the app.
     /// TODO(jeff): Can we move those pieces in here?
     pub(super) fn log_out(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Clear any dangling CSRF token from an auth flow that was started but never
         // completed before this logout, so it can't be replayed against the next session
         // in the same process.
@@ -657,6 +702,10 @@ impl AuthManager {
 
     /// Sets whether or not this user's Firebase credentials are invalid and thus needs to reauth.
     pub fn set_needs_reauth(&self, needs_reauth: bool, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let became_true = self.auth_state.set_needs_reauth(needs_reauth);
 
         if became_true {
@@ -670,6 +719,11 @@ impl AuthManager {
         referral_code: Option<String>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         let anonymous_user_type = AnonymousUserType::NativeClientAnonymousUserFeatureGated;
 
         let auth_client = self.auth_client.clone();
@@ -733,6 +787,11 @@ impl AuthManager {
         auth_view_variant: AuthViewVariant,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         if self.auth_state.is_anonymous_or_logged_out() {
             send_telemetry_from_ctx!(
                 TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { feature },
@@ -743,6 +802,11 @@ impl AuthManager {
     }
 
     pub fn anonymous_user_hit_drive_object_limit(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         if self.auth_state.is_anonymous_or_logged_out() {
             send_telemetry_from_ctx!(TelemetryEvent::AnonymousUserHitCloudObjectLimit, ctx);
             ctx.emit(AuthManagerEvent::AttemptedLoginGatedFeature {
@@ -756,6 +820,11 @@ impl AuthManager {
         entrypoint: AnonymousUserSignupEntrypoint,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         let auth_client = self.auth_client.clone();
         let _ = ctx.spawn(
             async move { auth_client.fetch_new_custom_token().await },
@@ -805,6 +874,11 @@ impl AuthManager {
         ctx: &mut ModelContext<Self>,
         construct_url: URLConstructorCallback,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         if !self.auth_state.is_user_anonymous().unwrap_or_default()
             || !self.auth_state.is_logged_in()
         {
@@ -835,6 +909,11 @@ impl AuthManager {
     }
 
     pub fn copy_anonymous_user_linking_url_to_clipboard(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         if !self.auth_state.is_user_anonymous().unwrap_or_default() {
             return;
         }
@@ -970,6 +1049,10 @@ impl AuthManager {
     /// 1. Updates the server by calling set_user_is_onboarded
     /// 2. Updates the local auth state and persists the user data
     pub fn set_user_onboarded(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Update server
         let auth_client = self.auth_client.clone();
         let _ = ctx.spawn(

@@ -1824,3 +1824,55 @@ fn test_sync_queue_enum_dependency() {
         });
     })
 }
+
+#[test]
+fn local_terminal_retains_cached_queue_and_does_not_dequeue_new_items() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let workflow = Workflow::new("cached workflow".to_string(), "echo safe".to_string())
+            .with_arguments(vec![Argument {
+                name: "missing enum".to_string(),
+                default_value: None,
+                description: None,
+                arg_type: ArgumentType::Enum {
+                    enum_id: SyncId::ClientId(ClientId::new()),
+                },
+            }]);
+        let cached_item = QueueItem::CreateWorkflow {
+            object_type: ObjectType::Workflow,
+            owner: Owner::mock_current_user(),
+            id: ClientId::new(),
+            model: Arc::new(CloudWorkflowModel {
+                data: workflow.clone(),
+            }),
+            initial_folder_id: None,
+            entrypoint: Default::default(),
+            initiated_by: InitiatedBy::User,
+        };
+        let mut client = MockObjectClient::new();
+        client.expect_create_workflow().times(0);
+        let sync_queue = app.add_singleton_model(|ctx| {
+            SyncQueue::new(vec![cached_item.clone()], Arc::new(client), ctx)
+        });
+
+        sync_queue.update(&mut app, |queue, ctx| {
+            queue.start_dequeueing(ctx);
+            let mut new_item = cached_item.clone();
+            if let QueueItem::CreateWorkflow { id, .. } = &mut new_item {
+                *id = ClientId::new();
+            }
+            queue.enqueue(new_item.clone(), ctx);
+            assert!(!queue.is_dequeueing());
+            assert_eq!(queue.queue().len(), 2);
+            assert_eq!(queue.queue()[0].1, cached_item);
+            assert_eq!(queue.queue()[1].1, new_item);
+            for (_, item) in queue.queue() {
+                let QueueItem::CreateWorkflow { model, .. } = item else {
+                    panic!("cached item type changed")
+                };
+                assert_eq!(model.data, workflow);
+            }
+            assert!(queue.spawned_futures.is_empty());
+        });
+    });
+}

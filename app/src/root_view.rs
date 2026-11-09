@@ -959,6 +959,11 @@ pub(crate) fn open_new_from_path(
 
 /// Opens a new window and tries to join session identified by the session ID.
 fn open_shared_session_as_viewer(session_id: &SessionId, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     open_new_with_workspace_source(
         NewWorkspaceSource::SharedSessionAsViewer {
             session_id: *session_id,
@@ -970,6 +975,11 @@ fn open_shared_session_as_viewer(session_id: &SessionId, ctx: &mut AppContext) {
 /// Opens a new window to view a persisted view-only cloud conversation.
 /// The conversation data is loaded via GraphQL API.
 fn open_conversation_viewer(conversation_id: &ServerConversationToken, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     // Trigger the workspace loading mechanism by dispatching the LoadConversationData event
     // This will open a new window with a loading state, fetch data via GraphQL, and display it
     open_new_with_workspace_source(
@@ -982,6 +992,11 @@ fn open_conversation_viewer(conversation_id: &ServerConversationToken, ctx: &mut
 
 /// Opens a new window and starts the guided `/create-environment` setup flow.
 fn create_environment(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     let repos = arg.repos.clone();
     let (window_id, root_handle) = open_new_with_workspace_source(
         NewWorkspaceSource::Session {
@@ -1016,6 +1031,11 @@ fn create_environment(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
 
 /// Opens a new window and starts the guided `/create-environment` setup flow immediately.
 fn create_environment_and_run(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     let repos = arg.repos.clone();
     let (window_id, root_handle) = open_new_with_workspace_source(
         NewWorkspaceSource::Session {
@@ -1051,6 +1071,11 @@ fn open_team_settings_with_email_invite_in_new_window(
     arg: &OpenTeamsSettingsModalArgs,
     ctx: &mut AppContext,
 ) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
         if let AuthOnboardingState::Terminal(workspace_view_handle) =
@@ -1068,6 +1093,11 @@ fn open_team_settings_with_email_invite_in_new_window(
 }
 
 fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) && !section.is_available_in_local_terminal() {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
         if let AuthOnboardingState::Terminal(workspace_view_handle) =
@@ -1099,6 +1129,13 @@ fn workspace_action_for_open_settings(args: &OpenSettingsArgs) -> WorkspaceActio
 }
 
 fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx)
+        && workspace_action_for_open_settings(args).blocked_in_local_terminal()
+    {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     let action = workspace_action_for_open_settings(args);
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
@@ -1114,6 +1151,15 @@ fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
 /// MCP servers need to wait for initial load to complete, so we have this action in addition
 /// to the general-purpose [`open_settings_page_in_new_window`].
 fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        if args.autoinstall.is_some() {
+            crate::local_terminal::show_unavailable(ctx);
+        } else {
+            open_settings_page_in_new_window(&SettingsSection::AgentMCPServers, ctx);
+        }
+        return;
+    }
+
     let autoinstall = args.autoinstall.clone();
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
@@ -1167,6 +1213,11 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
 }
 
 fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     match arg.object_type {
         ObjectType::Notebook => open_new_workspace_with_notebook_open(
             SyncId::ServerId(arg.server_id),
@@ -1926,7 +1977,9 @@ impl RootView {
             workspace_setting,
         };
 
-        let auth_onboarding_state = if auth_state.is_logged_in() {
+        let auth_onboarding_state = if crate::local_terminal::is_enabled(ctx)
+            || auth_state.is_logged_in()
+        {
             AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
         } else {
             cfg_if! {
@@ -2123,6 +2176,11 @@ impl RootView {
 
     // Switch to Auth Screen while destroying Workspace.
     fn log_out(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         self.pending_account_first_settings_class = None;
         self.pending_account_first_tutorial_after_settings = false;
         self.pending_account_first_sso_login = None;
@@ -2134,6 +2192,11 @@ impl RootView {
     }
 
     fn show_needs_sso_link_view(&mut self, email: String, ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         self.needs_sso_link_view.update(ctx, |view, _| {
             view.set_email(email);
         });
@@ -2308,6 +2371,11 @@ impl RootView {
 
     /// Debug method to enter the onboarding state.
     fn debug_enter_onboarding_state(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         if !ChannelState::enable_debug_features() {
             log::warn!("Attempted to enter onboarding state in release build");
             return false;
@@ -3048,6 +3116,11 @@ impl RootView {
 
     #[allow(clippy::ptr_arg)]
     fn handle_incoming_auth_url(&mut self, url: &Url, ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         match AuthRedirectPayload::from_url(url.clone()) {
             Ok(redirect_payload) => {
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
@@ -3118,6 +3191,11 @@ impl RootView {
         arg: &OpenTeamsSettingsModalArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             handle.update(ctx, |workspace, ctx| {
                 workspace.show_team_settings_page_with_email_invite(arg.invite_email.as_ref(), ctx)
@@ -3134,6 +3212,11 @@ impl RootView {
         arg: &OpenWarpDriveObjectArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             let cloud_model = CloudModel::as_ref(ctx);
 
@@ -3226,6 +3309,11 @@ impl RootView {
         session_id: &SessionId,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             handle.update(ctx, |workspace, ctx| {
                 // Generic session link: ambient-ness (if any) is discovered at SessionJoined.
@@ -3252,6 +3340,11 @@ impl RootView {
         conversation_id: &ServerConversationToken,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             handle.update(ctx, |workspace, ctx| {
                 workspace.open_cloud_conversation_from_server_token(conversation_id.clone(), ctx);
@@ -3392,6 +3485,11 @@ impl RootView {
     /// Shows the user the settings view of their newly joined team
     /// within the app.
     pub fn handle_team_intent_link_action(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         // Force-open warp drive.
         let window_id = ctx.window_id();
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
@@ -3413,6 +3511,11 @@ impl RootView {
     }
 
     pub fn open_team_settings_page(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         let window_id = ctx.window_id();
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             ctx.dispatch_typed_action_for_view(
@@ -3432,6 +3535,11 @@ impl RootView {
         section: &SettingsSection,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) && !section.is_available_in_local_terminal() {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         let window_id = ctx.window_id();
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             let handle = handle.clone();
@@ -3466,6 +3574,13 @@ impl RootView {
         args: &OpenSettingsArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx)
+            && workspace_action_for_open_settings(args).blocked_in_local_terminal()
+        {
+            crate::local_terminal::show_unavailable(ctx);
+            return true;
+        }
+
         let window_id = ctx.window_id();
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             let action = workspace_action_for_open_settings(args);
@@ -3484,6 +3599,15 @@ impl RootView {
         args: &OpenMCPSettingsArgs,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            if args.autoinstall.is_some() {
+                crate::local_terminal::show_unavailable(ctx);
+            } else {
+                self.open_settings_page_in_existing_window(&SettingsSection::AgentMCPServers, ctx);
+            }
+            return true;
+        }
+
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             let autoinstall = args.autoinstall.clone();
             let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
@@ -3543,6 +3667,10 @@ impl RootView {
     /// and later signed up through a different entrypoint (e.g. login modal,
     /// settings, command palette) while already in the `Terminal` state.
     fn sync_local_onboarding_to_server(auth_state: &AuthState, ctx: &mut AppContext) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let is_onboarded = auth_state.is_onboarded().unwrap_or(true);
         let is_anonymous = auth_state.is_user_anonymous().unwrap_or(false);
         let has_completed_local_onboarding = has_completed_local_onboarding(ctx);
@@ -3553,6 +3681,10 @@ impl RootView {
     }
 
     fn handle_auth_manager_event(&mut self, event: &AuthManagerEvent, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
         match event {

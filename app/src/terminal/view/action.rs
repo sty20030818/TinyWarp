@@ -470,6 +470,24 @@ pub enum TerminalAction {
     Osc52AllowBlockedClipboardOperation,
 }
 
+impl TerminalAction {
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::OpenShareModal
+                | Self::OpenShareSessionModal { .. }
+                | Self::CopySharedSessionLink { .. }
+                | Self::OpenSharedSessionOnDesktop { .. }
+                | Self::OpenSharedSessionViewerRoleMenu
+                | Self::RequestSharedSessionRole(_)
+                | Self::MakeAllParticipantsReaders { .. }
+                | Self::AttemptLoginGatedFeature
+                | Self::ContextMenu(ContextMenuAction::OpenShareBlockModal { .. })
+                | Self::ContextMenu(ContextMenuAction::OpenShareSessionModal)
+        )
+    }
+}
+
 // Manually implementing Debug to avoid leaking sensitive information in logs
 impl fmt::Debug for TerminalAction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

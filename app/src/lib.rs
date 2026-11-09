@@ -126,6 +126,7 @@ pub mod input_suggestions;
 pub mod integration_testing;
 pub mod keyboard;
 pub mod launch_configs;
+pub(crate) mod local_terminal;
 pub mod pane_group;
 pub mod resource_center;
 pub mod root_view;
@@ -404,6 +405,7 @@ pub(crate) enum LaunchMode {
     Test {
         driver: Box<Option<TestDriver>>,
         is_integration_test: bool,
+        local_terminal: bool,
     },
 
     /// Remote server proxy — bridges SSH stdio to the daemon's Unix socket.
@@ -734,6 +736,7 @@ impl LaunchMode {
         LaunchMode::Test {
             driver: Box::new(None),
             is_integration_test: false,
+            local_terminal: false,
         }
     }
 }
@@ -957,8 +960,19 @@ pub fn run_integration_test(driver: TestDriver) -> Result<()> {
     let launch = LaunchMode::Test {
         driver: Box::new(Some(driver)),
         is_integration_test,
+        local_terminal: false,
     };
     run_internal(launch)
+}
+
+/// 使用隔离 OSS 身份验证无账号 GUI 的真实初始化流程。
+#[cfg(feature = "integration_tests")]
+pub fn run_local_terminal_integration_test(driver: TestDriver) -> Result<()> {
+    run_internal(LaunchMode::Test {
+        driver: Box::new(Some(driver)),
+        is_integration_test: true,
+        local_terminal: true,
+    })
 }
 
 /// Runs the headless TUI front-end (the `warp-tui` binary in the `warp_tui`
@@ -1502,19 +1516,25 @@ pub(crate) fn initialize_app(
     // WARNING: Errors that happen here before crash_reporting::init will not be collected in
     // Sentry. Only the dependencies of crash_reporting should be initialized here. Avoid adding
     // any other stuff here, as failures will be silent. Push them to pre_sentry_errors instead.
+    local_terminal::initialize(launch_mode, ctx);
+    let local_terminal = local_terminal::is_enabled(ctx);
     let data_domain = ChannelState::data_domain();
     let secure_storage_service_name = launch_mode.secure_storage_service_name(&data_domain);
 
     // Daemon auth arrives through the client handshake, so avoid platform keychains that may
     // require an interactive unlock prompt. Other headless modes still use secure storage for
     // persisted login and BYO provider credentials.
-    if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. }) {
+    if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. })
+        || (local_terminal && !cfg!(feature = "integration_tests"))
+    {
         warpui_extras::secure_storage::register_unavailable(ctx);
     } else {
         // Register an implementation of the secure storage service.
         cfg_if::cfg_if! {
             if #[cfg(feature = "integration_tests")] {
-                warpui_extras::secure_storage::register_noop(&secure_storage_service_name, ctx);
+                if !integration_testing::local_terminal::register_secure_storage(ctx) {
+                    warpui_extras::secure_storage::register_noop(&secure_storage_service_name, ctx);
+                }
             } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
                 warpui_extras::secure_storage::register_with_fallback(&secure_storage_service_name, warp_core::paths::state_dir(), ctx)
             } else if #[cfg(target_os = "windows")] {
@@ -1544,12 +1564,16 @@ pub(crate) fn initialize_app(
         ctx.set_zoom_factor(WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor());
     }
 
-    let (auth_state, pending_api_key) = match launch_mode.auth_initialization() {
-        AuthInitialization::Persisted => (AuthState::initialize(ctx), None),
-        AuthInitialization::PendingApiKey(api_key) => (
-            AuthState::initialize_for_credential_validation(ctx),
-            Some(api_key),
-        ),
+    let (auth_state, pending_api_key) = if local_terminal {
+        (AuthState::initialize_local(ctx), None)
+    } else {
+        match launch_mode.auth_initialization() {
+            AuthInitialization::Persisted => (AuthState::initialize(ctx), None),
+            AuthInitialization::PendingApiKey(api_key) => (
+                AuthState::initialize_for_credential_validation(ctx),
+                Some(api_key),
+            ),
+        }
     };
     let auth_state = Arc::new(auth_state);
     timer.mark_interval_end("AUTH_MANAGER_SET_USER");
@@ -1624,10 +1648,12 @@ pub(crate) fn initialize_app(
     #[cfg(not(target_family = "wasm"))]
     // Refresh starts only after the authenticated server client exists; tracing initialization
     // remains responsible for deciding whether this process opted in to cloud-agent export.
-    tracing::start_auth_refresh(
-        server_api_provider.as_ref(ctx).get_managed_secrets_client(),
-        ctx,
-    );
+    if !local_terminal {
+        tracing::start_auth_refresh(
+            server_api_provider.as_ref(ctx).get_managed_secrets_client(),
+            ctx,
+        );
+    }
 
     ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
 
@@ -2514,13 +2540,14 @@ pub(crate) fn initialize_app(
     // on IAP here, since the request itself calls the IAP-gated warp-server — except the TUI,
     // which authenticates immediately and resolves IAP out of band (see
     // `startup_auth_is_non_blocking`).
-    let startup_authentication = if matches!(launch_mode, LaunchMode::CommandLine { .. }) {
-        None
-    } else {
-        pending_api_key
-            .map(StartupUserAuthentication::ApiKey)
-            .or_else(|| user_is_logged_in.then_some(StartupUserAuthentication::RefreshUser))
-    };
+    let startup_authentication =
+        if local_terminal || matches!(launch_mode, LaunchMode::CommandLine { .. }) {
+            None
+        } else {
+            pending_api_key
+                .map(StartupUserAuthentication::ApiKey)
+                .or_else(|| user_is_logged_in.then_some(StartupUserAuthentication::RefreshUser))
+        };
     if let Some(authentication) = startup_authentication {
         authenticate_user_after_iap_access(
             authentication,
@@ -3176,11 +3203,12 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
         // before reaching launch().
         LaunchMode::Tui { .. } => unreachable!("LaunchMode::Tui is handled before launch()"),
         LaunchMode::App { .. } | LaunchMode::Test { .. } => {
-            let should_skip_restore = launch_mode
-                .args()
-                .urls
-                .iter()
-                .any(is_cloud_agent_web_home_launch_url);
+            let should_skip_restore = !local_terminal::is_enabled(ctx)
+                && launch_mode
+                    .args()
+                    .urls
+                    .iter()
+                    .any(is_cloud_agent_web_home_launch_url);
             let app_state = if should_skip_restore { None } else { app_state };
             // Attempt to restore windows from the persisted application state.
             let arg = OpenFromRestoredArg { app_state };

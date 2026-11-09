@@ -1285,3 +1285,50 @@ fn localized_toggle_registration_preserves_english_aliases_and_actions() {
         });
     }
 }
+
+#[test]
+fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_features() {
+    let unavailable = [
+        SettingsSection::Account,
+        SettingsSection::BillingAndUsage,
+        SettingsSection::Teams,
+        SettingsSection::Referrals,
+        SettingsSection::CloudEnvironments,
+        SettingsSection::WarpCloudAgentAPIKeys,
+        SettingsSection::SharedBlocks,
+        SettingsSection::WarpDrive,
+    ];
+    for section in unavailable {
+        let parsed = SettingsSection::from_slug(section.slug()).expect("旧 slug 仍需可读");
+        assert_eq!(parsed, section);
+        assert!(!section.is_available_in_local_terminal());
+        assert_eq!(
+            initial_settings_section(Some(parsed), true, true),
+            SettingsSection::Features
+        );
+        assert_eq!(initial_settings_section(Some(parsed), true, false), section);
+    }
+    for section in [
+        SettingsSection::Appearance,
+        SettingsSection::Features,
+        SettingsSection::Keybindings,
+        SettingsSection::Privacy,
+        SettingsSection::Scripting,
+        SettingsSection::Warpify,
+    ] {
+        assert!(section.is_available_in_local_terminal());
+        assert_eq!(initial_settings_section(Some(section), true, true), section);
+    }
+    assert_eq!(
+        initial_settings_section(None, true, true),
+        SettingsSection::Features
+    );
+    assert_eq!(
+        initial_settings_section(None, true, false),
+        SettingsSection::Account
+    );
+    assert_eq!(
+        initial_settings_section(Some(SettingsSection::Scripting), false, true),
+        SettingsSection::Features
+    );
+}

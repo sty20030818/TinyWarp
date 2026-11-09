@@ -209,7 +209,7 @@ impl PrivacyPageView {
         });
 
         let mut privacy_page_view = Self {
-            page: Self::build_page(),
+            page: Self::build_page(crate::local_terminal::is_enabled(ctx)),
             local_only_icon_tooltip_states: Default::default(),
             added_user_secret_regex_list_button_handles: Default::default(),
             pending_regex_removals: Default::default(),
@@ -226,17 +226,21 @@ impl PrivacyPageView {
         privacy_page_view
     }
 
-    fn build_page() -> PageType<Self> {
+    fn build_page(is_local_terminal: bool) -> PageType<Self> {
         let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
             Box::new(SecretRedactionWidget::default()),
             Box::new(AppAnalyticsWidget::default()),
             Box::new(CrashReportsWidget::default()),
-            Box::new(CloudConversationStorageWidget::default()),
         ];
+        if !is_local_terminal {
+            widgets.push(Box::new(CloudConversationStorageWidget::default()));
+        }
         if ContextFlag::NetworkLogConsole.is_enabled() {
             widgets.push(Box::new(NetworkLogWidget::default()));
         }
-        widgets.push(Box::new(DataManagementWidget::default()));
+        if !is_local_terminal {
+            widgets.push(Box::new(DataManagementWidget::default()));
+        }
         widgets.push(Box::new(PrivacyPolicyWidget::default()));
         PageType::new_uncategorized(
             widgets,
@@ -517,6 +521,15 @@ pub enum PrivacyPageAction {
     SwitchSecretRedactionTab(SecretRedactionTab),
 }
 
+impl PrivacyPageAction {
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::OpenDataManagementWebpage | Self::ToggleCloudConversationStorage
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SecretRedactionTab {
     Personal,
@@ -527,6 +540,10 @@ impl TypedActionView for PrivacyPageView {
     type Action = PrivacyPageAction;
 
     fn handle_action(&mut self, action: &PrivacyPageAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         match action {
             PrivacyPageAction::AddRecommendedRegex(idx) => {
                 // First process any pending removals

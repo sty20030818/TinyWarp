@@ -564,3 +564,30 @@ fn on_workspaces_updated_keeps_teams_distinct_and_prunes_a_team_the_response_omi
         });
     });
 }
+
+#[test]
+fn local_terminal_team_metadata_manager_does_not_start_polling_or_refresh_requests() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let mut client = MockTeamClient::new();
+        client.expect_workspaces_metadata().times(0);
+        let manager =
+            app.add_singleton_model(|ctx| TeamUpdateManager::new(Arc::new(client), None, ctx));
+
+        let refresh = manager.update(&mut app, |manager, ctx| {
+            manager.start_polling_for_workspace_metadata_updates(ctx);
+            manager.refresh_workspace_metadata(ctx)
+        });
+        assert!(
+            refresh
+                .await
+                .expect("refresh receiver should resolve")
+                .is_ok()
+        );
+        manager.read(&app, |manager, _| {
+            assert!(!manager.should_poll_for_workspace_metadata_updates);
+            assert!(manager.next_poll_abort_handle.is_none());
+            assert!(manager.in_flight_request_abort_handle.is_none());
+        });
+    });
+}

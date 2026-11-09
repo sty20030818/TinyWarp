@@ -21,6 +21,32 @@ use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChange
 
 pub const MAC_MENUS_CONTEXT: DescriptionContext = DescriptionContext::Custom("mac_menus");
 
+/// 候选列表隐藏账户服务动作；原注册和用户快捷键仍交给 handler 安全处理。
+pub(crate) fn is_action_available_in_local_terminal(action: &dyn Action, ctx: &AppContext) -> bool {
+    if !crate::local_terminal::is_enabled(ctx) {
+        return true;
+    }
+    if let Some(action) = action
+        .as_any()
+        .downcast_ref::<crate::workspace::WorkspaceAction>()
+    {
+        return !action.blocked_in_local_terminal();
+    }
+    if let Some(action) = action
+        .as_any()
+        .downcast_ref::<crate::settings_view::SettingsAction>()
+    {
+        return !action.blocked_in_local_terminal();
+    }
+    if let Some(action) = action
+        .as_any()
+        .downcast_ref::<crate::terminal::view::TerminalAction>()
+    {
+        return !action.blocked_in_local_terminal();
+    }
+    true
+}
+
 /// 中文显示文字保留源码英文标签作为搜索别名。
 pub fn localized_description(key: &str, en: &'static str) -> BindingDescription {
     BindingDescription::new_preserve_case(warp_i18n::tr(key, en)).with_search_alias(en)
@@ -789,6 +815,9 @@ impl CommandBinding {
     ///
     /// Returns `None` when the source binding has no description.
     pub fn from_lens(lens: BindingLens<'_>, ctx: &AppContext) -> Option<Self> {
+        if !is_action_available_in_local_terminal(lens.action.as_ref(), ctx) {
+            return None;
+        }
         lens.description.map(|desc| CommandBinding {
             description: materialize_description(desc, ctx),
             trigger: trigger_to_keystroke(lens.trigger),

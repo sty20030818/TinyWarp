@@ -47,6 +47,7 @@ pub struct AuthState {
 
     /// The current authentication credentials.
     credentials: RwLock<Option<Credentials>>,
+    persist_credentials: bool,
 }
 
 impl AuthState {
@@ -56,6 +57,7 @@ impl AuthState {
             anonymous_id: get_or_create_anonymous_id(ctx),
             needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(None),
+            persist_credentials: true,
         }
     }
     #[cfg(any(
@@ -85,6 +87,7 @@ impl AuthState {
             anonymous_id: Uuid::new_v4(),
             needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(Some(Self::test_credentials())),
+            persist_credentials: true,
         }
     }
     #[cfg(any(test, feature = "test-util"))]
@@ -94,6 +97,7 @@ impl AuthState {
             anonymous_id: Uuid::new_v4(),
             needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(None),
+            persist_credentials: true,
         }
     }
 
@@ -108,7 +112,15 @@ impl AuthState {
             anonymous_id: Uuid::new_v4(),
             needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(Some(Self::test_credentials())),
+            persist_credentials: true,
         }
+    }
+
+    /// 创建真实未认证状态，保留磁盘中的旧凭据，不读取或持久化账号。
+    pub fn initialize_local(ctx: &AppContext) -> Self {
+        let mut state = Self::new(ctx);
+        state.persist_credentials = false;
+        state
     }
 
     /// Creates and initializes auth state. Checks, in order:
@@ -193,6 +205,10 @@ impl AuthState {
 
     /// Determines the appropriate persistence action based on the current auth state.
     pub fn persist_action(&self) -> PersistAction {
+        if !self.persist_credentials {
+            return PersistAction::DoNothing;
+        }
+
         let user = self.user.read().clone();
         let credentials = self.credentials.read().clone();
 

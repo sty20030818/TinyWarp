@@ -781,6 +781,12 @@ impl SettingsPageMeta for KeybindingsView {
         self.bindings = Some(
             lenses
                 .into_iter()
+                .filter(|lens| {
+                    crate::util::bindings::is_action_available_in_local_terminal(
+                        lens.action.as_ref(),
+                        ctx,
+                    )
+                })
                 .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
                 .sorted_by(|a, b| {
                     // Sort by description then name so that we can deduplicate bindings by name.

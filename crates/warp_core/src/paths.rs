@@ -276,7 +276,7 @@ pub fn state_dir() -> PathBuf {
 /// On macOS, this will use the App Group container directory if available.
 pub fn secure_state_dir() -> Option<PathBuf> {
     // Do not use the secure state directory in integration tests, which have a temporary home directory instead.
-    if ChannelState::channel() == Channel::Integration {
+    if cfg!(feature = "integration_tests") || ChannelState::channel() == Channel::Integration {
         return None;
     }
 
@@ -398,6 +398,10 @@ fn project_dirs_for_app_id(
 /// * [`containerURLForSecurityApplicationGroupIdentifier`](https://developer.apple.com/documentation/foundation/filemanager/containerurl(forsecurityapplicationgroupidentifier:)?language=objc)
 #[cfg(target_os = "macos")]
 pub fn app_group_container_path() -> Option<PathBuf> {
+    // OSS 通道的专项集成测试同样不能调用 Foundation 探测真实共享容器。
+    if cfg!(feature = "integration_tests") {
+        return None;
+    }
     use std::sync::LazyLock;
     static CONTAINER_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
         use objc2_foundation::{NSFileManager, NSString};

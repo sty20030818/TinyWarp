@@ -531,6 +531,10 @@ impl TerminalView {
         open_source: SharedSessionActionSource,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         if !matches!(
             open_source,
             SharedSessionActionSource::BlocklistContextMenu { .. }
@@ -583,6 +587,10 @@ impl TerminalView {
         bypass_conversation_guard: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         // We should only be attempting to share a session
         // if it is bootstrapped.
         //

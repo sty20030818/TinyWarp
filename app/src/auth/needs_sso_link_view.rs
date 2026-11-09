@@ -89,6 +89,11 @@ impl TypedActionView for NeedsSsoLinkView {
     type Action = NeedsSsoLinkViewAction;
 
     fn handle_action(&mut self, action: &NeedsSsoLinkViewAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
+
         match action {
             NeedsSsoLinkViewAction::ClickedLinkSsoButton => {
                 let email = self.email.as_deref().unwrap_or("");

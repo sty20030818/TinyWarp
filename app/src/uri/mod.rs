@@ -161,6 +161,53 @@ impl FromStr for UriHost {
 }
 
 impl UriHost {
+    fn requires_cloud_account(&self, url: &Url) -> bool {
+        match self {
+            Self::Auth
+            | Self::Team
+            | Self::SharedSession
+            | Self::Conversation
+            | Self::Drive
+            | Self::Home
+            | Self::ChatGPTLink => true,
+            Self::Settings => {
+                let section = url
+                    .path_segments()
+                    .into_iter()
+                    .flatten()
+                    .next_back()
+                    .and_then(|slug| match slug {
+                        "account" => Some(SettingsSection::Account),
+                        "teams" => Some(SettingsSection::Teams),
+                        "environments" => Some(SettingsSection::CloudEnvironments),
+                        _ => settings_section_for_simple_subpage(slug)
+                            .or_else(|| SettingsSection::from_slug(slug)),
+                    });
+                section.is_some_and(|section| !section.is_available_in_local_terminal())
+                    || url
+                        .query_pairs()
+                        .find(|(key, _)| key == "widget")
+                        .and_then(|(_, slug)| settings_widget_deeplink_target(&slug))
+                        .is_some_and(|(section, _)| !section.is_available_in_local_terminal())
+            }
+            Self::Action => Action::parse(url).is_ok_and(|action| {
+                matches!(
+                    action,
+                    Action::CloudAgentSetup
+                        | Action::NewCloudAgentConversation
+                        | Action::CreateEnvironment { .. }
+                        | Action::FocusCloudMode
+                        | Action::AutoHandoffToCloud { .. }
+                )
+            }),
+            Self::Launch
+            | Self::Mcp
+            | Self::Codex
+            | Self::Linear
+            | Self::TabConfig
+            | Self::Session => false,
+        }
+    }
     fn handle(&self, primary_window_id: Option<WindowId>, url: &Url, ctx: &mut AppContext) {
         // Handle host
         match self {
@@ -1249,6 +1296,13 @@ impl Action {
 /// Handles all incoming urls. These urls are file urls, auth urls for login,
 /// and team urls for opening team settings.
 pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx)
+        && validate_custom_uri(url).is_ok_and(|host| host.requires_cloud_account(url))
+    {
+        crate::local_terminal::show_unavailable(ctx);
+        return;
+    }
+
     safe_info!(
         safe: ("received url"),
         full: ("received url {:?}", &url)

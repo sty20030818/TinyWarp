@@ -1176,7 +1176,8 @@ impl WarpAgentPageView {
             },
         );
 
-        if FeatureFlag::ChatGPTSubscription.is_enabled() {
+        if FeatureFlag::ChatGPTSubscription.is_enabled() && !crate::local_terminal::is_enabled(ctx)
+        {
             // The connection lives on the server, so re-check it whenever the
             // page is opened rather than trusting whatever was last cached.
             ChatGPTSubscriptionModel::handle(ctx).update(ctx, |model, ctx| model.refresh(ctx));
@@ -2598,10 +2599,29 @@ pub enum WarpAgentPageAction {
     ToggleShowConversationHistory,
 }
 
+impl WarpAgentPageAction {
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::SignupAnonymousUser
+                | Self::ConnectGrokSubscription
+                | Self::CancelGrokSubscriptionConnect
+                | Self::DisconnectGrokSubscription
+                | Self::ConnectChatGPTSubscription
+                | Self::CancelChatGPTSubscriptionConnect
+                | Self::DisconnectChatGPTSubscription
+        )
+    }
+}
+
 impl TypedActionView for WarpAgentPageView {
     type Action = WarpAgentPageAction;
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+            crate::local_terminal::show_unavailable(ctx);
+            return;
+        }
         match action {
             WarpAgentPageAction::OpenUrl(url) => {
                 ctx.open_url(url.as_str());
@@ -3251,7 +3271,7 @@ fn render_global_ai_toggle(
     }
 
     // Show sign-up button for anonymous users, toggle for logged-in users
-    if is_anonymous {
+    if is_anonymous && !crate::local_terminal::is_enabled(app) {
         row.add_child(
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -6005,7 +6025,10 @@ impl SettingsWidget for ApiKeysWidget {
         }
 
         // Entrypoint for connecting a SuperGrok (xAI) subscription via OAuth.
-        if FeatureFlag::SuperGrok.is_enabled() && show_provider_keys {
+        if FeatureFlag::SuperGrok.is_enabled()
+            && show_provider_keys
+            && !crate::local_terminal::is_enabled(app)
+        {
             #[cfg(not(target_family = "wasm"))]
             let grok_oauth_phase = view
                 .grok_oauth_attempt
@@ -6034,7 +6057,10 @@ impl SettingsWidget for ApiKeysWidget {
             }
         }
 
-        if FeatureFlag::ChatGPTSubscription.is_enabled() && show_provider_keys {
+        if FeatureFlag::ChatGPTSubscription.is_enabled()
+            && show_provider_keys
+            && !crate::local_terminal::is_enabled(app)
+        {
             column.add_child(
                 Container::new(self.render_chatgpt_subscription_row(
                     appearance,
@@ -6056,7 +6082,7 @@ impl SettingsWidget for ApiKeysWidget {
         }
 
         // Upgrade CTA if BYOK not enabled
-        if !is_byo_enabled && show_provider_keys {
+        if !is_byo_enabled && show_provider_keys && !crate::local_terminal::is_enabled(app) {
             let auth_state = AuthStateProvider::as_ref(app).get();
             let upgrade_text_fragments = if let Some(team) =
                 UserWorkspaces::as_ref(app).team_for_view_handle(&self.view_handle, app)
