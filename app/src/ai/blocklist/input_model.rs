@@ -130,6 +130,13 @@ pub struct InputConfig {
 impl InputConfig {
     /// Create a sensible default InputConfig based on user's auto-detection setting.
     pub fn new(app: &AppContext) -> Self {
+        if crate::local_terminal::is_enabled(app) {
+            return Self {
+                input_type: InputType::Shell,
+                is_locked: true,
+            };
+        }
+
         let ai_settings = AISettings::as_ref(app);
         let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled(app);
 
@@ -244,65 +251,71 @@ impl BlocklistAIInputModel {
         terminal_surface_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        // Reactively restore input config when CLI agent rich input closes.
-        ctx.subscribe_to_model(
-            &CLIAgentSessionsModel::handle(ctx),
-            move |me, _, event, ctx| {
-                let CLIAgentSessionsModelEvent::InputSessionChanged {
-                    terminal_view_id: event_view_id,
-                    previous_input_state,
-                    ..
-                } = event
-                else {
-                    return;
-                };
-                // CLI agent sessions are keyed by terminal view id; GUI surfaces use the
-                // view id as their surface id, so this filters events to our surface.
-                if *event_view_id != terminal_surface_id {
-                    return;
+        if !crate::local_terminal::is_enabled(ctx) {
+            // Reactively restore input config when CLI agent rich input closes.
+            ctx.subscribe_to_model(
+                &CLIAgentSessionsModel::handle(ctx),
+                move |me, _, event, ctx| {
+                    let CLIAgentSessionsModelEvent::InputSessionChanged {
+                        terminal_view_id: event_view_id,
+                        previous_input_state,
+                        ..
+                    } = event
+                    else {
+                        return;
+                    };
+                    // CLI agent sessions are keyed by terminal view id; GUI surfaces use the
+                    // view id as their surface id, so this filters events to our surface.
+                    if *event_view_id != terminal_surface_id {
+                        return;
+                    }
+                    if let CLIAgentInputState::Open {
+                        previous_input_config,
+                        previous_was_lock_set_with_empty_buffer,
+                        ..
+                    } = previous_input_state
+                    {
+                        me.restore_input_config(
+                            *previous_input_config,
+                            *previous_was_lock_set_with_empty_buffer,
+                            ctx,
+                        );
+                    }
+                },
+            );
+
+            ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
+                // Computing the guarded autodetection state takes the terminal-model
+                // lock, so only compute it for the one event whose handling can need
+                // it; policies must not rely on it for any other event.
+                let is_autodetection_enabled_for_current_context =
+                    matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. })
+                        && me.is_autodetection_enabled_for_current_context(ctx);
+                if let Some(update) = me.policy.config_on_ai_settings_changed(
+                    event,
+                    me.input_config(),
+                    is_autodetection_enabled_for_current_context,
+                    ctx,
+                ) {
+                    me.apply_policy_update(update, ctx);
                 }
-                if let CLIAgentInputState::Open {
-                    previous_input_config,
-                    previous_was_lock_set_with_empty_buffer,
-                    ..
-                } = previous_input_state
-                {
-                    me.restore_input_config(
-                        *previous_input_config,
-                        *previous_was_lock_set_with_empty_buffer,
-                        ctx,
-                    );
+            });
+
+            ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| {
+                if let Some(update) = me.policy.config_on_conversation_selection_changed(
+                    event,
+                    me.input_config(),
+                    ctx,
+                ) {
+                    me.apply_policy_update(update, ctx);
                 }
-            },
-        );
-
-        ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
-            // Computing the guarded autodetection state takes the terminal-model
-            // lock, so only compute it for the one event whose handling can need
-            // it; policies must not rely on it for any other event.
-            let is_autodetection_enabled_for_current_context =
-                matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. })
-                    && me.is_autodetection_enabled_for_current_context(ctx);
-            if let Some(update) = me.policy.config_on_ai_settings_changed(
-                event,
-                me.input_config(),
-                is_autodetection_enabled_for_current_context,
-                ctx,
-            ) {
-                me.apply_policy_update(update, ctx);
-            }
-        });
-
-        ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| {
-            if let Some(update) =
-                me.policy
-                    .config_on_conversation_selection_changed(event, me.input_config(), ctx)
-            {
-                me.apply_policy_update(update, ctx);
-            }
-        });
-
-        let input_config = policy.initial_config(ctx);
+            });
+        }
+        let input_config = if crate::local_terminal::is_enabled(ctx) {
+            InputConfig::new(ctx)
+        } else {
+            policy.initial_config(ctx)
+        };
         Self {
             input_config,
             conversation_selection,
@@ -336,7 +349,11 @@ impl BlocklistAIInputModel {
                 context_conversation_selection,
             )
         });
-        let input_config = policy.initial_config(ctx);
+        let input_config = if crate::local_terminal::is_enabled(ctx) {
+            InputConfig::new(ctx)
+        } else {
+            policy.initial_config(ctx)
+        };
         ctx.add_model(|_| Self {
             input_config,
             conversation_selection,
@@ -455,6 +472,11 @@ impl BlocklistAIInputModel {
         decision_source: Option<InputTypeAutoDetectionSource>,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
+        let new_config = if crate::local_terminal::is_enabled(ctx) {
+            InputConfig::new(ctx)
+        } else {
+            new_config
+        };
         // Locking the input to AI is only allowed when the view's policy permits it (e.g. the
         // GUI only allows it inside an agent view or an open CLI agent rich input session).
         if new_config.input_type.is_ai()
@@ -536,7 +558,8 @@ impl BlocklistAIInputModel {
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect
     /// and change the input type.
     pub fn should_run_input_autodetection(&self, app: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
+        !crate::local_terminal::is_enabled(app)
+            && FeatureFlag::AgentMode.is_enabled()
             && self.is_autodetection_enabled_for_current_context(app)
             && !self.input_config.is_locked
     }
@@ -544,6 +567,10 @@ impl BlocklistAIInputModel {
     /// Returns whether autodetection is enabled for the current context, layering view-agnostic
     /// guards (agent in control, pending attachments) over the view policy's setting lookup.
     pub fn is_autodetection_enabled_for_current_context(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
+
         // If the agent is in control or tagged in, don't run autodetection.
         if self.is_terminal_use_active_or_pending() {
             return false;

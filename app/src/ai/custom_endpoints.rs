@@ -23,6 +23,12 @@ struct CustomEndpointSettingsModel {
 
 impl CustomEndpointSettingsModel {
     fn new(launch_mode: &LaunchMode, ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                imports_legacy_endpoints: false,
+                settings_invalid: false,
+            };
+        }
         let settings_invalid = GlobalResourceHandlesProvider::as_ref(ctx)
             .get()
             .settings_file_error
@@ -74,6 +80,9 @@ impl CustomEndpointSettingsModel {
     }
 
     fn sync_or_migrate(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         if self.settings_invalid {
             ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
                 manager.invalidate_custom_endpoint_definitions(ctx);
@@ -124,6 +133,10 @@ pub(crate) fn init(launch_mode: &LaunchMode, ctx: &mut AppContext) {
 }
 
 pub(crate) fn add(params: CustomEndpointParams, ctx: &mut AppContext) -> anyhow::Result<usize> {
+    if crate::local_terminal::is_enabled(ctx) {
+        anyhow::bail!("Custom AI endpoints are unavailable in local terminal mode");
+    }
+
     let mut definitions = AISettings::as_ref(ctx).custom_endpoints.value().clone();
     let id = CustomEndpointId::generated();
     let key = params.api_key.clone();
@@ -146,6 +159,10 @@ pub(crate) fn save(
     params: CustomEndpointParams,
     ctx: &mut AppContext,
 ) -> anyhow::Result<()> {
+    if crate::local_terminal::is_enabled(ctx) {
+        anyhow::bail!("Custom AI endpoints are unavailable in local terminal mode");
+    }
+
     let mut definitions = AISettings::as_ref(ctx).custom_endpoints.value().clone();
     let id = definitions
         .id_at(index)
@@ -169,6 +186,10 @@ pub(crate) fn save(
 }
 
 pub(crate) fn remove(index: usize, ctx: &mut AppContext) -> anyhow::Result<()> {
+    if crate::local_terminal::is_enabled(ctx) {
+        anyhow::bail!("Custom AI endpoints are unavailable in local terminal mode");
+    }
+
     let mut definitions = AISettings::as_ref(ctx).custom_endpoints.value().clone();
     let id = definitions
         .id_at(index)

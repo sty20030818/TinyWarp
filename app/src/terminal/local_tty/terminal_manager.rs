@@ -1282,6 +1282,7 @@ impl<S> TerminalManager<S> {
             shell_starter,
             start_dir: startup_directory,
             env_vars,
+            enable_cli_agent_protocol: !crate::local_terminal::is_enabled(ctx),
             enable_ssh_wrapper,
             reuse_ssh_control_master,
             shell_debug_mode: is_shell_debug_mode_enabled,

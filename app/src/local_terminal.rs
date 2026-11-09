@@ -37,10 +37,26 @@ pub(crate) fn is_enabled(ctx: &AppContext) -> bool {
 }
 
 pub(crate) fn show_unavailable(ctx: &mut AppContext) {
-    let message = warp_i18n::tr(
-        "local_terminal.unavailable",
-        "TinyWarp local terminal does not provide sign-in, accounts, or cloud services.",
+    show_message(
+        warp_i18n::tr(
+            "local_terminal.unavailable",
+            "TinyWarp local terminal does not provide sign-in, accounts, or cloud services.",
+        ),
+        ctx,
     );
+}
+
+pub(crate) fn show_feature_unavailable(ctx: &mut AppContext) {
+    show_message(
+        warp_i18n::tr(
+            "local_terminal.feature_unavailable",
+            "TinyWarp keeps the terminal and external CLIs; built-in AI, agents, and standalone editors are unavailable.",
+        ),
+        ctx,
+    );
+}
+
+fn show_message(message: &str, ctx: &mut AppContext) {
     let window_id = ctx
         .windows()
         .frontmost_window_id()

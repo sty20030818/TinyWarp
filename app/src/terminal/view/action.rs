@@ -472,6 +472,77 @@ pub enum TerminalAction {
 
 impl TerminalAction {
     pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        use TerminalAction::*;
+        match self {
+            JumpToLatestAgentMessage
+            | OpenAIBlockAttachedBlocksMenu { .. }
+            | OpenAIBlockOverflowMenu { .. }
+            | RewindAIConversation { .. }
+            | ExecuteRewindAIConversation { .. }
+            | ExecuteRewindFromInlineMenu { .. }
+            | OpenFileInWarp(..)
+            | OpenWorkflowModalForAIWorkflow(..)
+            | AskAIAssistant { .. }
+            | SetInputModeAgent
+            | GenerateCodebaseIndex
+            | LoadAgentModeConversation
+            | WriteCodebaseIndex
+            | AttachFile
+            | ToggleAutoexecuteMode
+            | ToggleQueueNextPrompt
+            | CodebaseIndexSpeedbumpBanner(..)
+            | AgentModeSetupSpeedbumpBanner(..)
+            | ResumeConversation
+            | ForkConversationFromLastKnownGoodState
+            | ToggleAIDocumentPane
+            | ToggleTodoPopup
+            | ToggleCodeReviewPane { .. }
+            | InitProject
+            | SummarizeConversation
+            | IndexProjectSpeedbump
+            | AddProjectAtCurrentDirectory
+            | OpenProjectRulesPane
+            | OpenViewMCPPane
+            | OpenAddMCPPane
+            | OpenAddRulePane
+            | OpenRulesPane
+            | OpenEditSkillPane { .. }
+            | OpenAddPromptPane
+            | OpenBillingAndUsagePane
+            | OpenConversationsPalette
+            | PickRepoToOpen
+            | OpenFilesPalette { .. }
+            | StartLspServer
+            | SetupCloudEnvironment(..)
+            | SetupCloudEnvironmentAndStart(..)
+            | TriggerEnvironmentSetupSelection(..)
+            | OpenEnvironmentManagementPane
+            | ToggleLongRunningCommandControl
+            | ToggleHideCliResponses
+            | EnterCloudAgentView
+            | StartNewAgentConversation { .. }
+            | ToggleConversationDetailsPanel
+            | CancelAmbientAgentTask
+            | OpenInlineHistoryMenu
+            | OpenModelSelector
+            | ResolvePromptSuggestion(..)
+            | ToggleUsageFooter
+            | RevealChildAgent { .. }
+            | SwitchAgentViewToConversation { .. }
+            | OpenChildAgentInNewPane { .. }
+            | OpenChildAgentInNewTab { .. }
+            | StopAgentConversation { .. }
+            | KillAgentConversation { .. }
+            | CyclePreviousOrchestrationChildAgent
+            | CycleNextOrchestrationChildAgent
+            | ToggleCLIAgentRichInput => return true,
+            #[cfg(feature = "local_fs")]
+            OpenCodeInWarp { .. } => return true,
+            #[cfg(feature = "voice_input")]
+            ToggleCLIAgentVoiceInput(..) => return true,
+            _ => {}
+        }
+
         matches!(
             self,
             Self::OpenShareModal
@@ -484,6 +555,20 @@ impl TerminalAction {
                 | Self::AttemptLoginGatedFeature
                 | Self::ContextMenu(ContextMenuAction::OpenShareBlockModal { .. })
                 | Self::ContextMenu(ContextMenuAction::OpenShareSessionModal)
+                | Self::OpenWorkflowModalForBlock(_)
+                | Self::OpenWorkflowModalWithCloudWorkflow(_)
+                | Self::ContextMenu(ContextMenuAction::EditAgentToolbar)
+                | Self::ContextMenu(ContextMenuAction::EditCLIAgentToolbar)
+                | Self::ContextMenu(ContextMenuAction::AskAI(_))
+                | Self::ContextMenu(ContextMenuAction::ForkAIConversation { .. })
+                | Self::ContextMenu(ContextMenuAction::ForkAIConversationFromBlock { .. })
+                | Self::ContextMenu(ContextMenuAction::ForkAIConversationFromExactExchange { .. })
+                | Self::ContextMenu(ContextMenuAction::OpenConversationShareDialog { .. })
+                | Self::ContextMenu(ContextMenuAction::CopyConversationShareLink { .. })
+                | Self::ContextMenu(ContextMenuAction::SavePromptAsAgentModeWorkflow { .. })
+                | Self::InputContextMenuItem(InputContextMenuAction::ShowAICommandSearch)
+                | Self::InputContextMenuItem(InputContextMenuAction::AskWarpAI)
+                | Self::InputContextMenuItem(InputContextMenuAction::SaveAsWorkflow)
         )
     }
 }

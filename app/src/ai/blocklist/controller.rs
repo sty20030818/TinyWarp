@@ -489,257 +489,263 @@ impl BlocklistAIController {
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let team_context_resolver = UserWorkspaces::team_context_resolver(terminal_surface);
-        ctx.subscribe_to_model(&action_model, move |me, _, event, ctx| {
-            let BlocklistAIActionEvent::FinishedAction {
-                conversation_id,
-                cancellation_reason,
-                ..
-            } = event
-            else {
-                return;
-            };
-            // `FinalizedExternally` (e.g. shell exit) means the conversation status and message
-            // is set elsewhere through a dedicated path, so we must not trigger a follow-up or update conversation status here.
-            let cancellation_outcome =
-                cancellation_reason.map(|reason| reason.conversation_outcome());
-            if matches!(
-                cancellation_outcome,
-                Some(CancellationOutcome::FinalizedExternally)
-            ) {
-                return;
-            }
-            let action_model = me.action_model.as_ref(ctx);
-            if action_model.has_unfinished_actions_for_conversation(*conversation_id) {
-                return;
-            }
-
-            let history_model = BlocklistAIHistoryModel::handle(ctx);
-            let Some((driver, is_entirely_passive_code_diff)) = history_model
-                .as_ref(ctx)
-                .conversation(conversation_id)
-                .map(|conversation| {
-                    (
-                        conversation.driver(),
-                        conversation.is_entirely_passive_code_diff(),
-                    )
-                })
-            else {
-                return;
-            };
-
-            if !driver.owns_turn_lifecycle() {
-                return;
-            }
-
-            let Some(finished_action_results) =
-                action_model.get_finished_action_results(*conversation_id)
-            else {
-                return;
-            };
-            let is_passive_code_diff = is_entirely_passive_code_diff
-                && finished_action_results.last().is_some_and(|result| {
-                    matches!(result.result, AIAgentActionResultType::RequestFileEdits(_))
-                });
-            let has_manual_follow_up = me.pending_passive_follow_ups.contains(conversation_id);
-
-            // A `Succeeded` cancellation (e.g. an optimistic long-running-command
-            // completion or a revert) is itself the terminal result, so it neither
-            // triggers a follow-up nor counts as a cancellation.
-            let treat_as_success =
-                matches!(cancellation_outcome, Some(CancellationOutcome::Succeeded));
-            let injection_interrupt_completed = cancellation_reason.is_none()
-                && me.has_ready_primary_injected_followup(*conversation_id, ctx)
-                && finished_action_results.iter().any(|result| {
-                    me.is_injection_interrupt_completion(*conversation_id, &result.result)
-                });
-            let should_trigger_follow_up_request = injection_interrupt_completed
-                || (!is_passive_code_diff
-                    && !treat_as_success
-                    && finished_action_results
-                        .iter()
-                        .any(|result| result.result.should_trigger_request_upon_completion()))
-                || has_manual_follow_up;
-            if !should_trigger_follow_up_request {
+        if !crate::local_terminal::is_enabled(ctx) {
+            ctx.subscribe_to_model(&action_model, move |me, _, event, ctx| {
+                let BlocklistAIActionEvent::FinishedAction {
+                    conversation_id,
+                    cancellation_reason,
+                    ..
+                } = event
+                else {
+                    return;
+                };
+                // `FinalizedExternally` (e.g. shell exit) means the conversation status and message
+                // is set elsewhere through a dedicated path, so we must not trigger a follow-up or update conversation status here.
+                let cancellation_outcome =
+                    cancellation_reason.map(|reason| reason.conversation_outcome());
                 if matches!(
                     cancellation_outcome,
-                    Some(CancellationOutcome::KeepInProgress)
+                    Some(CancellationOutcome::FinalizedExternally)
                 ) {
                     return;
                 }
-                // We also check if there's an in-flight req, because it's possible that this
-                // subscription callback was queued in response to auto-cancelling pending actions
-                // in the process of constructing a request. In such cases, we don't want to update
-                // conversation status to Cancelled/Success.
-                if !me
-                    .in_flight_response_streams
-                    .has_active_stream_for_conversation(*conversation_id, ctx)
-                {
-                    // If the completed actions do not trigger a follow-up request, update conversation
-                    // status based on the outcome of the actions.
-                    //
-                    // (It would otherwise remain `InProgress`, which would be correct, since we'd be
-                    // immediately triggering a follow-up request).
-                    //
-                    // In practice, the only time where this codepath gets triggered is upon completion
-                    // of a passive code diff action, where we don't autosend the next request.
-                    //
-                    // With passive code diffs, its most appropriate to mark the conversation
-                    // successful if the passive diff was accepted. In practice, there's only ever
-                    // one RequestFileEdits action, so `finished_action_results` at this point
-                    // should only have a single element.
-                    //
-                    // If the user does end up following up on the passive diff-originated conversation,
-                    // the status will once again be updated to `InProgress`.
-                    let updated_conversation_status = if finished_action_results
-                        .iter()
-                        .all(|result| result.result.is_successful())
-                        || treat_as_success
-                    {
-                        ConversationStatus::Success
-                    } else {
-                        // This is an imperfect heuristic that practically speaking should have no effect.
-                        //
-                        // If we actually need to differentiate between the state of a conversation
-                        // where actions completed with mixed result statuses (e.g. a mix of
-                        // cancelled, error, and success) _and_ we don't automatically send back action
-                        // results to the agent, then it'd be worth considering adding a new status
-                        // variant.
-                        ConversationStatus::Cancelled
-                    };
-                    history_model.update(ctx, |history_model, ctx| {
-                        history_model.update_conversation_status(
-                            me.terminal_surface_id,
-                            *conversation_id,
-                            updated_conversation_status,
-                            ctx,
-                        );
-                    });
+                let action_model = me.action_model.as_ref(ctx);
+                if action_model.has_unfinished_actions_for_conversation(*conversation_id) {
+                    return;
                 }
-                // Unlock any pending-LRC row so it isn't left locked if the action
-                // completes without triggering a follow-up request.
+
+                let history_model = BlocklistAIHistoryModel::handle(ctx);
+                let Some((driver, is_entirely_passive_code_diff)) = history_model
+                    .as_ref(ctx)
+                    .conversation(conversation_id)
+                    .map(|conversation| {
+                        (
+                            conversation.driver(),
+                            conversation.is_entirely_passive_code_diff(),
+                        )
+                    })
+                else {
+                    return;
+                };
+
+                if !driver.owns_turn_lifecycle() {
+                    return;
+                }
+
+                let Some(finished_action_results) =
+                    action_model.get_finished_action_results(*conversation_id)
+                else {
+                    return;
+                };
+                let is_passive_code_diff = is_entirely_passive_code_diff
+                    && finished_action_results.last().is_some_and(|result| {
+                        matches!(result.result, AIAgentActionResultType::RequestFileEdits(_))
+                    });
+                let has_manual_follow_up = me.pending_passive_follow_ups.contains(conversation_id);
+
+                // A `Succeeded` cancellation (e.g. an optimistic long-running-command
+                // completion or a revert) is itself the terminal result, so it neither
+                // triggers a follow-up nor counts as a cancellation.
+                let treat_as_success =
+                    matches!(cancellation_outcome, Some(CancellationOutcome::Succeeded));
+                let injection_interrupt_completed = cancellation_reason.is_none()
+                    && me.has_ready_primary_injected_followup(*conversation_id, ctx)
+                    && finished_action_results.iter().any(|result| {
+                        me.is_injection_interrupt_completion(*conversation_id, &result.result)
+                    });
+                let should_trigger_follow_up_request = injection_interrupt_completed
+                    || (!is_passive_code_diff
+                        && !treat_as_success
+                        && finished_action_results
+                            .iter()
+                            .any(|result| result.result.should_trigger_request_upon_completion()))
+                    || has_manual_follow_up;
+                if !should_trigger_follow_up_request {
+                    if matches!(
+                        cancellation_outcome,
+                        Some(CancellationOutcome::KeepInProgress)
+                    ) {
+                        return;
+                    }
+                    // We also check if there's an in-flight req, because it's possible that this
+                    // subscription callback was queued in response to auto-cancelling pending actions
+                    // in the process of constructing a request. In such cases, we don't want to update
+                    // conversation status to Cancelled/Success.
+                    if !me
+                        .in_flight_response_streams
+                        .has_active_stream_for_conversation(*conversation_id, ctx)
+                    {
+                        // If the completed actions do not trigger a follow-up request, update conversation
+                        // status based on the outcome of the actions.
+                        //
+                        // (It would otherwise remain `InProgress`, which would be correct, since we'd be
+                        // immediately triggering a follow-up request).
+                        //
+                        // In practice, the only time where this codepath gets triggered is upon completion
+                        // of a passive code diff action, where we don't autosend the next request.
+                        //
+                        // With passive code diffs, its most appropriate to mark the conversation
+                        // successful if the passive diff was accepted. In practice, there's only ever
+                        // one RequestFileEdits action, so `finished_action_results` at this point
+                        // should only have a single element.
+                        //
+                        // If the user does end up following up on the passive diff-originated conversation,
+                        // the status will once again be updated to `InProgress`.
+                        let updated_conversation_status = if finished_action_results
+                            .iter()
+                            .all(|result| result.result.is_successful())
+                            || treat_as_success
+                        {
+                            ConversationStatus::Success
+                        } else {
+                            // This is an imperfect heuristic that practically speaking should have no effect.
+                            //
+                            // If we actually need to differentiate between the state of a conversation
+                            // where actions completed with mixed result statuses (e.g. a mix of
+                            // cancelled, error, and success) _and_ we don't automatically send back action
+                            // results to the agent, then it'd be worth considering adding a new status
+                            // variant.
+                            ConversationStatus::Cancelled
+                        };
+                        history_model.update(ctx, |history_model, ctx| {
+                            history_model.update_conversation_status(
+                                me.terminal_surface_id,
+                                *conversation_id,
+                                updated_conversation_status,
+                                ctx,
+                            );
+                        });
+                    }
+                    // Unlock any pending-LRC row so it isn't left locked if the action
+                    // completes without triggering a follow-up request.
+                    QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                        model.unlock_pending_lrc_rows(*conversation_id, ctx);
+                    });
+                    return;
+                }
+                me.send_follow_up_for_conversation(*conversation_id, ctx);
+                // Unlock any query queued during the pre-snapshot window now that the
+                // snapshot has been sent.
                 QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
                     model.unlock_pending_lrc_rows(*conversation_id, ctx);
                 });
-                return;
-            }
-            me.send_follow_up_for_conversation(*conversation_id, ctx);
-            // Unlock any query queued during the pre-snapshot window now that the
-            // snapshot has been sent.
-            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-                model.unlock_pending_lrc_rows(*conversation_id, ctx);
             });
-        });
 
-        ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| {
-            let ConversationSelectionEvent::Deactivated {
-                conversation_id,
-                final_exchange_count,
-                is_exit_before_new_entrance,
-            } = event
-            else {
-                return;
-            };
-            if *is_exit_before_new_entrance || *final_exchange_count == 0 {
-                return;
-            }
-            let history = BlocklistAIHistoryModel::handle(ctx);
-            let Some(conversation) = history.as_ref(ctx).conversation(conversation_id) else {
-                return;
-            };
-            if conversation.is_viewing_shared_session() {
-                return;
-            }
-            if conversation.status().is_in_progress() {
-                me.cancel_conversation_progress(
-                    *conversation_id,
-                    CancellationReason::ManuallyCancelled,
-                    ctx,
-                );
-            }
-        });
-        // Subscribe to the orchestration event service to inject events
-        // (e.g. MessagesReceivedFromAgents) into conversations that receive inter-agent messages.
-        let svc = OrchestrationEventService::handle(ctx);
-        ctx.subscribe_to_model(&svc, move |me, _, event, ctx| {
-            let OrchestrationEventServiceEvent::EventsReady { conversation_id } = event;
-            me.handle_pending_events_ready(*conversation_id, ctx);
-        });
-        let queue = QueuedQueryModel::handle(ctx);
-        ctx.subscribe_to_model(&queue, |me, _, event, ctx| {
-            match event {
-                QueuedQueryEvent::Appended {
-                    conversation_id, ..
+            ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| {
+                let ConversationSelectionEvent::Deactivated {
+                    conversation_id,
+                    final_exchange_count,
+                    is_exit_before_new_entrance,
+                } = event
+                else {
+                    return;
+                };
+                if *is_exit_before_new_entrance || *final_exchange_count == 0 {
+                    return;
                 }
-                | QueuedQueryEvent::PromptReady {
-                    conversation_id, ..
+                let history = BlocklistAIHistoryModel::handle(ctx);
+                let Some(conversation) = history.as_ref(ctx).conversation(conversation_id) else {
+                    return;
+                };
+                if conversation.is_viewing_shared_session() {
+                    return;
                 }
-                | QueuedQueryEvent::DispatchStateChanged { conversation_id }
-                | QueuedQueryEvent::RowUnlocked { conversation_id }
-                | QueuedQueryEvent::Removed {
-                    conversation_id, ..
+                if conversation.status().is_in_progress() {
+                    me.cancel_conversation_progress(
+                        *conversation_id,
+                        CancellationReason::ManuallyCancelled,
+                        ctx,
+                    );
                 }
-                | QueuedQueryEvent::Reordered { conversation_id }
-                | QueuedQueryEvent::EditCommitted {
-                    conversation_id, ..
-                }
-                | QueuedQueryEvent::EditCancelled {
-                    conversation_id, ..
-                } => {
-                    // The queue changed; see whether its next request row needs a nudge.
-                    let next_row =
-                        QueuedQueryModel::as_ref(ctx).next_row_for_request(*conversation_id);
-                    match next_row {
-                        Some(RequestRow::InjectedFollowup(_)) => {
-                            me.maybe_interrupt_command_for_injection(*conversation_id, ctx);
-                        }
-                        Some(RequestRow::LocalSteering(row)) => {
-                            let query_id = row.id();
-                            me.maybe_dispatch_idle_local_steering_row(
-                                *conversation_id,
-                                query_id,
-                                ctx,
-                            );
-                        }
-                        Some(RequestRow::SteeredHead(_)) | None => {}
-                    }
-                }
-                QueuedQueryEvent::EditEntered { .. }
-                | QueuedQueryEvent::Cleared { .. }
-                | QueuedQueryEvent::QueueNextPromptToggled { .. }
-                | QueuedQueryEvent::DefaultModeChanged => {}
-            }
-            if let QueuedQueryEvent::PromptReady {
-                conversation_id,
-                query_id,
-            } = event
-                && me.native_prompt_conversation_id == Some(*conversation_id)
-                && QueuedQueryModel::as_ref(ctx)
-                    .ready_query(*conversation_id, *query_id)
-                    .is_some()
-            {
-                me.dispatch_queued_warp_agent_prompt(*conversation_id, None, ctx);
-            }
-            // Re-check held events as soon as the setup barrier lifts: a promptless run sends no
-            // initial turn whose end would otherwise trigger the check.
-            if let QueuedQueryEvent::DispatchStateChanged { conversation_id } = event
-                && !QueuedQueryModel::as_ref(ctx).is_dispatch_blocked(*conversation_id)
-            {
+            });
+            // Subscribe to the orchestration event service to inject events
+            // (e.g. MessagesReceivedFromAgents) into conversations that receive inter-agent messages.
+            let svc = OrchestrationEventService::handle(ctx);
+            ctx.subscribe_to_model(&svc, move |me, _, event, ctx| {
+                let OrchestrationEventServiceEvent::EventsReady { conversation_id } = event;
                 me.handle_pending_events_ready(*conversation_id, ctx);
-            }
-        });
-        let streamer = OrchestrationEventStreamer::handle(ctx);
-        ctx.subscribe_to_model(&streamer, move |me, _, event, ctx| match event {
-            OrchestrationEventStreamerEvent::DormantClaudeWakeReady {
-                conversation_id,
-                wake_message,
-            } => {
-                me.handle_dormant_claude_wake_ready(*conversation_id, wake_message.clone(), ctx);
-            }
-            // Viewer-mode events are handled by `OrchestrationViewerModel`.
-            OrchestrationEventStreamerEvent::ChildSpawned { .. }
-            | OrchestrationEventStreamerEvent::ChildStatusChanged { .. }
-            | OrchestrationEventStreamerEvent::WatchedRunStatusChanged { .. } => {}
-        });
+            });
+            let queue = QueuedQueryModel::handle(ctx);
+            ctx.subscribe_to_model(&queue, |me, _, event, ctx| {
+                match event {
+                    QueuedQueryEvent::Appended {
+                        conversation_id, ..
+                    }
+                    | QueuedQueryEvent::PromptReady {
+                        conversation_id, ..
+                    }
+                    | QueuedQueryEvent::DispatchStateChanged { conversation_id }
+                    | QueuedQueryEvent::RowUnlocked { conversation_id }
+                    | QueuedQueryEvent::Removed {
+                        conversation_id, ..
+                    }
+                    | QueuedQueryEvent::Reordered { conversation_id }
+                    | QueuedQueryEvent::EditCommitted {
+                        conversation_id, ..
+                    }
+                    | QueuedQueryEvent::EditCancelled {
+                        conversation_id, ..
+                    } => {
+                        // The queue changed; see whether its next request row needs a nudge.
+                        let next_row =
+                            QueuedQueryModel::as_ref(ctx).next_row_for_request(*conversation_id);
+                        match next_row {
+                            Some(RequestRow::InjectedFollowup(_)) => {
+                                me.maybe_interrupt_command_for_injection(*conversation_id, ctx);
+                            }
+                            Some(RequestRow::LocalSteering(row)) => {
+                                let query_id = row.id();
+                                me.maybe_dispatch_idle_local_steering_row(
+                                    *conversation_id,
+                                    query_id,
+                                    ctx,
+                                );
+                            }
+                            Some(RequestRow::SteeredHead(_)) | None => {}
+                        }
+                    }
+                    QueuedQueryEvent::EditEntered { .. }
+                    | QueuedQueryEvent::Cleared { .. }
+                    | QueuedQueryEvent::QueueNextPromptToggled { .. }
+                    | QueuedQueryEvent::DefaultModeChanged => {}
+                }
+                if let QueuedQueryEvent::PromptReady {
+                    conversation_id,
+                    query_id,
+                } = event
+                    && me.native_prompt_conversation_id == Some(*conversation_id)
+                    && QueuedQueryModel::as_ref(ctx)
+                        .ready_query(*conversation_id, *query_id)
+                        .is_some()
+                {
+                    me.dispatch_queued_warp_agent_prompt(*conversation_id, None, ctx);
+                }
+                // Re-check held events as soon as the setup barrier lifts: a promptless run sends no
+                // initial turn whose end would otherwise trigger the check.
+                if let QueuedQueryEvent::DispatchStateChanged { conversation_id } = event
+                    && !QueuedQueryModel::as_ref(ctx).is_dispatch_blocked(*conversation_id)
+                {
+                    me.handle_pending_events_ready(*conversation_id, ctx);
+                }
+            });
+            let streamer = OrchestrationEventStreamer::handle(ctx);
+            ctx.subscribe_to_model(&streamer, move |me, _, event, ctx| match event {
+                OrchestrationEventStreamerEvent::DormantClaudeWakeReady {
+                    conversation_id,
+                    wake_message,
+                } => {
+                    me.handle_dormant_claude_wake_ready(
+                        *conversation_id,
+                        wake_message.clone(),
+                        ctx,
+                    );
+                }
+                // Viewer-mode events are handled by `OrchestrationViewerModel`.
+                OrchestrationEventStreamerEvent::ChildSpawned { .. }
+                | OrchestrationEventStreamerEvent::ChildStatusChanged { .. }
+                | OrchestrationEventStreamerEvent::WatchedRunStatusChanged { .. } => {}
+            });
+        }
         Self {
             input_model,
             context_model,
@@ -781,6 +787,10 @@ impl BlocklistAIController {
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Store the participant who initiated this query before sending
         // so that send_query can use it when creating the exchange.
         if let Some(participant_id) = shared_session_participant_id {
@@ -1132,6 +1142,10 @@ impl BlocklistAIController {
         additional_attachments: HashMap<String, AIAgentAttachment>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let participant_id = participant_id.or_else(|| self.get_sharer_participant_id());
         let running_command = {
             let terminal_model = self.terminal_model.lock();
@@ -1332,6 +1346,10 @@ impl BlocklistAIController {
         base: Option<BaseUserQuery>,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
+
         let is_viewer = self
             .terminal_model
             .lock()
@@ -1470,6 +1488,10 @@ impl BlocklistAIController {
         participant_id: Option<ParticipantId>,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
+
         let Some(conversation) =
             BlocklistAIHistoryModel::as_ref(ctx).conversation(&conversation_id)
         else {
@@ -1532,6 +1554,10 @@ impl BlocklistAIController {
         ai_input: AIAgentInput,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let participant_id = self.get_sharer_participant_id();
         let target_conversation =
             if matches!(ai_input, AIAgentInput::StartFromAmbientRunPrompt { .. }) {
@@ -2652,6 +2678,10 @@ impl BlocklistAIController {
         additional_context: Vec<AIAgentContext>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let Some(conversation) =
             BlocklistAIHistoryModel::as_ref(ctx).conversation(&conversation_id)
         else {
@@ -2733,6 +2763,10 @@ impl BlocklistAIController {
         resume: PendingResume,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let backoff = resume.backoff();
         let recovery = resume.recovery();
         let wait_for_online = NetworkStatus::as_ref(ctx).wait_until_online();
@@ -2836,6 +2870,10 @@ impl BlocklistAIController {
         supported_tools: Vec<ToolType>,
         ctx: &ModelContext<Self>,
     ) -> anyhow::Result<(AIConversationId, api::RequestParams)> {
+        if crate::local_terminal::is_enabled(ctx) {
+            anyhow::bail!("Built-in AI is unavailable in local terminal mode");
+        }
+
         let history_model = BlocklistAIHistoryModel::as_ref(ctx);
 
         // Resolve conversation state. For follow-ups we read from history;
@@ -3051,6 +3089,10 @@ impl BlocklistAIController {
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
+        if crate::local_terminal::is_enabled(ctx) {
+            anyhow::bail!("Built-in AI is unavailable in local terminal mode");
+        }
+
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         let (
             conversation_id,

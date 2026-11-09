@@ -1235,3 +1235,141 @@ fn local_terminal_logged_out_restore_preserves_legacy_tabs_and_history() {
         );
     }
 }
+
+#[test]
+fn local_terminal_legacy_window_and_ai_block_survive_snapshot_and_save_block_round_trip() {
+    use crate::ai::agent::conversation::AIConversationId;
+    use crate::app_state::{BranchSnapshot, PaneFlex, SplitDirection};
+    use crate::terminal::model::block::SerializedAgentViewVisibility;
+    use crate::terminal::model::test_utils::TestBlockListBuilder;
+
+    let tempdir = tempfile::tempdir().expect("temp fixture directory");
+    let path = tempdir.path().join("l2-legacy.sqlite");
+    let mut conn = setup_database(&path).expect("fixture schema");
+    let pane_uuid = vec![42; 16];
+    let conversation_id = AIConversationId::new();
+    let mut terminal_window = test_terminal_window_snapshot(true);
+    let mut terminal_leaf = match terminal_window.tabs[0].root.clone() {
+        PaneNodeSnapshot::Leaf(leaf) => leaf,
+        _ => panic!("terminal fixture is a leaf"),
+    };
+    if let LeafContents::Terminal(terminal) = &mut terminal_leaf.contents {
+        terminal.uuid = pane_uuid.clone();
+        terminal.input_config = Some(crate::ai::blocklist::InputConfig {
+            input_type: crate::ai::blocklist::InputType::AI,
+            is_locked: true,
+        });
+        terminal.llm_model_override = Some("legacy-model-opaque-value".to_owned());
+        terminal.active_profile_id = Some(crate::server::ids::SyncId::ClientId(ClientId::new()));
+        terminal.conversation_ids_to_restore = vec![conversation_id];
+        terminal.active_conversation_id = Some(conversation_id);
+    }
+    let mut children = vec![(PaneFlex(2.), PaneNodeSnapshot::Leaf(terminal_leaf))];
+    // 旧 SQLite 不存设置搜索词，两个编辑器共用同一 kind；按实际磁盘描述构造 fixture。
+    children.extend(
+        crate::app_state::retired_pane_test_fixtures()
+            .into_iter()
+            .filter(LeafContents::is_persisted)
+            .map(|contents| match contents {
+                LeafContents::CustomRouterEditor => LeafContents::ExecutionProfileEditor,
+                LeafContents::Settings(crate::app_state::SettingsPaneSnapshot::Local {
+                    current_page,
+                    ..
+                }) => LeafContents::Settings(crate::app_state::SettingsPaneSnapshot::Local {
+                    current_page,
+                    search_query: None,
+                }),
+                other => other,
+            })
+            .enumerate()
+            .map(|(index, contents)| {
+                (
+                    PaneFlex(1.),
+                    PaneNodeSnapshot::Leaf(LeafSnapshot {
+                        is_focused: false,
+                        custom_vertical_tabs_title: Some(format!("旧面板 {index} {{原值}}")),
+                        contents,
+                    }),
+                )
+            }),
+    );
+    terminal_window.tabs[0].root = PaneNodeSnapshot::Branch(BranchSnapshot {
+        direction: SplitDirection::Horizontal,
+        children,
+    });
+    terminal_window.tabs[0].custom_title = Some("旧窗口标签 {原值}".to_owned());
+    terminal_window.tabs[0].pinned = true;
+    let state = AppState {
+        windows: vec![terminal_window],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: vec![uuid::Uuid::new_v4()],
+    };
+    save_app_state(&mut conn, &state).expect("write legacy window fixture");
+    let mut block = SerializedBlock::new_for_test("printf '旧命令 {原样}'".into(), "旧输出".into());
+    block.ai_metadata = Some(format!(
+        "  {}  ",
+        serde_json::json!({
+            "requested_command_action_id": null, "conversation_id": conversation_id,
+            "subagent_task_id": null, "long_running_control_state": null,
+            "has_agent_written_to_block": true, "legacy_unknown_field": ["保留", 17],
+        })
+    ));
+    block.agent_view_visibility = Some(SerializedAgentViewVisibility::Agent {
+        origin_conversation_id: conversation_id,
+        pending_other_conversation_ids: Default::default(),
+        other_conversation_ids: Default::default(),
+    });
+    super::save_block(&mut conn, pane_uuid.clone(), &block, true)
+        .expect("write legacy block fixture");
+    let loaded =
+        read_sqlite_data(&mut conn, None, PersistedDataScope::Full).expect("load without account");
+    let loaded_state = loaded.app_state.expect("legacy GUI window remains");
+    assert_eq!(loaded_state.windows, state.windows);
+    assert_eq!(loaded_state.running_mcp_servers, state.running_mcp_servers);
+    let originals = loaded_state
+        .block_lists
+        .get(&crate::app_state::PaneUuid(pane_uuid.clone()))
+        .unwrap();
+    let mut blocks = TestBlockListBuilder::new()
+        .with_restored_blocks(originals)
+        .build();
+    blocks.preserve_restored_ai_data(originals);
+    let restored = blocks
+        .block_at(blocks.block_index_for_id(&block.id).unwrap())
+        .unwrap();
+    let resaved_block = SerializedBlock::from(restored);
+    assert_eq!(resaved_block.ai_metadata, block.ai_metadata);
+    assert_eq!(
+        resaved_block.agent_view_visibility,
+        block.agent_view_visibility
+    );
+    let writer = start_writer(conn, path.clone()).expect("fixture writer");
+    writer
+        .sender
+        .send(ModelEvent::SaveBlock(BlockCompleted {
+            pane_id: pane_uuid.clone(),
+            is_local: true,
+            block: Arc::new(resaved_block),
+        }))
+        .unwrap();
+    writer
+        .sender
+        .send(ModelEvent::Snapshot(loaded_state))
+        .unwrap();
+    writer.sender.send(ModelEvent::Terminate).unwrap();
+    writer.handle.join().unwrap();
+    let mut conn = setup_database(&path).expect("reopen fixture");
+    let again = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+        .unwrap()
+        .app_state
+        .unwrap();
+    assert_eq!(again.windows, state.windows);
+    assert_eq!(again.running_mcp_servers, state.running_mcp_servers);
+    let crate::ai::blocklist::SerializedBlockListItem::Command { block: saved } =
+        &again.block_lists[&crate::app_state::PaneUuid(pane_uuid)][0];
+    assert_eq!(saved.ai_metadata, block.ai_metadata);
+    assert_eq!(saved.agent_view_visibility, block.agent_view_visibility);
+    assert_eq!(saved.stylized_command, block.stylized_command);
+    assert_eq!(saved.stylized_output, block.stylized_output);
+}

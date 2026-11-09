@@ -275,6 +275,12 @@ impl TemplatableMCPServerManager {
         running_legacy_server_uuids: &[Uuid],
         ctx: &mut ModelContext<Self>,
     ) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                locally_installed_servers,
+                ..Default::default()
+            };
+        }
         // Subscribe to FileBasedMCPManager events.
         let file_based_mcp_manager = FileBasedMCPManager::handle(ctx);
         ctx.subscribe_to_model(&file_based_mcp_manager, |me, _, event, ctx| match event {
@@ -774,6 +780,10 @@ impl TemplatableMCPServerManager {
         installation: TemplatableMCPServerInstallation,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let installation_uuid = installation.uuid();
         log::debug!("Spawning ephemeral server with installation_uuid {installation_uuid}");
         self.reconnectable_ephemeral_installations
@@ -794,6 +804,10 @@ impl TemplatableMCPServerManager {
         installation: TemplatableMCPServerInstallation,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.cli_spawned_server_uuids.insert(installation.uuid());
         self.spawn_ephemeral_server(installation, ctx);
     }
@@ -807,6 +821,10 @@ impl TemplatableMCPServerManager {
     /// rotated credentials: the transport keeps the `Authorization` header it
     /// was spawned with.
     pub fn sync_builtin_servers(&mut self, force_respawn: bool, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let installation_uuid = builtin::FACTORY_MCP_INSTALLATION_UUID;
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
         // Built-ins attach only in interactive clients (GUI and TUI); CLI
@@ -878,6 +896,10 @@ impl TemplatableMCPServerManager {
     /// The server will be started in the background and the result will be handled by the
     /// [`TemplatableMCPServerManager`].
     pub fn spawn_server(&mut self, installation_uuid: Uuid, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         log::debug!("Trying to spawn a server with installation_uuid {installation_uuid}");
 
         // Look up installation to resolve template variables and use its UUID as the MCP server id.
@@ -911,6 +933,10 @@ impl TemplatableMCPServerManager {
         mode: SpawnMode,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let installation_uuid = installation.uuid();
 
         let resolved_json = resolve_json(&installation);
@@ -1899,6 +1925,11 @@ impl TemplatableMCPServerManager {
         result_tx: tokio::sync::oneshot::Sender<Result<rmcp::Peer<rmcp::RoleClient>, String>>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            let _ = result_tx.send(Err("MCP is unavailable in local terminal mode".to_string()));
+            return;
+        }
+
         log::debug!("Reconnecting MCP server with installation uuid {installation_uuid}");
 
         if let Some(peer) = self.get_peer_if_connected(installation_uuid) {
@@ -1974,6 +2005,10 @@ impl TemplatableMCPServerManager {
         installations: &[TemplatableMCPServerInstallation],
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // First, check if the servers are already spawned.
         let mut new_installations = Vec::new();
         for installation in installations {
@@ -2014,6 +2049,10 @@ impl TemplatableMCPServerManager {
         installation_hashes: &Vec<u64>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         for hash in installation_hashes {
             self.file_based_server_credentials.remove(hash);
         }

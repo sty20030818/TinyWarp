@@ -161,6 +161,28 @@ impl FromStr for UriHost {
 }
 
 impl UriHost {
+    fn requires_disabled_local_feature(&self, url: &Url) -> bool {
+        match self {
+            Self::Codex | Self::Linear | Self::Mcp => true,
+            Self::Action => Action::parse(url).is_ok_and(|action| {
+                matches!(
+                    action,
+                    Action::OpenFileEditor { .. } | Action::NewAgentConversation
+                )
+            }),
+            Self::Auth
+            | Self::Team
+            | Self::SharedSession
+            | Self::Conversation
+            | Self::Drive
+            | Self::Settings
+            | Self::Home
+            | Self::ChatGPTLink
+            | Self::Launch
+            | Self::TabConfig
+            | Self::Session => false,
+        }
+    }
     fn requires_cloud_account(&self, url: &Url) -> bool {
         match self {
             Self::Auth
@@ -1297,6 +1319,12 @@ impl Action {
 /// and team urls for opening team settings.
 pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
     if crate::local_terminal::is_enabled(ctx)
+        && validate_custom_uri(url).is_ok_and(|host| host.requires_disabled_local_feature(url))
+    {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
+    if crate::local_terminal::is_enabled(ctx)
         && validate_custom_uri(url).is_ok_and(|host| host.requires_cloud_account(url))
     {
         crate::local_terminal::show_unavailable(ctx);
@@ -1431,6 +1459,12 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
     let prefer_markdown_viewer = true;
 
     let action = classify_open_file_action(&path, prefer_markdown_viewer);
+    if crate::local_terminal::is_enabled(ctx)
+        && matches!(action, OpenFileAction::Notebook | OpenFileAction::Editor)
+    {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
 
     if action == OpenFileAction::Notebook {
         if let Some((primary_window_id, root_view_id)) = primary_window_and_view {
@@ -1533,6 +1567,11 @@ fn open_file_editor(
     line_col: Option<LineAndColumnArg>,
     ctx: &mut AppContext,
 ) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
+
     #[cfg(feature = "local_fs")]
     {
         use crate::code::editor_management::CodeSource;

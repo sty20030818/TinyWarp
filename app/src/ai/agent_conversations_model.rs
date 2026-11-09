@@ -685,7 +685,8 @@ impl SingletonEntity for AgentConversationsModel {}
 impl AgentConversationsModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         // If FF not enabled, return an empty model and don't sync any tasks.
-        if !FeatureFlag::AgentManagementView.is_enabled() {
+        if crate::local_terminal::is_enabled(ctx) || !FeatureFlag::AgentManagementView.is_enabled()
+        {
             return Self {
                 tasks: HashMap::new(),
                 conversations: HashMap::new(),
@@ -865,6 +866,10 @@ impl AgentConversationsModel {
     }
 
     fn start_rtc_task_refresh_throttle_timer(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let future_handle = ctx.spawn(
             async move {
                 Timer::after(RTC_TASK_REFRESH_THROTTLE).await;
@@ -905,6 +910,10 @@ impl AgentConversationsModel {
         timestamp: DateTime<Utc>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
 
         // Subtract 1 second to give buffer for clock differences with server
@@ -946,6 +955,10 @@ impl AgentConversationsModel {
     /// This function will loop through all active panes, recently closed panes, and historical
     /// conversations to construct a complete snapshot of conversations.
     pub fn sync_conversations(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !FeatureFlag::InteractiveConversationManagementView.is_enabled() {
             return;
         }
@@ -968,6 +981,10 @@ impl AgentConversationsModel {
     /// Fetches tasks and cloud conversation metadata async. Cloud conversation metadata is merged with
     /// metadata stored in local db in the BlocklistAIHistoryModel
     fn fetch_ambient_agent_tasks_and_cloud_convo_metadata(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let auth_state = AuthStateProvider::as_ref(ctx).get();
         let Some(creator_uid) = auth_state.user_id().map(|uid| uid.as_string()) else {
             // If we don't have a user ID, don't pull tasks
@@ -1179,6 +1196,10 @@ impl AgentConversationsModel {
         &self,
         ctx: &ModelContext<Self>,
     ) -> Option<TeamContextResolver> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return None;
+        }
+
         if !self.initial_load_state.can_poll() {
             return None;
         }
@@ -1215,6 +1236,10 @@ impl AgentConversationsModel {
         team_context_resolver: TeamContextResolver,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let future_handle = ctx.spawn(
             async move {
                 Timer::after(duration_with_jitter(POLLING_INTERVAL, 0.2)).await;
@@ -1826,6 +1851,10 @@ impl AgentConversationsModel {
         task_id: &AmbientAgentTaskId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.tasks.remove(task_id);
         self.task_fetch_state.remove(task_id);
         self.async_fetch_task(task_id, ctx);
@@ -1861,6 +1890,10 @@ impl AgentConversationsModel {
 
     /// Consult fetch-state guards and spawn a fetch if allowed.
     fn async_fetch_task(&mut self, task_id: &AmbientAgentTaskId, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         match self.task_fetch_state.get(task_id) {
             Some(TaskFetchState::InFlight) => return,
             Some(TaskFetchState::PermanentlyFailed { at, .. }) => {
@@ -2087,6 +2120,10 @@ impl AgentConversationsModel {
         request_team_scope: RequestTeamScope,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !AppExecutionMode::as_ref(ctx).can_fetch_agent_runs_for_management() {
             return;
         }

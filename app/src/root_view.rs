@@ -1182,6 +1182,11 @@ fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppCont
 
 /// Opens a new window and shows the Codex modal.
 fn open_codex_in_new_window(_: &(), ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
+
     let root_handle = open_new_window_get_handles(None, ctx).1;
     root_handle.update(ctx, |root_view, ctx| {
         if let AuthOnboardingState::Terminal(workspace_view_handle) =
@@ -1199,6 +1204,11 @@ fn open_codex_in_new_window(_: &(), ctx: &mut AppContext) {
 
 /// Opens a new window and enters agent view with the Linear issue work prompt.
 fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
+
     let (_, root_handle) = open_new_window_get_handles(None, ctx);
     let args = args.clone();
     root_handle.update(ctx, |root_view, ctx| {
@@ -1270,6 +1280,11 @@ fn open_new_workspace_with_workflow_open(
 
 /// Opens a new window with a file-based notebook open.
 fn open_new_with_file_notebook(arg: &PathBuf, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
+
     open_new_with_workspace_source(
         NewWorkspaceSource::NotebookFromFilePath {
             file_path: Some(arg.to_owned()),
@@ -3445,6 +3460,11 @@ impl RootView {
     }
 
     pub fn add_file_pane(&mut self, path: &PathBuf, ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return true;
+        }
+
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             handle.update(ctx, |workspace, ctx| {
                 workspace.add_tab_for_file_notebook(Some(path.to_owned()), ctx);
@@ -3630,6 +3650,11 @@ impl RootView {
 
     /// Opens the Codex modal in an existing window.
     pub fn open_codex_in_existing_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return true;
+        }
+
         let window_id = ctx.window_id();
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             handle.update(ctx, |workspace, ctx| {
@@ -3648,6 +3673,11 @@ impl RootView {
         args: &LinearIssueWork,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return true;
+        }
+
         let window_id = ctx.window_id();
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             let args = args.clone();

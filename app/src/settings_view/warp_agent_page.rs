@@ -1978,7 +1978,7 @@ impl WarpAgentPageView {
         });
 
         let start_url = ChatGPTSubscriptionModel::handle(ctx)
-            .update(ctx, |model, _ctx| model.begin_link_attempt());
+            .update(ctx, |model, ctx| model.begin_link_attempt(ctx));
         ctx.spawn(start_url, move |me, result, ctx| {
             if me.chatgpt_oauth_attempt != Some(attempt_id) {
                 return;

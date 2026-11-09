@@ -305,6 +305,22 @@ pub(crate) fn surface_unavailable_reason(
     destination: SurfaceDestination,
     ctx: &AppContext,
 ) -> Option<&'static str> {
+    if crate::local_terminal::is_enabled(ctx)
+        && matches!(
+            destination,
+            SurfaceDestination::WarpDrive
+                | SurfaceDestination::AiAssistant
+                | SurfaceDestination::CodeReview
+                | SurfaceDestination::ProjectExplorer
+                | SurfaceDestination::GlobalSearch
+                | SurfaceDestination::ConversationList
+                | SurfaceDestination::LeftPanel
+                | SurfaceDestination::RightPanel
+                | SurfaceDestination::AgentManagement
+        )
+    {
+        return Some("this surface is unavailable in TinyWarp local terminal");
+    }
     match destination {
         SurfaceDestination::Settings
         | SurfaceDestination::CommandPalette

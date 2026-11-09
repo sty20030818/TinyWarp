@@ -42,9 +42,15 @@ pub(crate) fn create_tab(
     ctx: &mut ModelContext<LocalControlBridge>,
 ) -> Result<serde_json::Value, ControlError> {
     validate_tab_create_target(target)?;
+    let action = tab_create_action(params)?;
+    if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+        return Err(ControlError::new(
+            ErrorCode::UnsupportedAction,
+            "tab.create agent tabs are unavailable in TinyWarp local terminal",
+        ));
+    }
     let window_id = target_window_id_for_target(ctx, target, ActionKind::TabCreate)?;
     let workspace = workspace_for_window(window_id, ActionKind::TabCreate, ctx)?;
-    let action = tab_create_action(params)?;
     let (tab_id, previous_tab_count, tab_count, active_tab_index) =
         workspace.update(ctx, |workspace, ctx| {
             let previous_tab_count = workspace.tab_count();

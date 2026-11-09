@@ -65,6 +65,9 @@ impl HeaderToolbarItemKind {
     /// (feature flags, compile-time features, AI enabled, auth state).
     /// Does not check user show/hide preferences — use `is_available` for that.
     pub fn is_supported(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return matches!(self, Self::TabsPanel);
+        }
         match self {
             Self::TabsPanel => {
                 FeatureFlag::VerticalTabs.is_enabled()

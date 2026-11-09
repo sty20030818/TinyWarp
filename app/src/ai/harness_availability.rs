@@ -134,6 +134,13 @@ pub struct HarnessAvailabilityModel {
 impl HarnessAvailabilityModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let harnesses = get_cached(ctx).unwrap_or_else(default_harnesses);
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                harnesses,
+                auth_secrets: HashMap::new(),
+                auth_secret_retry_after: HashMap::new(),
+            };
+        }
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, _, event, ctx| {
             if let NetworkStatusEvent::NetworkStatusChanged {
@@ -238,6 +245,10 @@ impl HarnessAvailabilityModel {
         harness: Harness,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let Some(agent_harness) = harness_to_graphql_harness(harness) else {
             return;
         };
@@ -325,6 +336,10 @@ impl HarnessAvailabilityModel {
         owner: SecretOwner,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let cache_key = AuthSecretCacheKey::new(team_scope, harness);
         let request_team_scope = RequestTeamScope::from_scope(team_scope);
         let manager = ManagedSecretManager::handle(ctx);
@@ -361,6 +376,10 @@ impl HarnessAvailabilityModel {
         owner: SecretOwner,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let cache_key = AuthSecretCacheKey::new(team_scope, harness);
         let request_team_scope = RequestTeamScope::from_scope(team_scope);
         let manager = ManagedSecretManager::handle(ctx);
@@ -436,6 +455,10 @@ impl HarnessAvailabilityModel {
         }
     }
     pub fn refresh(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // The endpoint queries `user`, which requires auth.
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             return;

@@ -2391,6 +2391,8 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         }
                     }
                 }
+                // 旧写端将两种编辑器共用此 kind，磁盘只能恢复为其规范类型。
+                EXECUTION_PROFILE_EDITOR_PANE_KIND => LeafContents::ExecutionProfileEditor,
                 GET_STARTED_PANE_KIND => LeafContents::GetStarted,
                 AI_DOCUMENT_PANE_KIND => {
                     let ai_document_pane = schema::ai_document_panes::dsl::ai_document_panes

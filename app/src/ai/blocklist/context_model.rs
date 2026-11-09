@@ -160,68 +160,77 @@ impl BlocklistAIContextModel {
         conversation_selection: ConversationSelectionHandle,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(
-            model_event_dispatcher,
-            move |me, _, event, ctx| match event {
-                ModelEvent::BlockCompleted(BlockCompletedEvent {
-                    block_type: BlockType::User(user_block_completed),
-                    block_id,
-                    ..
-                }) => {
-                    // If AgentViewBlockContext is enabled and we're in agent view, track user-executed
-                    // blocks for auto-attachment as context.
-                    if FeatureFlag::AgentViewBlockContext.is_enabled()
-                        && me
-                            .conversation_selection
-                            .as_ref(ctx)
-                            .is_conversation_fullscreen(ctx)
-                        && !user_block_completed.was_part_of_agent_interaction
-                    {
-                        me.auto_attached_agent_view_user_block_ids
-                            .push(block_id.clone());
+        if !crate::local_terminal::is_enabled(ctx) {
+            ctx.subscribe_to_model(
+                model_event_dispatcher,
+                move |me, _, event, ctx| match event {
+                    ModelEvent::BlockCompleted(BlockCompletedEvent {
+                        block_type: BlockType::User(user_block_completed),
+                        block_id,
+                        ..
+                    }) => {
+                        // If AgentViewBlockContext is enabled and we're in agent view, track user-executed
+                        // blocks for auto-attachment as context.
+                        if FeatureFlag::AgentViewBlockContext.is_enabled()
+                            && me
+                                .conversation_selection
+                                .as_ref(ctx)
+                                .is_conversation_fullscreen(ctx)
+                            && !user_block_completed.was_part_of_agent_interaction
+                        {
+                            me.auto_attached_agent_view_user_block_ids
+                                .push(block_id.clone());
+                        }
+
+                        // If the block that finished was part of an agent interaction (i.e. LRC finishing),
+                        // we should preserve input context.
+                        if !FeatureFlag::AgentViewBlockContext.is_enabled()
+                            && !user_block_completed.was_part_of_agent_interaction
+                        {
+                            me.reset_context_to_default(ctx);
+                        }
                     }
+                    ModelEvent::BlockMetadataReceived(e) => {
+                        me.apply_block_metadata_directory_context(
+                            &e.block_metadata,
+                            &sessions,
+                            ctx,
+                        );
+                    }
+                    ModelEvent::BlockWorkingDirectoryUpdated(e) => {
+                        me.apply_block_metadata_directory_context(
+                            &e.block_metadata,
+                            &sessions,
+                            ctx,
+                        );
+                    }
+                    _ => {}
+                },
+            );
 
-                    // If the block that finished was part of an agent interaction (i.e. LRC finishing),
-                    // we should preserve input context.
-                    if !FeatureFlag::AgentViewBlockContext.is_enabled()
-                        && !user_block_completed.was_part_of_agent_interaction
-                    {
-                        me.reset_context_to_default(ctx);
+            ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _, event, ctx| {
+                if let LLMPreferencesEvent::UpdatedActiveAgentModeLLM = event {
+                    let vision_supported = LLMPreferences::as_ref(ctx).vision_supported(
+                        &(me.team_context_resolver)(ctx),
+                        ctx,
+                        Some(me.terminal_surface_id),
+                    );
+                    if !vision_supported {
+                        me.clear_pending_images(ctx);
                     }
                 }
-                ModelEvent::BlockMetadataReceived(e) => {
-                    me.apply_block_metadata_directory_context(&e.block_metadata, &sessions, ctx);
-                }
-                ModelEvent::BlockWorkingDirectoryUpdated(e) => {
-                    me.apply_block_metadata_directory_context(&e.block_metadata, &sessions, ctx);
-                }
-                _ => {}
-            },
-        );
+            });
 
-        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _, event, ctx| {
-            if let LLMPreferencesEvent::UpdatedActiveAgentModeLLM = event {
-                let vision_supported = LLMPreferences::as_ref(ctx).vision_supported(
-                    &(me.team_context_resolver)(ctx),
-                    ctx,
-                    Some(me.terminal_surface_id),
-                );
-                if !vision_supported {
-                    me.clear_pending_images(ctx);
+            ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| match event {
+                ConversationSelectionEvent::Changed => {
+                    ctx.emit(BlocklistAIContextEvent::PendingQueryStateUpdated);
                 }
-            }
-        });
-
-        ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| match event {
-            ConversationSelectionEvent::Changed => {
-                ctx.emit(BlocklistAIContextEvent::PendingQueryStateUpdated);
-            }
-            ConversationSelectionEvent::Activated { .. }
-            | ConversationSelectionEvent::Deactivated { .. } => {
-                me.auto_attached_agent_view_user_block_ids.clear();
-            }
-        });
-
+                ConversationSelectionEvent::Activated { .. }
+                | ConversationSelectionEvent::Deactivated { .. } => {
+                    me.auto_attached_agent_view_user_block_ids.clear();
+                }
+            });
+        }
         Self {
             terminal_model,
             directory_context: Default::default(),

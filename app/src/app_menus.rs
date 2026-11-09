@@ -71,10 +71,9 @@ pub fn menu_bar(ctx: &mut AppContext) -> MenuBar {
         make_new_view_menu(ctx),
         make_new_tab_menu(ctx),
         make_new_blocks_menu(ctx),
-        make_new_ai_menu(ctx),
     ];
     if !crate::local_terminal::is_enabled(ctx) {
-        menus.push(make_new_drive_menu(ctx));
+        menus.extend([make_new_ai_menu(ctx), make_new_drive_menu(ctx)]);
     }
     menus.extend([make_new_window_menu(), make_new_help_menu()]);
     MenuBar::new(menus)
@@ -260,23 +259,27 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
 
 fn make_new_file_menu(ctx: &AppContext) -> Menu {
     let mut file_menu_options = make_new_elements_menu_items(ctx);
+    if !crate::local_terminal::is_enabled(ctx) {
+        file_menu_options.extend([
+            MenuItem::Separator,
+            updateable_custom_item_without_checkmark(CustomAction::OpenRepository, ctx),
+            MenuItem::Custom(CustomMenuItem::new_with_submenu(
+                tr("menu.open_recent", "Open Recent"),
+                |_| (),
+                |_props, ctx| {
+                    let recent_repos = generate_recent_repos_for_menu(ctx);
+                    MenuItemPropertyChanges {
+                        submenu: Some(Some(make_recent_repos_menu_items(ctx))),
+                        disabled: Some(recent_repos.is_empty()),
+                        ..Default::default()
+                    }
+                },
+                None,
+                vec![],
+            )),
+        ]);
+    }
     file_menu_options.extend([
-        MenuItem::Separator,
-        updateable_custom_item_without_checkmark(CustomAction::OpenRepository, ctx),
-        MenuItem::Custom(CustomMenuItem::new_with_submenu(
-            tr("menu.open_recent", "Open Recent"),
-            |_| (),
-            |_props, ctx| {
-                let recent_repos = generate_recent_repos_for_menu(ctx);
-                MenuItemPropertyChanges {
-                    submenu: Some(Some(make_recent_repos_menu_items(ctx))),
-                    disabled: Some(recent_repos.is_empty()),
-                    ..Default::default()
-                }
-            },
-            None,
-            vec![],
-        )),
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::CloseCurrentSession, ctx),
         updateable_custom_item_without_checkmark(CustomAction::CloseWindow, ctx),
@@ -395,10 +398,16 @@ fn make_new_view_menu(ctx: &AppContext) -> Menu {
         updateable_custom_item_without_checkmark(CustomAction::CommandPalette, ctx),
         updateable_custom_item_without_checkmark(CustomAction::NavigationPalette, ctx),
         updateable_custom_item_without_checkmark(CustomAction::LaunchConfigPalette, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::FilesPalette, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::ToggleProjectExplorer, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::ToggleConversationListView, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::ToggleGlobalSearch, ctx),
+    ]);
+    if !crate::local_terminal::is_enabled(ctx) {
+        items.extend([
+            updateable_custom_item_without_checkmark(CustomAction::FilesPalette, ctx),
+            updateable_custom_item_without_checkmark(CustomAction::ToggleProjectExplorer, ctx),
+            updateable_custom_item_without_checkmark(CustomAction::ToggleConversationListView, ctx),
+            updateable_custom_item_without_checkmark(CustomAction::ToggleGlobalSearch, ctx),
+        ]);
+    }
+    items.extend([
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::History, ctx),
         updateable_custom_item_without_checkmark(CustomAction::CommandSearch, ctx),
@@ -1111,39 +1120,44 @@ fn make_new_elements_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
             },
             Some(Keystroke::parse("cmd-t").expect("Valid keystroke")),
         )),
-        MenuItem::Custom(CustomMenuItem::new(
-            tr("menu.new_agent_tab", "New Agent Tab"),
-            open_new_agent_tab_or_window,
-            move |_props: &MenuItemProperties, ctx: &mut AppContext| {
-                let mut changes = MenuItemPropertyChanges::default();
-                let (is_any_ai_enabled, is_default_session_mode_agent) = AISettings::handle(ctx)
-                    .read(ctx, |ai_settings, ctx| {
-                        let enabled = ai_settings.is_any_ai_enabled(ctx);
-                        let agent = enabled
-                            && ai_settings.default_session_mode(ctx) == DefaultSessionMode::Agent;
-                        (enabled, agent)
-                    });
-                if !is_any_ai_enabled {
-                    changes.disabled = Some(true);
-                    return changes;
-                }
-                let trigger = if is_default_session_mode_agent {
-                    Trigger::Custom(CustomAction::NewTab.into())
-                } else {
-                    Trigger::Custom(CustomAction::NewAgentTab.into())
-                };
-                let binding = ctx
-                    .get_key_bindings()
-                    .find(|b| b.trigger == &trigger || b.original_trigger == Some(&trigger));
-                if let Some(binding) = binding {
-                    changes.keystroke = Some(bindings::trigger_to_keystroke(binding.trigger));
-                }
-                changes
-            },
-            None,
-        )),
-        non_updateable_custom_item(CustomAction::NewFile, ctx),
     ];
+    if !crate::local_terminal::is_enabled(ctx) {
+        new_elements_menu.extend([
+            MenuItem::Custom(CustomMenuItem::new(
+                tr("menu.new_agent_tab", "New Agent Tab"),
+                open_new_agent_tab_or_window,
+                move |_props: &MenuItemProperties, ctx: &mut AppContext| {
+                    let mut changes = MenuItemPropertyChanges::default();
+                    let (is_any_ai_enabled, is_default_session_mode_agent) =
+                        AISettings::handle(ctx).read(ctx, |ai_settings, ctx| {
+                            let enabled = ai_settings.is_any_ai_enabled(ctx);
+                            let agent = enabled
+                                && ai_settings.default_session_mode(ctx)
+                                    == DefaultSessionMode::Agent;
+                            (enabled, agent)
+                        });
+                    if !is_any_ai_enabled {
+                        changes.disabled = Some(true);
+                        return changes;
+                    }
+                    let trigger = if is_default_session_mode_agent {
+                        Trigger::Custom(CustomAction::NewTab.into())
+                    } else {
+                        Trigger::Custom(CustomAction::NewAgentTab.into())
+                    };
+                    let binding = ctx
+                        .get_key_bindings()
+                        .find(|b| b.trigger == &trigger || b.original_trigger == Some(&trigger));
+                    if let Some(binding) = binding {
+                        changes.keystroke = Some(bindings::trigger_to_keystroke(binding.trigger));
+                    }
+                    changes
+                },
+                None,
+            )),
+            non_updateable_custom_item(CustomAction::NewFile, ctx),
+        ]);
+    }
 
     let reopen_session_action_updater =
         custom_action_updater(CustomAction::ReopenClosedSession, Box::new(|_| false));
@@ -1197,6 +1211,10 @@ fn open_new_default_tab_or_window(ctx: &mut AppContext) {
 /// Dispatch events to open an agent tab in the active window
 /// or make a new window if there is no active window.
 fn open_new_agent_tab_or_window(ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        crate::local_terminal::show_feature_unavailable(ctx);
+        return;
+    }
     match WindowManager::handle(ctx).as_ref(ctx).active_window() {
         Some(wid) => ctx.dispatch_custom_action(CustomAction::NewAgentTab, wid),
         _ => open_new_window(ctx),

@@ -152,6 +152,9 @@ impl TerminalView {
         &mut self,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         let ai_settings = AISettings::handle(ctx);
         ctx.subscribe_to_model(&ai_settings, |me, _, event, ctx| match event {
             AISettingsChangedEvent::IsAnyAIEnabled { .. }
@@ -213,6 +216,9 @@ impl TerminalView {
         event: &UseAgentToolbarEvent,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         match event {
             UseAgentToolbarEvent::Dismiss => {
                 self.hide_use_agent_footer_in_blocklist(ctx);
@@ -293,6 +299,9 @@ impl TerminalView {
     }
 
     pub(super) fn has_active_cli_agent_input_session(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
         CLIAgentSessionsModel::as_ref(app).is_input_open(self.view_id)
     }
 
@@ -303,6 +312,9 @@ impl TerminalView {
         model: &TerminalModel,
         app: &AppContext,
     ) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
         let ai_settings = AISettings::as_ref(app);
 
         // If the warpify footer is active, a subshell was detected and we should show the footer.
@@ -371,6 +383,9 @@ impl TerminalView {
         model: &TerminalModel,
         ctx: &AppContext,
     ) -> Option<(CLIAgent, Option<String>)> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return None;
+        }
         let active_block = model.block_list().active_block();
 
         if !active_block.is_active_and_long_running() {
@@ -528,6 +543,9 @@ impl TerminalView {
     }
 
     pub(super) fn maybe_show_use_agent_footer_in_blocklist(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         // This is a bit of a hack- but it ensures we never show more than one footer in the
         // blocklist.
         self.hide_use_agent_footer_in_blocklist(ctx);
@@ -1068,6 +1086,10 @@ impl TerminalView {
         entrypoint: CLIAgentInputEntrypoint,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
         if !FeatureFlag::CLIAgentRichInput.is_enabled()
             || self.has_active_cli_agent_input_session(ctx)
         {

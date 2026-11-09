@@ -680,3 +680,30 @@ fn safety_net_is_a_pure_noop_when_gate_is_off() {
         });
     })
 }
+
+#[test]
+fn local_terminal_rejects_ai_token_refresh_waiter_without_cloud_dependencies() {
+    App::test((), |mut app| async move {
+        crate::test_util::settings::initialize_settings_for_tests(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let manager = app.update(|ctx| {
+            warpui_extras::secure_storage::register_noop("local-ai-token-test", ctx);
+            ctx.add_singleton_model(ApiKeyManager::new)
+        });
+        let (tx, rx) = oneshot::channel();
+        manager.update(&mut app, |manager, ctx| {
+            start_geap_refresh_for_waiter(manager, tx, ctx);
+            schedule_geap_token_refresh(manager, ctx);
+            assert!(matches!(
+                manager.geap_credentials_state(),
+                GeapCredentialsState::Missing
+            ));
+            crate::ai::aws_credentials::refresh_local_chain_aws_credentials(manager, ctx);
+            assert!(matches!(
+                manager.aws_credentials_state(),
+                ai::api_keys::AwsCredentialsState::Missing
+            ));
+        });
+        assert!(matches!(rx.await.unwrap(), GeapRefreshOutcome::Failed));
+    });
+}

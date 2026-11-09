@@ -87,6 +87,9 @@ impl EditorView {
     }
 
     pub(super) fn should_show_voice_new_feature_popup(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
         let ai_settings = AISettings::handle(app).as_ref(app);
         let voice_input = voice_input::VoiceInput::handle(app).as_ref(app);
 
@@ -207,6 +210,9 @@ impl EditorView {
         source: &voice_input::VoiceInputToggledFrom,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
         if !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled() {
             return false;
         }
@@ -422,7 +428,9 @@ impl EditorView {
     ) {
         let mut state = self.voice_input_state.clone();
         state.recording_handle = None;
-        if !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled() {
+        if crate::local_terminal::is_enabled(ctx)
+            || !UserWorkspaces::handle(ctx).as_ref(ctx).is_voice_enabled()
+        {
             if state.lifecycle.fail() {
                 self.set_voice_input_state(state, ctx);
             }
@@ -596,6 +604,9 @@ impl EditorView {
         appearance: &crate::appearance::Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
+        if crate::local_terminal::is_enabled(app) {
+            return warpui::elements::Empty::new().finish();
+        }
         let mut button = if voice_input::VoiceInput::handle(app)
             .as_ref(app)
             .is_listening()

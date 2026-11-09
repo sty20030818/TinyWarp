@@ -3143,3 +3143,32 @@ fn test_agent_management_filters_serde_backwards_compat() {
     let decoded: AgentManagementFilters = serde_json::from_str(forward).unwrap();
     assert_eq!(decoded.harness, HarnessFilter::All);
 }
+
+#[test]
+fn local_terminal_old_task_cache_cannot_start_polling_or_refetch() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let model = app.add_singleton_model(AgentConversationsModel::new);
+        let task = create_test_task(
+            "00000000-0000-0000-0000-000000000123",
+            "cached-user",
+            Utc::now(),
+        );
+        let task_id = task.task_id;
+        model.update(&mut app, |model, ctx| {
+            model.tasks.insert(task_id, task);
+            model.evict_and_refetch_task(&task_id, ctx);
+            model.fetch_tasks_updated_after(Utc::now(), ctx);
+            model.start_rtc_task_refresh_throttle_timer(ctx);
+            model.sync_conversations(ctx);
+            assert!(model.get_or_async_fetch_task_data(&task_id, ctx).is_some());
+            assert!(model.in_flight_poll_abort_handle.is_none());
+            assert!(model.next_poll_abort_handle.is_none());
+            assert!(model.task_fetch_state.is_empty());
+            assert!(matches!(
+                model.rtc_task_refresh_throttle_state,
+                RtcTaskRefreshThrottleState::Idle
+            ));
+        });
+    });
+}

@@ -2436,12 +2436,58 @@ impl<A: Action + Clone> Menu<A> {
         self.menu.with_height(height);
     }
 
+    fn retain_available_local_items(items: &mut Vec<MenuItem<A>>, app: &AppContext) {
+        let fields_available = |fields: &MenuItemFields<A>| {
+            fields.on_select_action.as_ref().is_none_or(|action| {
+                crate::util::bindings::is_action_available_in_local_terminal(action, app)
+            })
+        };
+        items.retain_mut(|item| match item {
+            MenuItem::Item(fields) => fields_available(fields),
+            MenuItem::ItemsRow { items } => {
+                items.retain(fields_available);
+                !items.is_empty()
+            }
+            MenuItem::Submenu { fields, menu } => {
+                Self::retain_available_local_items(&mut menu.items, app);
+                fields_available(fields) && !menu.items.is_empty()
+            }
+            MenuItem::Header {
+                fields,
+                right_side_fields,
+                ..
+            } => {
+                if right_side_fields
+                    .as_ref()
+                    .is_some_and(|fields| !fields_available(fields))
+                {
+                    *right_side_fields = None;
+                }
+                fields_available(fields)
+            }
+            MenuItem::Separator => true,
+        });
+        let mut previous_was_separator = true;
+        items.retain(|item| {
+            let is_separator = matches!(item, MenuItem::Separator);
+            let keep = !is_separator || !previous_was_separator;
+            previous_was_separator = is_separator;
+            keep
+        });
+        if matches!(items.last(), Some(MenuItem::Separator)) {
+            items.pop();
+        }
+    }
+
     pub fn set_items(
         &mut self,
         items: impl IntoIterator<Item = MenuItem<A>>,
         ctx: &mut ViewContext<Self>,
     ) {
         self.menu.items = items.into_iter().collect();
+        if crate::local_terminal::is_enabled(ctx) {
+            Self::retain_available_local_items(&mut self.menu.items, ctx);
+        }
         // No need to ctx.notify, since reset_selection will.
         self.reset_selection(ctx);
     }

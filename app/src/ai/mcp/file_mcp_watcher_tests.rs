@@ -521,3 +521,24 @@ fn startup_scan_parses_existing_subdir_config_before_completion() {
         None => unsafe { std::env::remove_var("HOME") },
     }
 }
+
+#[test]
+fn local_terminal_watcher_does_not_register_or_parse_any_config() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let watcher = app.add_singleton_model(FileMCPWatcher::new);
+        watcher.update(&mut app, |watcher, ctx| {
+            watcher.update_servers_from_config_file(
+                std::path::Path::new("/local-mode-must-not-read/mcp.json"),
+                PathBuf::from("/local-mode-must-not-read"),
+                MCPProvider::Warp,
+                ctx,
+            );
+            assert!(watcher.in_flight_parses.is_empty());
+            assert_eq!(watcher.next_parse_generation, 0);
+            assert!(watcher.home_provider_watchers.is_empty());
+            assert!(watcher.project_repo_watchers.is_empty());
+            assert!(watcher.pending_scans.is_empty());
+        });
+    });
+}

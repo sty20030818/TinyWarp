@@ -4945,6 +4945,10 @@ impl Workspace {
 
     /// Add a new terminal tab and enter the agent view with a new conversation.
     fn add_terminal_tab_with_new_agent_view(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
         let was_left_panel_open = self.active_tab_pane_group().as_ref(ctx).left_panel_open;
         self.add_new_session_tab_internal_with_default_session_mode_behavior(
             NewSessionSource::Tab,
@@ -6645,6 +6649,16 @@ impl Workspace {
             return;
         }
 
+        if crate::local_terminal::is_enabled(ctx)
+            && matches!(
+                target,
+                FileTarget::CodeEditor(_) | FileTarget::MarkdownViewer(_)
+            )
+        {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
+
         match target {
             FileTarget::MarkdownViewer(layout) => {
                 let session = self.get_active_session(ctx);
@@ -7071,7 +7085,7 @@ impl Workspace {
         }
 
         // 3b. Local Docker Sandbox
-        if FeatureFlag::LocalDockerSandbox.is_enabled() {
+        if FeatureFlag::LocalDockerSandbox.is_enabled() && !crate::local_terminal::is_enabled(ctx) {
             let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
                 .with_display_label(tr(
                     "workspace.session.docker_sandbox",
@@ -8907,6 +8921,11 @@ impl Workspace {
         code_source: Option<CodeSource>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
+
         let existing_file_pane = {
             let pane_group = self.active_tab_pane_group();
             pane_group
@@ -13440,6 +13459,10 @@ impl Workspace {
         line_and_column: Option<LineAndColumnArg>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
         let source = CodeSource::Link {
             path: file_path,
             range_start: line_and_column,
@@ -21804,6 +21827,7 @@ impl Workspace {
 
         // Legacy AI assistant button (non-agent-mode only)
         if is_online
+            && !crate::local_terminal::is_enabled(ctx)
             && !FeatureFlag::AgentMode.is_enabled()
             && !is_web_anonymous_user
             && !self.current_workspace_state.is_ai_assistant_panel_open
@@ -24231,6 +24255,9 @@ impl Workspace {
 
     /// Computes the list of available left panel views based on current AI settings and feature flags.
     fn compute_left_panel_views(ctx: &AppContext) -> Vec<ToolPanelView> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return vec![];
+        }
         let mut views = vec![];
         if cfg!(feature = "local_fs") && *CodeSettings::as_ref(ctx).show_project_explorer.value() {
             views.push(ToolPanelView::ProjectExplorer);
@@ -24331,7 +24358,7 @@ impl TypedActionView for Workspace {
         let window_id = ctx.window_id();
 
         if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
-            crate::local_terminal::show_unavailable(ctx);
+            crate::local_terminal::show_feature_unavailable(ctx);
             if matches!(
                 action,
                 ShowSettingsPage(_) | ShowSettingsPageWithSearch { .. }
@@ -24716,7 +24743,11 @@ impl TypedActionView for Workspace {
             }
             OpenSettingsFile => {
                 let path = crate::settings::user_preferences_toml_file_path();
-                self.add_tab_for_code_file(path, None, ctx);
+                if crate::local_terminal::is_enabled(ctx) {
+                    ctx.open_file_path(&path);
+                } else {
+                    self.add_tab_for_code_file(path, None, ctx);
+                }
             }
             OpenLocalToCloudHandoffPane {
                 launch,

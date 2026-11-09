@@ -64,8 +64,10 @@ impl Default for InitialGlobalMcpScanState {
 
 impl FileBasedMCPManager {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let defer_global_warp_autostart = settings::settings_mode() == settings::SettingsMode::Tui;
-        if FeatureFlag::FileBasedMcp.is_enabled() {
+        let local_terminal = crate::local_terminal::is_enabled(ctx);
+        let defer_global_warp_autostart =
+            local_terminal || settings::settings_mode() == settings::SettingsMode::Tui;
+        if !local_terminal && FeatureFlag::FileBasedMcp.is_enabled() {
             ctx.subscribe_to_model(&FileMCPWatcher::handle(ctx), |me, _, event, ctx| {
                 me.handle_watcher_event(event, ctx);
             });
@@ -90,6 +92,10 @@ impl FileBasedMCPManager {
 
     /// Handle an event from [`FileMCPWatcher`].
     fn handle_watcher_event(&mut self, event: &FileMCPWatcherEvent, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         match event {
             FileMCPWatcherEvent::ConfigParsed {
                 config_path,
@@ -260,6 +266,10 @@ impl FileBasedMCPManager {
         parsed_servers: Vec<ParsedTemplatableMCPServerResult>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let previous_scanned_servers: HashSet<u64> = self
             .file_based_servers_by_root
             .get(&root_path)
@@ -421,6 +431,10 @@ impl FileBasedMCPManager {
         servers_to_consider: Vec<TemplatableMCPServerInstallation>,
         ctx: &mut ModelContext<Self>,
     ) -> Vec<Uuid> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Vec::new();
+        }
+
         if servers_to_consider.is_empty() {
             return Vec::new();
         }
@@ -534,6 +548,10 @@ impl FileBasedMCPManager {
     }
 
     fn handle_file_based_mcp_enabled_change(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // The setting is GUI-only. TUI-discovered third-party servers always
         // require an explicit start action, even if a value is loaded into the
         // shared model by tests or future settings migrations.
@@ -602,6 +620,10 @@ impl FileBasedMCPManager {
 
     #[cfg(any(feature = "tui", test))]
     pub fn activate_global_warp_servers(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if self.global_warp_servers_activated {
             return;
         }

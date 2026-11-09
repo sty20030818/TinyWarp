@@ -304,7 +304,9 @@ impl AIRequestUsageModel {
         ctx: &mut ModelContext<Self>,
     ) -> Receiver<Option<usize>> {
         let (sender, receiver) = oneshot::channel();
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
+        if crate::local_terminal::is_enabled(ctx)
+            || !AuthStateProvider::as_ref(ctx).get().is_logged_in()
+        {
             let _ = sender.send(None);
             return receiver;
         }
@@ -383,7 +385,9 @@ impl AIRequestUsageModel {
     }
 
     pub fn request_availability_refresh(&mut self, ctx: &mut ModelContext<Self>) {
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
+        if crate::local_terminal::is_enabled(ctx)
+            || !AuthStateProvider::as_ref(ctx).get().is_logged_in()
+        {
             return;
         }
         if self.server_availability.refresh_in_flight {
@@ -415,6 +419,10 @@ impl AIRequestUsageModel {
         client_exchange_id: AIAgentExchangeId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let server_conversation_id = BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&client_conversation_id)
             .and_then(|conversation| conversation.server_conversation_token());

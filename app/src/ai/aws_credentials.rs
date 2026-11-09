@@ -279,6 +279,10 @@ pub(crate) fn refresh_local_chain_aws_credentials(
     manager: &mut ApiKeyManager,
     ctx: &mut ModelContext<ApiKeyManager>,
 ) {
+    if crate::local_terminal::is_enabled(ctx) {
+        return;
+    }
+
     if manager.aws_credentials_refresh_strategy() == AwsCredentialsRefreshStrategy::OidcManaged {
         return;
     }
@@ -327,6 +331,12 @@ pub(crate) fn refresh_aws_credentials_oidc(
     manager: &mut ApiKeyManager,
     ctx: &mut ModelContext<ApiKeyManager>,
 ) -> BoxFuture<'static, Result<(), String>> {
+    if crate::local_terminal::is_enabled(ctx) {
+        return Box::pin(async {
+            Err("Built-in AI credentials are unavailable in local terminal mode".to_string())
+        });
+    }
+
     // Skip if credentials are already loaded and have not yet expired.
     if let AwsCredentialsState::Loaded { credentials, .. } = manager.aws_credentials_state() {
         let still_valid = credentials

@@ -625,6 +625,14 @@
   "local_settings.workflows": "工作流",
   "local_settings.working_directory_for_new_sessions": "新会话的工作目录",
   "local_settings.your_administrator_has_enabled_zero_data_retention_for_your_team": "管理员已为团队启用零数据保留，不会收集用户生成的内容。",
+  "local_terminal.feature_unavailable": "TinyWarp 保留终端和外部 CLI，不提供内置 AI、Agent 或独立编辑器。",
+  "local_terminal.panel.description": "TinyWarp 本地终端不使用账号或云服务。",
+  "local_terminal.panel.feature_description": "本地终端不打开内置 AI、代码视图或云服务；外部 CLI 可照常运行。",
+  "local_terminal.panel.feature_title": "内置功能已停用",
+  "local_terminal.panel.title": "云服务不可用",
+  "local_terminal.unavailable": "TinyWarp 本地终端不提供登录、账号或云服务功能。",
+  "local_terminal.unavailable_pane.description": "TinyWarp 已停用此功能，原标签页及其数据已保留。你可以关闭此标签页，或继续使用终端。",
+  "local_terminal.unavailable_pane.title": "此功能不可用",
   "menu.blocks": "命令分块",
   "menu.compact_mode": "紧凑模式",
   "menu.copy_on_select": "选中终端内容时复制",
@@ -1089,8 +1097,5 @@
   "workspace.toolbar.rearrange": "调整工具栏项目",
   "workspace.toolbar.search": "搜索会话、智能体、文件…",
   "workspace.toolbar.tabs_panel": "标签页面板",
-  "workspace.toolbar.tools_panel": "工具面板",
-  "local_terminal.panel.title": "云服务不可用",
-  "local_terminal.panel.description": "TinyWarp 本地终端不使用账号或云服务。",
-  "local_terminal.unavailable": "TinyWarp 本地终端不提供登录、账号或云服务功能。"
+  "workspace.toolbar.tools_panel": "工具面板"
 }

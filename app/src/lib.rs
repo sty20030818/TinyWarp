@@ -1518,6 +1518,7 @@ pub(crate) fn initialize_app(
     // any other stuff here, as failures will be silent. Push them to pre_sentry_errors instead.
     local_terminal::initialize(launch_mode, ctx);
     let local_terminal = local_terminal::is_enabled(ctx);
+    let supports_indexing = launch_mode.supports_indexing() && !local_terminal;
     let data_domain = ChannelState::data_domain();
     let secure_storage_service_name = launch_mode.secure_storage_service_name(&data_domain);
 
@@ -1802,6 +1803,8 @@ pub(crate) fn initialize_app(
             )
         });
 
+    app_state::preserve_local_startup_metadata(app_state.as_ref(), ctx);
+
     // The daemon's `PersistedDataScope::CodebaseIndicesOnly` read already
     // skips everything except codebase index metadata.
     if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. }) {
@@ -1837,11 +1840,13 @@ pub(crate) fn initialize_app(
             manager.subscribe_to_tui_api_key_changes(ctx);
         }
         #[cfg(not(target_family = "wasm"))]
-        manager.subscribe_to_settings_changes(ctx);
+        if !local_terminal {
+            manager.subscribe_to_settings_changes(ctx);
+        }
         // Gemini Enterprise (GEAP) credential refresh triggers: workspace
         // settings saves / team changes and the member's enablement toggle.
         #[cfg(not(target_family = "wasm"))]
-        if FeatureFlag::GeminiEnterprise.is_enabled() {
+        if !local_terminal && FeatureFlag::GeminiEnterprise.is_enabled() {
             manager.subscribe_to_geap_settings_changes(ctx);
         }
         // The Grok subscription refresher (`ai::grok_subscription`) has no
@@ -1850,7 +1855,7 @@ pub(crate) fn initialize_app(
         // restored from secure storage; TeamsChanged keeps the policy aligned
         // as team data loads or the workspace changes.
         #[cfg(not(target_family = "wasm"))]
-        if FeatureFlag::SuperGrok.is_enabled() {
+        if !local_terminal && FeatureFlag::SuperGrok.is_enabled() {
             use crate::workspaces::user_workspaces::UserWorkspacesEvent;
             ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |manager, _, event, ctx| {
                 if matches!(event, UserWorkspacesEvent::TeamsChanged) {
@@ -2081,17 +2086,19 @@ pub(crate) fn initialize_app(
         // skill directories (e.g. `.agents/skills`) for `Repository`
         // subscribers (LSP, MCP). Registered before any repository begins
         // watching so it gates descent on the very first registration.
-        DirectoryWatcher::handle(ctx).update(ctx, |watcher, _| {
-            watcher.register_force_included_paths(
-                ::ai::skills::SKILL_PROVIDER_DEFINITIONS
-                    .iter()
-                    .map(|provider| provider.skills_path.clone()),
-            );
-        });
+        if !local_terminal {
+            DirectoryWatcher::handle(ctx).update(ctx, |watcher, _| {
+                watcher.register_force_included_paths(
+                    ::ai::skills::SKILL_PROVIDER_DEFINITIONS
+                        .iter()
+                        .map(|provider| provider.skills_path.clone()),
+                );
+            });
+        }
         ctx.add_singleton_model(|_| DetectedRepositories::default());
-        if let Some(home_dir) = dirs::home_dir() {
+        if !local_terminal && let Some(home_dir) = dirs::home_dir() {
             ctx.add_singleton_model(|ctx| HomeDirectoryWatcher::new(home_dir, ctx));
-        } else {
+        } else if !local_terminal {
             log::info!("Home directory not found; skipping HomeDirectoryWatcher registration");
         }
     }
@@ -2113,18 +2120,20 @@ pub(crate) fn initialize_app(
             } else {
                 RepoMetadataModel::new(ctx)
             };
-            model.register_force_included_paths(
-                ::ai::skills::SKILL_PROVIDER_DEFINITIONS
-                    .iter()
-                    .map(|provider| provider.skills_path.clone()),
-                ctx,
-            );
-            model.set_project_skill_provider_paths(
-                ::ai::skills::SKILL_PROVIDER_DEFINITIONS
-                    .iter()
-                    .map(|provider| provider.skills_path.clone()),
-                ctx,
-            );
+            if !local_terminal {
+                model.register_force_included_paths(
+                    ::ai::skills::SKILL_PROVIDER_DEFINITIONS
+                        .iter()
+                        .map(|provider| provider.skills_path.clone()),
+                    ctx,
+                );
+                model.set_project_skill_provider_paths(
+                    ::ai::skills::SKILL_PROVIDER_DEFINITIONS
+                        .iter()
+                        .map(|provider| provider.skills_path.clone()),
+                    ctx,
+                );
+            }
 
             // Subscribe to RemoteServerManager push events so that remote repo
             // metadata snapshots and incremental updates populate the remote
@@ -2362,7 +2371,7 @@ pub(crate) fn initialize_app(
         ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer::new,
     );
 
-    if launch_mode.supports_indexing() {
+    if supports_indexing {
         ctx.add_singleton_model(RepoOutlines::new);
     } else {
         ctx.add_singleton_model(|ctx| RepoOutlines::new_with_indexing_enabled(false, ctx));
@@ -2626,7 +2635,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(DefaultTerminal::new);
 
     ctx.add_singleton_model(|ctx| {
-        let should_restore_indices = launch_mode.supports_indexing()
+        let should_restore_indices = supports_indexing
             && (matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. })
                 || UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx));
         let indices_to_restore = if should_restore_indices {
@@ -2642,7 +2651,7 @@ pub(crate) fn initialize_app(
             codebase_limits.max_files_per_repo,
             codebase_limits.embedding_generation_batch_size,
             server_api_provider.as_ref(ctx).get(),
-            launch_mode.supports_indexing(),
+            supports_indexing,
         );
         if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. }) {
             codebase_index_config = codebase_index_config.defer_persisted_index_restore();
@@ -2660,16 +2669,22 @@ pub(crate) fn initialize_app(
     });
 
     ctx.add_singleton_model(|ctx| {
-        ProjectContextModel::new_from_persisted(
-            persisted_project_rules,
-            read_project_rule_contents,
-            ctx,
-        )
+        if local_terminal {
+            ProjectContextModel::default()
+        } else {
+            ProjectContextModel::new_from_persisted(
+                persisted_project_rules,
+                read_project_rule_contents,
+                ctx,
+            )
+        }
     });
 
     // Index global rules (e.g. ~/.agents/AGENTS.md) on a background task so
     // they are available to subsequent agent queries.
-    ProjectContextModel::handle(ctx).update(ctx, |me, ctx| me.index_global_rules(ctx));
+    if !local_terminal {
+        ProjectContextModel::handle(ctx).update(ctx, |me, ctx| me.index_global_rules(ctx));
+    }
     #[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
     {
         ctx.add_singleton_model(ai::remote_agent_context::RemoteAgentContext::new);
@@ -2696,7 +2711,7 @@ pub(crate) fn initialize_app(
     });
 
     #[cfg(not(target_family = "wasm"))]
-    if launch_mode.should_start_local_http_server() {
+    if !local_terminal && launch_mode.should_start_local_http_server() {
         ctx.add_singleton_model(move |ctx| {
             let routers = vec![
                 app_installation_detection::make_router(),

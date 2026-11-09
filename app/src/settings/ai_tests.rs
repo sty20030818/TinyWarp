@@ -1025,3 +1025,39 @@ fn ai_autodetection_setting_can_be_toggled_on_and_off() {
         });
     });
 }
+
+#[test]
+fn local_terminal_ai_runtime_keeps_persisted_preferences_while_disabling_builtin_modes() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings.is_any_ai_enabled.set_value(true, ctx).unwrap();
+            settings
+                .ai_autodetection_enabled_internal
+                .set_value(true, ctx)
+                .unwrap();
+            for stored_mode in [
+                DefaultSessionMode::Agent,
+                DefaultSessionMode::CloudAgent,
+                DefaultSessionMode::TabConfig,
+                DefaultSessionMode::DockerSandbox,
+            ] {
+                settings
+                    .default_session_mode_internal
+                    .set_value(stored_mode, ctx)
+                    .unwrap();
+                assert_eq!(
+                    settings.default_session_mode(ctx),
+                    DefaultSessionMode::Terminal
+                );
+                assert_eq!(*settings.default_session_mode_internal.value(), stored_mode);
+            }
+            assert!(!settings.is_any_ai_enabled(ctx));
+            assert!(!settings.is_ai_autodetection_enabled(ctx));
+            assert!(*settings.is_any_ai_enabled.value());
+            assert!(*settings.ai_autodetection_enabled_internal.value());
+        });
+    });
+}

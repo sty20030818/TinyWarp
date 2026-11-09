@@ -1612,409 +1612,310 @@ impl PaneGroup {
         pending_ambient_restorations: &mut Vec<(AmbientAgentTaskId, PaneId)>,
     ) -> anyhow::Result<(PaneData, InitialFocus)> {
         let custom_vertical_tabs_title = leaf.custom_vertical_tabs_title.clone();
-        let result = match leaf.contents {
-            LeafContents::AIDocument(_) => {
-                // Defer AI document pane restoration until after terminal panes are restored.
-                // We do this because the terminal view seeds the AIDocumentModel as part of
-                // conversation restoration, and the AIDocumentView requires the data to already
-                // exist in the AIDocumentModel. In practice, this will work most of the time
-                // because the AIDocumentView is usually in the same tab as the terminal view containing
-                // the conversation data.
-                // TODO (roland): this is not ideal. If the AIDocumentView is moved to an earlier tab
-                // than the terminal view with the data, the data won't exist when the AIDocumentView is restored. Right now
-                // the AIDocumentView handles this case and renders with an empty buffer until the data is restored.
-                // But if the AIDocumentView is leftover after the terminal view containing the conversation
-                // is closed, the data would never be loaded because the conversation is never restored.
-                let pane_id = PaneId::deferred_placeholder_pane_id();
-                let is_focused = leaf.is_focused;
-                deferred_panes.push((pane_id, leaf));
-                let focus = InitialFocus {
-                    focused_pane: is_focused.then_some(pane_id),
+        let result = if crate::local_terminal::is_enabled(ctx)
+            && pane::unavailable_feature_pane::requires_unavailable_view(&leaf.contents)
+        {
+            let pane =
+                pane::unavailable_feature_pane::UnavailableFeaturePane::new(leaf.contents, ctx);
+            let pane_id = pane.id();
+            pane_contents.insert(pane_id, Box::new(pane));
+            Ok((
+                PaneData::new(pane_id),
+                InitialFocus {
+                    focused_pane: leaf.is_focused.then_some(pane_id),
                     active_session: None,
-                };
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::Terminal(terminal_snapshot) => {
-                let uuid = PaneUuid(terminal_snapshot.uuid.clone());
-                let block_list = block_lists.get(&uuid);
-
-                let chosen_shell = terminal_snapshot
-                    .shell_launch_data
-                    .as_ref()
-                    .and_then(|shell| {
-                        if FeatureFlag::ShellSelector.is_enabled() {
-                            AvailableShells::as_ref(ctx).get_from_shell_launch_data(shell)
-                        } else {
-                            None
-                        }
-                    });
-
-                let startup_directory = terminal_snapshot
-                    .cwd
-                    .map(PathBuf::from)
-                    .filter(|path| path.is_dir());
-
-                // Filter conversation IDs to only include those that have task messages
-                // and are not entirely passive (ignored suggestions).
-                // This prevents showing the "Previous session" banner when there's nothing to restore
-                // and avoids restoring passive code diffs that the user never acted on.
-                let filtered_conversation_ids: Vec<AIConversationId> = terminal_snapshot
-                    .conversation_ids_to_restore
-                    .iter()
-                    .filter(|&conversation_id| {
-                        RestoredAgentConversations::handle(ctx).update(ctx, |store, _| {
-                            store
-                                .get_conversation(conversation_id)
-                                .is_some_and(|persisted_conv| {
-                                    // Filter conversations that contain no tasks.
-                                    if persisted_conv.all_tasks().next().is_none() {
-                                        return false;
-                                    }
-
-                                    // Filter conversations that are entirely passive.
-                                    !persisted_conv.is_entirely_passive()
-                                })
-                        })
-                    })
-                    .copied()
-                    .collect();
-
-                let conversation_restoration = {
-                    let conversations = RestoredAgentConversations::handle(ctx)
-                        .update(ctx, |store, _| {
-                            store.take_conversations(&filtered_conversation_ids)
-                        });
-                    vec1::Vec1::try_from_vec(conversations)
-                        .ok()
-                        .map(
-                            |conversations| ConversationRestorationInNewPaneType::Startup {
-                                conversations,
-                                active_conversation_id: terminal_snapshot.active_conversation_id,
-                            },
-                        )
-                };
-                let (terminal_view, terminal_manager) = PaneGroup::create_session(
-                    startup_directory,
-                    HashMap::new(),
-                    uuid.0.as_slice(),
-                    IsSharedSessionCreator::No,
-                    resources,
-                    block_list,
-                    conversation_restoration,
-                    user_default_shell_unsupported_banner_model_handle,
-                    view_size,
-                    model_event_sender.clone(),
-                    chosen_shell,
-                    terminal_snapshot.input_config,
-                    ctx,
-                );
-
-                let terminal_view_id = terminal_view.id();
-
-                let pane_data = TerminalPane::new(
-                    uuid.0,
-                    terminal_manager,
-                    terminal_view,
-                    model_event_sender,
-                    ctx,
-                );
-
-                let terminal_pane_id = pane_data.terminal_pane_id();
-                let pane_id = terminal_pane_id.into();
-                pane_contents.insert(pane_id, Box::new(pane_data));
-
-                if let Some(llm_override) = &terminal_snapshot.llm_model_override
-                    && let Ok(llm_id) = serde_json::from_str::<LLMId>(llm_override)
-                {
-                    log::info!("Selecting base agent model {llm_id} (from terminal snapshot)");
-                    let scope = ResolvedTeamScope::from_scope(
-                        &UserWorkspaces::as_ref(ctx).team_context_for_view(ctx),
-                    );
-                    LLMPreferences::handle(ctx).update(ctx, |llm_prefs, ctx| {
-                        llm_prefs.update_preferred_agent_mode_llm(
-                            &scope,
-                            &llm_id,
-                            terminal_view_id,
-                            ctx,
-                        );
-                    });
+                },
+            ))
+        } else {
+            match leaf.contents {
+                LeafContents::AIDocument(_) => {
+                    // Defer AI document pane restoration until after terminal panes are restored.
+                    // We do this because the terminal view seeds the AIDocumentModel as part of
+                    // conversation restoration, and the AIDocumentView requires the data to already
+                    // exist in the AIDocumentModel. In practice, this will work most of the time
+                    // because the AIDocumentView is usually in the same tab as the terminal view containing
+                    // the conversation data.
+                    // TODO (roland): this is not ideal. If the AIDocumentView is moved to an earlier tab
+                    // than the terminal view with the data, the data won't exist when the AIDocumentView is restored. Right now
+                    // the AIDocumentView handles this case and renders with an empty buffer until the data is restored.
+                    // But if the AIDocumentView is leftover after the terminal view containing the conversation
+                    // is closed, the data would never be loaded because the conversation is never restored.
+                    let pane_id = PaneId::deferred_placeholder_pane_id();
+                    let is_focused = leaf.is_focused;
+                    deferred_panes.push((pane_id, leaf));
+                    let focus = InitialFocus {
+                        focused_pane: is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+                    Ok((PaneData::new(pane_id), focus))
                 }
+                LeafContents::Terminal(terminal_snapshot) => {
+                    let local_terminal = crate::local_terminal::is_enabled(ctx);
+                    let original_snapshot = local_terminal.then(|| terminal_snapshot.clone());
+                    let uuid = PaneUuid(terminal_snapshot.uuid.clone());
+                    let block_list = block_lists.get(&uuid);
 
-                if let Some(active_profile_sync_id) = &terminal_snapshot.active_profile_id {
-                    log::info!(
-                        "Attempting to restore active_profile '{active_profile_sync_id}' for terminal {terminal_view_id:?}"
+                    let chosen_shell =
+                        terminal_snapshot
+                            .shell_launch_data
+                            .as_ref()
+                            .and_then(|shell| {
+                                if FeatureFlag::ShellSelector.is_enabled() {
+                                    AvailableShells::as_ref(ctx).get_from_shell_launch_data(shell)
+                                } else {
+                                    None
+                                }
+                            });
+
+                    let startup_directory = terminal_snapshot
+                        .cwd
+                        .map(PathBuf::from)
+                        .filter(|path| path.is_dir());
+
+                    let conversation_restoration = if local_terminal {
+                        None
+                    } else {
+                        // Filter conversation IDs to only include those that have task messages
+                        // and are not entirely passive (ignored suggestions).
+                        // This prevents showing the "Previous session" banner when there's nothing to restore
+                        // and avoids restoring passive code diffs that the user never acted on.
+                        let filtered_conversation_ids: Vec<AIConversationId> = terminal_snapshot
+                            .conversation_ids_to_restore
+                            .iter()
+                            .filter(|&conversation_id| {
+                                RestoredAgentConversations::handle(ctx).update(ctx, |store, _| {
+                                    store.get_conversation(conversation_id).is_some_and(
+                                        |persisted_conv| {
+                                            // Filter conversations that contain no tasks.
+                                            if persisted_conv.all_tasks().next().is_none() {
+                                                return false;
+                                            }
+
+                                            // Filter conversations that are entirely passive.
+                                            !persisted_conv.is_entirely_passive()
+                                        },
+                                    )
+                                })
+                            })
+                            .copied()
+                            .collect();
+
+                        {
+                            let conversations = RestoredAgentConversations::handle(ctx)
+                                .update(ctx, |store, _| {
+                                    store.take_conversations(&filtered_conversation_ids)
+                                });
+                            vec1::Vec1::try_from_vec(conversations)
+                                .ok()
+                                .map(|conversations| {
+                                    ConversationRestorationInNewPaneType::Startup {
+                                        conversations,
+                                        active_conversation_id: terminal_snapshot
+                                            .active_conversation_id,
+                                    }
+                                })
+                        }
+                    };
+                    let (terminal_view, terminal_manager) = PaneGroup::create_session(
+                        startup_directory,
+                        HashMap::new(),
+                        uuid.0.as_slice(),
+                        IsSharedSessionCreator::No,
+                        resources,
+                        block_list,
+                        conversation_restoration,
+                        user_default_shell_unsupported_banner_model_handle,
+                        view_size,
+                        model_event_sender.clone(),
+                        chosen_shell,
+                        terminal_snapshot.input_config,
+                        ctx,
                     );
 
-                    let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
+                    if local_terminal && let Some(originals) = block_list {
+                        terminal_view.update(ctx, |view, _| {
+                            view.model
+                                .lock()
+                                .block_list_mut()
+                                .preserve_restored_ai_data(originals);
+                        });
+                    }
+                    let terminal_view_id = terminal_view.id();
 
-                    if let Some(profile_id) =
-                        profiles_model.get_profile_id_by_sync_id(active_profile_sync_id, ctx)
+                    let mut pane_data = TerminalPane::new(
+                        uuid.0,
+                        terminal_manager,
+                        terminal_view,
+                        model_event_sender,
+                        ctx,
+                    );
+
+                    if let Some(original_snapshot) = original_snapshot {
+                        pane_data.preserve_local_restored_snapshot(original_snapshot);
+                    }
+                    let terminal_pane_id = pane_data.terminal_pane_id();
+                    let pane_id = terminal_pane_id.into();
+                    pane_contents.insert(pane_id, Box::new(pane_data));
+
+                    if !local_terminal
+                        && let Some(llm_override) = &terminal_snapshot.llm_model_override
+                        && let Ok(llm_id) = serde_json::from_str::<LLMId>(llm_override)
                     {
-                        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                            profiles_model.set_active_profile(
+                        log::info!("Selecting base agent model {llm_id} (from terminal snapshot)");
+                        let scope = ResolvedTeamScope::from_scope(
+                            &UserWorkspaces::as_ref(ctx).team_context_for_view(ctx),
+                        );
+                        LLMPreferences::handle(ctx).update(ctx, |llm_prefs, ctx| {
+                            llm_prefs.update_preferred_agent_mode_llm(
+                                &scope,
+                                &llm_id,
                                 terminal_view_id,
-                                profile_id.clone(),
                                 ctx,
                             );
                         });
-                        log::info!(
-                            "Restored active profile {profile_id:?} for terminal {terminal_view_id:?}"
-                        );
-                    } else {
-                        log::warn!(
-                            "Failed to restore active profile for terminal {terminal_view_id:?}"
-                        );
                     }
-                }
 
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: terminal_snapshot.is_active.then_some(terminal_pane_id),
-                };
+                    if !local_terminal
+                        && let Some(active_profile_sync_id) = &terminal_snapshot.active_profile_id
+                    {
+                        log::info!(
+                            "Attempting to restore active_profile '{active_profile_sync_id}' for terminal {terminal_view_id:?}"
+                        );
 
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::Notebook(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    NotebookPaneSnapshot::CloudNotebook {
-                        notebook_id,
-                        settings,
-                    } => Box::new(NotebookPane::restore(notebook_id, &settings, ctx)?),
-                    NotebookPaneSnapshot::LocalFileNotebook { path } => Box::new(FilePane::new(
-                        path.map(LocalOrRemotePath::Local),
-                        None,
-                        #[cfg(feature = "local_fs")]
-                        None,
-                        ctx,
-                    )),
-                };
+                        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
 
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-
-                Ok((PaneData::new(pane_id), focus))
-            }
-            #[cfg(feature = "local_fs")]
-            LeafContents::Code(snapshot) => {
-                let CodePaneSnapShot::Local {
-                    tabs,
-                    active_tab_index,
-                    source,
-                } = snapshot;
-
-                let Some(source) = source.filter(|s: &CodeSource| s.is_restorable()) else {
-                    return Err(anyhow::anyhow!(
-                        "Skipping code pane with non-restorable source"
-                    ));
-                };
-
-                let code_view = ctx.add_typed_action_view(move |ctx| {
-                    CodeView::restore(&tabs, active_tab_index, source, ctx)
-                });
-                let pane = CodePane::from_view(code_view, ctx);
-                let pane_id = pane.id();
-                pane_contents.insert(pane_id, Box::new(pane));
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-                Ok((PaneData::new(pane_id), focus))
-            }
-            #[cfg(not(feature = "local_fs"))]
-            LeafContents::Code(_) => Err(anyhow::anyhow!(
-                "Code pane restoration not supported on this platform"
-            )),
-            LeafContents::EnvVarCollection(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
-                        env_var_collection_id,
-                    } => Box::new(EnvVarCollectionPane::restore(env_var_collection_id, ctx)?),
-                };
-
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::Workflow(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    WorkflowPaneSnapshot::CloudWorkflow {
-                        workflow_id,
-                        settings,
-                    } => Box::new(WorkflowPane::restore(workflow_id, settings, ctx)?),
-                };
-
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::Settings(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    SettingsPaneSnapshot::Local {
-                        current_page,
-                        search_query,
-                    } => Box::new(SettingsPane::new(
-                        current_page,
-                        search_query.as_deref(),
-                        ctx.window_id(),
-                        ctx,
-                    )),
-                };
-
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::AIFact(snapshot) => {
-                if !FeatureFlag::AIRules.is_enabled() {
-                    return Err(anyhow::anyhow!("AI fact pane not enabled"));
-                }
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    AIFactPaneSnapshot::Personal => Box::new(AIFactPane::new(ctx)),
-                };
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::AmbientAgent(snapshot) => {
-                let task_data = snapshot.task_id.map(|task_id| {
-                    let task = AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.get_or_async_fetch_task_data(&task_id, ctx)
-                    });
-                    (task_id, task)
-                });
-
-                let restore_kind = match &task_data {
-                    Some((task_id, Some(_))) => {
-                        match AgentConversationsModel::resolve_open_action(
-                            AgentConversationNavigationSubject::Entry(
-                                AgentConversationEntryId::AmbientRun(*task_id),
-                            ),
-                            None,
-                            ctx,
-                        ) {
-                            Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
-                                session_id,
-                                ..
-                            }) => AmbientRestoreKind::SharedSession { session_id },
-                            // Transcript viewer and other non-session actions depend on conversation metadata from
-                            // BlocklistAIHistoryModel, which is loaded asynchronously.
-                            // Defer to the pending-restoration handler so it can retry once that metadata arrives.
-                            _ => task_data
-                                .as_ref()
-                                .map(|(tid, _)| AmbientRestoreKind::PendingRestoration {
-                                    task_id: *tid,
-                                })
-                                .unwrap_or(AmbientRestoreKind::NewCloudConversation),
+                        if let Some(profile_id) =
+                            profiles_model.get_profile_id_by_sync_id(active_profile_sync_id, ctx)
+                        {
+                            AIExecutionProfilesModel::handle(ctx).update(
+                                ctx,
+                                |profiles_model, ctx| {
+                                    profiles_model.set_active_profile(
+                                        terminal_view_id,
+                                        profile_id.clone(),
+                                        ctx,
+                                    );
+                                },
+                            );
+                            log::info!(
+                                "Restored active profile {profile_id:?} for terminal {terminal_view_id:?}"
+                            );
+                        } else {
+                            log::warn!(
+                                "Failed to restore active profile for terminal {terminal_view_id:?}"
+                            );
                         }
                     }
-                    Some((task_id, None)) => {
-                        AmbientRestoreKind::PendingRestoration { task_id: *task_id }
-                    }
-                    None => AmbientRestoreKind::NewCloudConversation,
-                };
 
-                let mut pending_task: Option<AmbientAgentTaskId> = None;
-                let (terminal_view, terminal_manager) = match restore_kind {
-                    AmbientRestoreKind::SharedSession { session_id } => {
-                        Self::create_shared_session_viewer(
-                            session_id, resources, view_size,
-                            true, // enable_orchestration_polling
-                            true, // is_ambient_agent
-                            ctx,
-                        )
-                    }
-                    AmbientRestoreKind::PendingRestoration { task_id } => {
-                        let (view, manager) = Self::create_loading_terminal_manager_and_view(
-                            resources,
-                            view_size,
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: terminal_snapshot.is_active.then_some(terminal_pane_id),
+                    };
+
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                LeafContents::Notebook(snapshot) => {
+                    let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
+                        NotebookPaneSnapshot::CloudNotebook {
+                            notebook_id,
+                            settings,
+                        } => Box::new(NotebookPane::restore(notebook_id, &settings, ctx)?),
+                        NotebookPaneSnapshot::LocalFileNotebook { path } => {
+                            Box::new(FilePane::new(
+                                path.map(LocalOrRemotePath::Local),
+                                None,
+                                #[cfg(feature = "local_fs")]
+                                None,
+                                ctx,
+                            ))
+                        }
+                    };
+
+                    let pane_id = pane.as_pane().id();
+                    pane_contents.insert(pane_id, pane);
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                #[cfg(feature = "local_fs")]
+                LeafContents::Code(snapshot) => {
+                    let CodePaneSnapShot::Local {
+                        tabs,
+                        active_tab_index,
+                        source,
+                    } = snapshot;
+
+                    let Some(source) = source.filter(|s: &CodeSource| s.is_restorable()) else {
+                        return Err(anyhow::anyhow!(
+                            "Skipping code pane with non-restorable source"
+                        ));
+                    };
+
+                    let code_view = ctx.add_typed_action_view(move |ctx| {
+                        CodeView::restore(&tabs, active_tab_index, source, ctx)
+                    });
+                    let pane = CodePane::from_view(code_view, ctx);
+                    let pane_id = pane.id();
+                    pane_contents.insert(pane_id, Box::new(pane));
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                #[cfg(not(feature = "local_fs"))]
+                LeafContents::Code(_) => Err(anyhow::anyhow!(
+                    "Code pane restoration not supported on this platform"
+                )),
+                LeafContents::EnvVarCollection(snapshot) => {
+                    let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
+                        EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
+                            env_var_collection_id,
+                        } => Box::new(EnvVarCollectionPane::restore(env_var_collection_id, ctx)?),
+                    };
+
+                    let pane_id = pane.as_pane().id();
+                    pane_contents.insert(pane_id, pane);
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                LeafContents::Workflow(snapshot) => {
+                    let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
+                        WorkflowPaneSnapshot::CloudWorkflow {
+                            workflow_id,
+                            settings,
+                        } => Box::new(WorkflowPane::restore(workflow_id, settings, ctx)?),
+                    };
+
+                    let pane_id = pane.as_pane().id();
+                    pane_contents.insert(pane_id, pane);
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                LeafContents::Settings(snapshot) => {
+                    let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
+                        SettingsPaneSnapshot::Local {
+                            current_page,
+                            search_query,
+                        } => Box::new(SettingsPane::new(
+                            current_page,
+                            search_query.as_deref(),
                             ctx.window_id(),
                             ctx,
-                        );
-                        pending_task = Some(task_id);
-                        (view, manager)
-                    }
-                    AmbientRestoreKind::NewCloudConversation => {
-                        Self::create_ambient_agent_terminal(resources, view_size, ctx)
-                    }
-                };
+                        )),
+                    };
 
-                let pane_data = TerminalPane::new(
-                    snapshot.uuid,
-                    terminal_manager,
-                    terminal_view,
-                    model_event_sender,
-                    ctx,
-                );
-                let terminal_pane_id = pane_data.terminal_pane_id();
-                let pane_id = terminal_pane_id.into();
-                pane_contents.insert(pane_id, Box::new(pane_data));
-
-                if let Some(task_id) = pending_task {
-                    // Defer restoration to after the task data is loaded.
-                    pending_ambient_restorations.push((task_id, pane_id));
-                }
-
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-                Ok((PaneData::new(pane_id), focus))
-            }
-            LeafContents::CodeReview(_) => {
-                Err(anyhow::anyhow!("Code review panes are no longer supported"))
-            }
-            LeafContents::ExecutionProfileEditor | LeafContents::CustomRouterEditor => {
-                // Editor panes are not restored from persistence.
-                Err(anyhow::anyhow!("Can't restore editor panes"))
-            }
-            LeafContents::NetworkLog => {
-                // Network log panes are intentionally not restored. Two
-                // reasons:
-                //
-                // 1. The in-memory log starts empty on each launch, so a
-                //    restored pane would display a blank editor anyway.
-                // 2. More importantly, persisting the pane's contents would
-                //    effectively regress back to a persisted, on-disk
-                //    network log (via the SQLite app-state database) on app
-                //    shutdown, defeating the purpose of moving the log off
-                //    disk in the first place.
-                //
-                // `save_pane_state` in `persistence/sqlite.rs` skips network
-                // log panes entirely, so reaching this arm indicates a
-                // programmer error on the persistence side. Users reopen the
-                // pane on demand via Privacy settings or the keybinding.
-                Err(anyhow::anyhow!(
-                    "Network log pane should not have been persisted, as it cannot be restored"
-                ))
-            }
-            LeafContents::GetStarted => {
-                if !FeatureFlag::GetStartedTab.is_enabled() {
-                    Err(anyhow::anyhow!("GetStarted pane not supported"))
-                } else {
-                    let pane: Box<dyn AnyPaneContent + 'static> =
-                        Box::new(GetStartedPane::new(ctx));
                     let pane_id = pane.as_pane().id();
                     pane_contents.insert(pane_id, pane);
                     let focus = InitialFocus {
@@ -2023,13 +1924,156 @@ impl PaneGroup {
                     };
                     Ok((PaneData::new(pane_id), focus))
                 }
-            }
-            LeafContents::EnvironmentManagement(_) => {
-                // Environment management panes are not restored from persistence.
-                // They are opened on-demand via workspace actions.
-                Err(anyhow::anyhow!(
-                    "Environment management panes are not restored"
-                ))
+                LeafContents::AIFact(snapshot) => {
+                    if !FeatureFlag::AIRules.is_enabled() {
+                        return Err(anyhow::anyhow!("AI fact pane not enabled"));
+                    }
+                    let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
+                        AIFactPaneSnapshot::Personal => Box::new(AIFactPane::new(ctx)),
+                    };
+                    let pane_id = pane.as_pane().id();
+                    pane_contents.insert(pane_id, pane);
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                LeafContents::AmbientAgent(snapshot) => {
+                    let task_data = snapshot.task_id.map(|task_id| {
+                        let task = AgentConversationsModel::handle(ctx)
+                            .update(ctx, |model, ctx| {
+                                model.get_or_async_fetch_task_data(&task_id, ctx)
+                            });
+                        (task_id, task)
+                    });
+
+                    let restore_kind = match &task_data {
+                        Some((task_id, Some(_))) => {
+                            match AgentConversationsModel::resolve_open_action(
+                                AgentConversationNavigationSubject::Entry(
+                                    AgentConversationEntryId::AmbientRun(*task_id),
+                                ),
+                                None,
+                                ctx,
+                            ) {
+                                Some(WorkspaceAction::OpenOrAttachAmbientAgentConversation {
+                                    session_id,
+                                    ..
+                                }) => AmbientRestoreKind::SharedSession { session_id },
+                                // Transcript viewer and other non-session actions depend on conversation metadata from
+                                // BlocklistAIHistoryModel, which is loaded asynchronously.
+                                // Defer to the pending-restoration handler so it can retry once that metadata arrives.
+                                _ => task_data
+                                    .as_ref()
+                                    .map(|(tid, _)| AmbientRestoreKind::PendingRestoration {
+                                        task_id: *tid,
+                                    })
+                                    .unwrap_or(AmbientRestoreKind::NewCloudConversation),
+                            }
+                        }
+                        Some((task_id, None)) => {
+                            AmbientRestoreKind::PendingRestoration { task_id: *task_id }
+                        }
+                        None => AmbientRestoreKind::NewCloudConversation,
+                    };
+
+                    let mut pending_task: Option<AmbientAgentTaskId> = None;
+                    let (terminal_view, terminal_manager) = match restore_kind {
+                        AmbientRestoreKind::SharedSession { session_id } => {
+                            Self::create_shared_session_viewer(
+                                session_id, resources, view_size,
+                                true, // enable_orchestration_polling
+                                true, // is_ambient_agent
+                                ctx,
+                            )
+                        }
+                        AmbientRestoreKind::PendingRestoration { task_id } => {
+                            let (view, manager) = Self::create_loading_terminal_manager_and_view(
+                                resources,
+                                view_size,
+                                ctx.window_id(),
+                                ctx,
+                            );
+                            pending_task = Some(task_id);
+                            (view, manager)
+                        }
+                        AmbientRestoreKind::NewCloudConversation => {
+                            Self::create_ambient_agent_terminal(resources, view_size, ctx)
+                        }
+                    };
+
+                    let pane_data = TerminalPane::new(
+                        snapshot.uuid,
+                        terminal_manager,
+                        terminal_view,
+                        model_event_sender,
+                        ctx,
+                    );
+                    let terminal_pane_id = pane_data.terminal_pane_id();
+                    let pane_id = terminal_pane_id.into();
+                    pane_contents.insert(pane_id, Box::new(pane_data));
+
+                    if let Some(task_id) = pending_task {
+                        // Defer restoration to after the task data is loaded.
+                        pending_ambient_restorations.push((task_id, pane_id));
+                    }
+
+                    let focus = InitialFocus {
+                        focused_pane: leaf.is_focused.then_some(pane_id),
+                        active_session: None,
+                    };
+                    Ok((PaneData::new(pane_id), focus))
+                }
+                LeafContents::CodeReview(_) => {
+                    Err(anyhow::anyhow!("Code review panes are no longer supported"))
+                }
+                LeafContents::ExecutionProfileEditor | LeafContents::CustomRouterEditor => {
+                    // Editor panes are not restored from persistence.
+                    Err(anyhow::anyhow!("Can't restore editor panes"))
+                }
+                LeafContents::NetworkLog => {
+                    // Network log panes are intentionally not restored. Two
+                    // reasons:
+                    //
+                    // 1. The in-memory log starts empty on each launch, so a
+                    //    restored pane would display a blank editor anyway.
+                    // 2. More importantly, persisting the pane's contents would
+                    //    effectively regress back to a persisted, on-disk
+                    //    network log (via the SQLite app-state database) on app
+                    //    shutdown, defeating the purpose of moving the log off
+                    //    disk in the first place.
+                    //
+                    // `save_pane_state` in `persistence/sqlite.rs` skips network
+                    // log panes entirely, so reaching this arm indicates a
+                    // programmer error on the persistence side. Users reopen the
+                    // pane on demand via Privacy settings or the keybinding.
+                    Err(anyhow::anyhow!(
+                        "Network log pane should not have been persisted, as it cannot be restored"
+                    ))
+                }
+                LeafContents::GetStarted => {
+                    if !FeatureFlag::GetStartedTab.is_enabled() {
+                        Err(anyhow::anyhow!("GetStarted pane not supported"))
+                    } else {
+                        let pane: Box<dyn AnyPaneContent + 'static> =
+                            Box::new(GetStartedPane::new(ctx));
+                        let pane_id = pane.as_pane().id();
+                        pane_contents.insert(pane_id, pane);
+                        let focus = InitialFocus {
+                            focused_pane: leaf.is_focused.then_some(pane_id),
+                            active_session: None,
+                        };
+                        Ok((PaneData::new(pane_id), focus))
+                    }
+                }
+                LeafContents::EnvironmentManagement(_) => {
+                    // Environment management panes are not restored from persistence.
+                    // They are opened on-demand via workspace actions.
+                    Err(anyhow::anyhow!(
+                        "Environment management panes are not restored"
+                    ))
+                }
             }
         };
 

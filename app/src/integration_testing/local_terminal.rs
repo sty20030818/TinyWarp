@@ -1,4 +1,4 @@
-//! L1 专项集成测试的启动前 fixture；仅随 integration_tests 编译。
+//! 本地终端专项集成测试的启动前 fixture；仅随 integration_tests 编译。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -249,5 +249,107 @@ pub fn assert_legacy_tabs_and_history(app: &mut App, window_id: WindowId) -> Ass
                 "真实无账号启动后应能访问旧版 fixture 的本地命令历史".to_owned(),
             ),
         }
+    })
+}
+
+/// 对初始化前保存的旧 Agent 默认值，只调整运行投影，不写回偏好。
+pub fn assert_shell_runtime_keeps_legacy_agent_preference(
+    app: &mut App,
+    window_id: WindowId,
+) -> AssertionOutcome {
+    use settings::Setting as _;
+    use warpui_extras::user_preferences::file_backed::FileBackedUserPreferences;
+    use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;
+
+    use crate::integration_testing::view_getters::single_terminal_view_for_tab;
+    use crate::settings::AISettings;
+    use crate::settings::ai::DefaultSessionMode;
+
+    let preference = app.read(|ctx| {
+        let ai = AISettings::as_ref(ctx);
+        if ai.default_session_mode(ctx) != DefaultSessionMode::Terminal
+            || *ai.default_session_mode_internal.value() != DefaultSessionMode::Agent
+        {
+            return AssertionOutcome::failure(
+                "旧 Agent 默认值应保持，运行时必须使用 Terminal".to_owned(),
+            );
+        }
+        let home = PathBuf::from(std::env::var_os("HOME").expect("driver 设置临时 HOME"));
+        let path = crate::settings::user_preferences_file_path();
+        assert!(path.starts_with(&home), "只读取临时 HOME 的偏好 fixture");
+        let native = match FileBackedUserPreferences::new(path) {
+            Ok(native) => native,
+            Err(err) => {
+                return AssertionOutcome::failure(format!("读取旧偏好 fixture 失败：{err}"));
+            }
+        };
+        if DefaultSessionMode::read_from_preferences(&native) != Some(DefaultSessionMode::Agent) {
+            return AssertionOutcome::failure("磁盘旧默认模式不能被改写为 Terminal".to_owned());
+        }
+        if DefaultSessionMode::preferences_for_setting(ctx).is_settings_file() {
+            let path = crate::settings::user_preferences_toml_file_path();
+            assert!(path.starts_with(home), "只读取临时 HOME 的 TOML fixture");
+            let (preferences, error) = TomlBackedUserPreferences::new(path);
+            if error.is_some()
+                || DefaultSessionMode::read_from_preferences(&preferences)
+                    != Some(DefaultSessionMode::Agent)
+            {
+                return AssertionOutcome::failure(
+                    "迁移后的 TOML 仍应保留 Agent 默认模式".to_owned(),
+                );
+            }
+        }
+        AssertionOutcome::Success
+    });
+    if !matches!(preference, AssertionOutcome::Success) {
+        return preference;
+    }
+    single_terminal_view_for_tab(app, window_id, 0).read(app, |terminal, ctx| {
+        let input = terminal.input_config(ctx);
+        if !input.is_shell()
+            || !input.is_locked
+            || terminal.agent_view_controller().as_ref(ctx).is_active()
+        {
+            return AssertionOutcome::failure(
+                "首次运行应使用锁定 Shell 输入，且不进入 Agent 视图".to_owned(),
+            );
+        }
+        AssertionOutcome::Success
+    })
+}
+
+pub fn assert_external_cli_finished_successfully(
+    app: &mut App,
+    window_id: WindowId,
+) -> AssertionOutcome {
+    use crate::integration_testing::view_getters::single_terminal_view_for_tab;
+    use crate::terminal::model::block::BlockState;
+    use crate::terminal::model::blocks::BlockFilter;
+
+    single_terminal_view_for_tab(app, window_id, 0).read(app, |terminal, _| {
+        let model = terminal.model.lock();
+        let blocks = model.block_list();
+        let Some(block) = blocks
+            .last_matching_block_by_index(BlockFilter::commands())
+            .and_then(|index| blocks.block_at(index))
+        else {
+            return AssertionOutcome::failure("外部 CLI 命令块尚未生成".to_owned());
+        };
+        if !matches!(block.state(), BlockState::DoneWithExecution) {
+            return AssertionOutcome::failure("外部 CLI 尚未正常完成".to_owned());
+        }
+        let output = block.output_to_string();
+        if block.exit_code().value() != 0
+            || !output.lines().any(|line| line == "tinywarp-l2-cli-ready")
+            || !output
+                .lines()
+                .any(|line| line == "tinywarp-l2-stdin:石头鱼 L2 {stdin}")
+        {
+            return AssertionOutcome::failure(format!(
+                "外部 CLI 输出或退出码不符：exit={}，output={output:?}",
+                block.exit_code().value()
+            ));
+        }
+        AssertionOutcome::Success
     })
 }

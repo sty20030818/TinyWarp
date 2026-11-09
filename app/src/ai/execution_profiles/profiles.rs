@@ -397,10 +397,26 @@ impl AIExecutionProfilesModel {
         // (1) In case the default profile is unsynced AND a default profile arrives from the cloud
         // (2) Let views subscribed to us know whenever a backing profile changes.
         // (3) Keep profile_id_to_sync_id map up to date when profiles are created/deleted remotely
-        if !cfg!(feature = "agent_mode_evals") && !uses_file_backed_profiles {
+        if !crate::local_terminal::is_enabled(ctx)
+            && !cfg!(feature = "agent_mode_evals")
+            && !uses_file_backed_profiles
+        {
             ctx.subscribe_to_model(&CloudModel::handle(ctx), |me, _, event, ctx| {
                 me.handle_cloud_model_event(event, ctx);
             });
+        }
+
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                source,
+                settings_migration_state,
+                preserve_profile_onboarding_overrides: settings_profiles_are_explicit,
+                last_settings_profiles,
+                default_profile_state,
+                profile_id_to_sync_id,
+                active_profiles_per_session,
+                session_computer_use: HashMap::new(),
+            };
         }
 
         if uses_file_backed_profiles {

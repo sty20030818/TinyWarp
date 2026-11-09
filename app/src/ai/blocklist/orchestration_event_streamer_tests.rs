@@ -3626,3 +3626,34 @@ fn shared_session_viewer_does_not_confirm_delivery_for_echoed_messages() {
         );
     });
 }
+
+#[test]
+fn local_terminal_does_not_watch_or_restore_cached_agent_streams() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let mut client = MockAIClient::new();
+        client.expect_get_ambient_agent_task().times(0);
+        let server_api = ServerApiProvider::new_for_test().get();
+        let streamer = app.add_singleton_model(|ctx| {
+            OrchestrationEventStreamer::new_with_clients_for_test(Arc::new(client), server_api, ctx)
+        });
+        let conversation_id = AIConversationId::new();
+        let task_id: crate::ai::ambient_agents::AmbientAgentTaskId =
+            "00000000-0000-0000-0000-000000000125".parse().unwrap();
+        streamer.update(&mut app, |streamer, ctx| {
+            streamer.register_consumer(conversation_id, warpui::EntityId::new(), ctx);
+            streamer.register_watched_run_id(conversation_id, task_id.to_string(), ctx);
+            streamer.register_viewer_mode_consumer(
+                task_id,
+                conversation_id,
+                warpui::EntityId::new(),
+                ctx,
+            );
+            streamer.spawn_restore_fetch(conversation_id, task_id, 19, ctx);
+            assert!(streamer.streams.is_empty());
+            assert!(streamer.viewer_mode_orchestrators.is_empty());
+            assert_eq!(streamer.next_sse_generation, 0);
+            assert_eq!(streamer.next_wake_generation, 0);
+        });
+    });
+}

@@ -90,6 +90,10 @@ pub struct PtyOptions {
     /// Environment variables to add/override for the spawned PTY process.
     #[serde(default)]
     pub env_vars: HashMap<OsString, OsString>,
+    /// 关闭时不向子进程声明内置 CLI Agent 协议。JSON 缺失该字段时默认启用；
+    /// 二进制 PTY 协议要求父子进程使用相同结构版本。
+    #[serde(default = "enable_cli_agent_protocol_by_default")]
+    pub enable_cli_agent_protocol: bool,
     // Refers to the original SSH wrapper that uses ControlMaster and
     // requires overwriting the user's SSH command at the shell layer.
     pub enable_ssh_wrapper: bool,
@@ -105,4 +109,8 @@ pub struct PtyOptions {
     /// (gated via the `WARP_PROMPT_NODE_VERSION_ENABLED` env var).
     pub node_version_chip_enabled: bool,
     pub close_fds: bool,
+}
+
+fn enable_cli_agent_protocol_by_default() -> bool {
+    true
 }

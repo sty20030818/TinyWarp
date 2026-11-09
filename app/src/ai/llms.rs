@@ -842,6 +842,18 @@ pub struct LLMPreferences {
 
 impl LLMPreferences {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                agent_mode_models_unavailable: HashMap::new(),
+                last_update: None,
+                base_llm_for_terminal_view: HashMap::new(),
+                computer_use_llm_for_terminal_view: HashMap::new(),
+                custom_llms: Vec::new(),
+                custom_model_routers: Vec::new(),
+                last_seen_chatgpt_subscription_connected: None,
+            };
+        }
+
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, event, ctx| {
             if let UserWorkspacesEvent::TeamsChanged = event {
                 me.sanitize_disabled_custom_model_preferences(ctx);
@@ -1991,6 +2003,10 @@ impl LLMPreferences {
         team_uid: Option<ServerId>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Don't try to fetch auth'd models if the user is not logged in yet.
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             return;
@@ -2022,6 +2038,10 @@ impl LLMPreferences {
 
     /// No auth required (i.e. to populate the pre-login onboarding picker).
     fn refresh_public_models(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let ai_api_client = ServerApiProvider::as_ref(ctx).get_ai_client();
         ctx.spawn(
             async move { ai_api_client.get_free_available_models(None).await },
@@ -2045,6 +2065,10 @@ impl LLMPreferences {
         scope: &(impl TeamScope + ?Sized),
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             self.refresh_authed_models(scope, ctx);
         } else {

@@ -2245,6 +2245,9 @@ impl AISettings {
         Self::register(app);
         app.add_singleton_model(FocusedTerminalInfo::new);
         CompiledCommandsForCodingAgentToolbar::register(app);
+        if crate::local_terminal::is_enabled(app) {
+            return;
+        }
 
         app.update_model(&Self::handle(app), |_me, ctx| {
             ctx.subscribe_to_model(&FocusedTerminalInfo::handle(ctx), |_me, _, event, ctx| {
@@ -2275,6 +2278,9 @@ impl AISettings {
     }
 
     pub fn is_any_ai_enabled(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
         // Disable AI for anonymous and logged-out users.
         let is_anonymous_or_logged_out = AuthStateProvider::as_ref(app)
             .get()
@@ -2302,6 +2308,9 @@ impl AISettings {
     }
 
     pub fn default_session_mode(&self, app: &AppContext) -> DefaultSessionMode {
+        if crate::local_terminal::is_enabled(app) {
+            return DefaultSessionMode::Terminal;
+        }
         let mode = *self.default_session_mode_internal.value();
         match mode {
             // Terminal and TabConfig don't require AI.
@@ -2837,8 +2846,15 @@ impl CompiledCommandsForCodingAgentToolbar {
 
     fn register(app: &mut AppContext) {
         let handle = app.add_singleton_model(|ctx| Self {
-            regexes: Self::parse(ctx),
+            regexes: if crate::local_terminal::is_enabled(ctx) {
+                vec![]
+            } else {
+                Self::parse(ctx)
+            },
         });
+        if crate::local_terminal::is_enabled(app) {
+            return;
+        }
         let ai_settings = AISettings::handle(app);
         app.subscribe_to_model(&ai_settings, move |_, event, ctx| {
             if matches!(

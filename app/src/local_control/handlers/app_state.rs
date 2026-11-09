@@ -38,7 +38,9 @@ use crate::settings_view::SettingsSection;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
 #[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::{EditorLayout, resolve_file_target_to_open_in_warp};
+use crate::util::openable_file_type::{
+    EditorLayout, FileTarget, resolve_file_target_to_open_in_warp,
+};
 #[cfg(feature = "local_fs")]
 use crate::workspace::PaneViewLocator;
 use crate::workspace::{CommandSearchOptions, InitContent, WorkspaceAction};
@@ -258,6 +260,15 @@ fn workspace_action(
     target: &TargetSelector,
     ctx: &mut ModelContext<LocalControlBridge>,
 ) -> Result<serde_json::Value, ControlError> {
+    if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+        return Err(ControlError::new(
+            ErrorCode::UnsupportedAction,
+            format!(
+                "{} is unavailable in TinyWarp local terminal",
+                action_kind.as_str()
+            ),
+        ));
+    }
     let workspace = target_workspace(action_kind, target, ctx)?;
     activate_target(&workspace, action_kind, target, ctx)?;
     workspace.update(ctx, |workspace, ctx| {
@@ -757,12 +768,25 @@ fn file_open(
     let workspace = target_workspace(ActionKind::FileOpen, target, ctx)?;
     #[cfg(feature = "local_fs")]
     let path = resolve_file_open_path(&params.path, target, ctx)?;
-    activate_target(&workspace, ActionKind::FileOpen, target, ctx)?;
     #[cfg(feature = "local_fs")]
     {
         let layout = params.new_tab.then_some(EditorLayout::NewTab);
         let file_target =
             resolve_file_target_to_open_in_warp(&path, EditorSettings::as_ref(ctx), layout);
+        if crate::local_terminal::is_enabled(ctx)
+            && matches!(
+                file_target,
+                FileTarget::CodeEditor(_) | FileTarget::MarkdownViewer(_)
+            )
+            && !(path.is_dir()
+                && matches!(file_target, FileTarget::CodeEditor(EditorLayout::NewTab)))
+        {
+            return Err(ControlError::new(
+                ErrorCode::UnsupportedAction,
+                "file.open built-in editors and viewers are unavailable in TinyWarp local terminal",
+            ));
+        }
+        activate_target(&workspace, ActionKind::FileOpen, target, ctx)?;
         workspace.update(ctx, |workspace, ctx| {
             workspace.open_file_with_target(
                 path.clone(),
@@ -779,10 +803,13 @@ fn file_open(
         Ok(ack(instance_id, ActionKind::FileOpen))
     }
     #[cfg(not(feature = "local_fs"))]
-    Err(ControlError::new(
-        ErrorCode::UnsupportedAction,
-        "file.open is unavailable without local filesystem support",
-    ))
+    {
+        let _ = workspace;
+        Err(ControlError::new(
+            ErrorCode::UnsupportedAction,
+            "file.open is unavailable without local filesystem support",
+        ))
+    }
 }
 
 /// Resolves the path for `file.open` against the targeted terminal session's working

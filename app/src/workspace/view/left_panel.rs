@@ -99,9 +99,7 @@ pub(crate) enum ToolPanelAvailability {
 
 impl ToolPanelView {
     fn availability(self, app: &AppContext) -> ToolPanelAvailability {
-        if crate::local_terminal::is_enabled(app)
-            && matches!(self, Self::WarpDrive | Self::ConversationListView)
-        {
+        if crate::local_terminal::is_enabled(app) {
             return ToolPanelAvailability::RequiresAccount;
         }
         match self {
@@ -263,10 +261,13 @@ impl LeftPanelView {
     ) -> Box<dyn Element> {
         let (title, description) = if crate::local_terminal::is_enabled(app) {
             (
-                tr("local_terminal.panel.title", "Cloud service unavailable"),
                 tr(
-                    "local_terminal.panel.description",
-                    "This local terminal does not use accounts or cloud services.",
+                    "local_terminal.panel.feature_title",
+                    "Built-in feature disabled",
+                ),
+                tr(
+                    "local_terminal.panel.feature_description",
+                    "This terminal does not open built-in AI, code views, or cloud services.",
                 ),
             )
         } else {
@@ -1138,10 +1139,8 @@ impl LeftPanelView {
         force_open: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        if crate::local_terminal::is_enabled(ctx)
-            && matches!(action, LeftPanelAction::WarpDrive | LeftPanelAction::SignIn)
-        {
-            crate::local_terminal::show_unavailable(ctx);
+        if crate::local_terminal::is_enabled(ctx) {
+            crate::local_terminal::show_feature_unavailable(ctx);
             return;
         }
         match action {

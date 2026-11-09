@@ -305,11 +305,19 @@ impl From<&Block> for SerializedBlock {
             prompt_snapshot,
         };
 
-        let ai_metadata = block
-            .agent_interaction_metadata()
-            .cloned()
-            .map(Into::<SerializedAIMetadata>::into)
-            .and_then(|metadata| serde_json::to_string(&metadata).ok());
+        let (ai_metadata, agent_view_visibility) = if let Some(original) = &block.preserved_ai_data
+        {
+            (original.metadata.clone(), original.visibility.clone())
+        } else {
+            (
+                block
+                    .agent_interaction_metadata()
+                    .cloned()
+                    .map(Into::<SerializedAIMetadata>::into)
+                    .and_then(|metadata| serde_json::to_string(&metadata).ok()),
+                Some(block.agent_view_visibility().clone().into()),
+            )
+        };
 
         SerializedBlock {
             id: block.id.clone(),
@@ -336,7 +344,7 @@ impl From<&Block> for SerializedBlock {
             prompt_snapshot: prompt_info.prompt_snapshot,
             ai_metadata,
             is_local: None,
-            agent_view_visibility: Some(block.agent_view_visibility().clone().into()),
+            agent_view_visibility,
         }
     }
 }

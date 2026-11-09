@@ -1158,3 +1158,35 @@ fn local_terminal_blocks_account_and_cloud_routes_but_keeps_local_links() {
         );
     }
 }
+
+#[test]
+fn local_terminal_blocks_builtin_agent_editor_and_mcp_routes() {
+    for (host, url) in [
+        (UriHost::Codex, "warposs://codex"),
+        (UriHost::Linear, "warposs://linear"),
+        (UriHost::Mcp, "warposs://mcp/oauth/callback"),
+        (UriHost::Action, "warposs://action/new_agent_conversation"),
+        (
+            UriHost::Action,
+            "warposs://action/open_file_editor?path=/tmp/fixture.rs",
+        ),
+    ] {
+        assert!(
+            host.requires_disabled_local_feature(&Url::parse(url).unwrap()),
+            "{url}"
+        );
+    }
+    for (host, url) in [
+        (UriHost::Action, "warposs://action/new_tab?path=/tmp"),
+        (UriHost::Action, "warposs://action/new_window"),
+        (UriHost::Action, "warposs://action/open-repo"),
+        (UriHost::TabConfig, "warposs://tab_config/local"),
+        (UriHost::Launch, "warposs://launch/local"),
+        (UriHost::Session, "warposs://session/local"),
+    ] {
+        assert!(
+            !host.requires_disabled_local_feature(&Url::parse(url).unwrap()),
+            "{url}"
+        );
+    }
+}

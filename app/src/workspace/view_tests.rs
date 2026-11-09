@@ -1185,6 +1185,153 @@ fn test_open_file_notebook_focuses_existing_markdown_pane() {
     });
 }
 
+#[cfg(feature = "local_fs")]
+#[test]
+fn local_terminal_rejects_internal_file_targets_and_direct_notebook_open() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let workspace = mock_workspace(&mut app);
+        let path = PathBuf::from("/local-mode-must-not-open/README.md");
+        let (tabs, terminal_panes) = workspace.read(&app, |workspace, ctx| {
+            (
+                workspace.tab_count(),
+                workspace
+                    .active_tab_pane_group()
+                    .as_ref(ctx)
+                    .terminal_pane_ids()
+                    .count(),
+            )
+        });
+
+        for layout in [EditorLayout::SplitPane, EditorLayout::NewTab] {
+            for target in [
+                FileTarget::CodeEditor(layout),
+                FileTarget::MarkdownViewer(layout),
+            ] {
+                workspace.update(&mut app, |workspace, ctx| {
+                    workspace
+                        .toast_stack
+                        .update(ctx, |stack, ctx| stack.clear_toasts(ctx));
+                    workspace.open_file_with_target(
+                        path.clone(),
+                        target,
+                        None,
+                        CodeSource::Link {
+                            path: path.clone(),
+                            range_start: None,
+                            range_end: None,
+                        },
+                        ctx,
+                    );
+                });
+                workspace.read(&app, |workspace, ctx| {
+                    assert!(workspace.toast_stack.as_ref(ctx).has_toasts());
+                    assert_eq!(workspace.tab_count(), tabs);
+                    let panes = workspace.active_tab_pane_group().as_ref(ctx);
+                    assert_eq!(panes.terminal_pane_ids().count(), terminal_panes);
+                    assert_eq!(panes.code_panes(ctx).count(), 0);
+                    assert_eq!(panes.file_notebook_panes(ctx).count(), 0);
+                });
+            }
+
+            workspace.update(&mut app, |workspace, ctx| {
+                workspace
+                    .toast_stack
+                    .update(ctx, |stack, ctx| stack.clear_toasts(ctx));
+                workspace.open_file_notebook(
+                    LocalOrRemotePath::Local(path.clone()),
+                    None,
+                    layout,
+                    None,
+                    ctx,
+                );
+            });
+            workspace.read(&app, |workspace, ctx| {
+                assert!(workspace.toast_stack.as_ref(ctx).has_toasts());
+                assert_eq!(workspace.tab_count(), tabs);
+                assert_eq!(
+                    workspace
+                        .active_tab_pane_group()
+                        .as_ref(ctx)
+                        .file_notebook_panes(ctx)
+                        .count(),
+                    0
+                );
+            });
+        }
+    });
+}
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn local_terminal_keeps_directory_terminals_and_external_file_targets_available() {
+    use crate::util::file::external_editor::Editor;
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let workspace = mock_workspace(&mut app);
+        let temp_dir = TempDir::new().expect("独立本地目录 fixture");
+        // 不存在的文件使外部目标走测试平台 no-op，不启动真实编辑器。
+        let path = temp_dir.path().join("not-created.md");
+        let tabs = workspace.read(&app, |workspace, _| workspace.tab_count());
+
+        for target in [
+            FileTarget::ExternalEditor(Editor::VSCode),
+            FileTarget::SystemDefault,
+            FileTarget::SystemGeneric,
+            FileTarget::EnvEditor,
+        ] {
+            workspace.update(&mut app, |workspace, ctx| {
+                workspace
+                    .toast_stack
+                    .update(ctx, |stack, ctx| stack.clear_toasts(ctx));
+                workspace.open_file_with_target(
+                    path.clone(),
+                    target,
+                    None,
+                    CodeSource::Link {
+                        path: path.clone(),
+                        range_start: None,
+                        range_end: None,
+                    },
+                    ctx,
+                );
+            });
+            workspace.read(&app, |workspace, ctx| {
+                assert!(!workspace.toast_stack.as_ref(ctx).has_toasts());
+                assert_eq!(workspace.tab_count(), tabs);
+                let panes = workspace.active_tab_pane_group().as_ref(ctx);
+                assert_eq!(panes.code_panes(ctx).count(), 0);
+                assert_eq!(panes.file_notebook_panes(ctx).count(), 0);
+            });
+        }
+
+        workspace.update(&mut app, |workspace, ctx| {
+            let directory = temp_dir.path().to_path_buf();
+            workspace.open_file_with_target(
+                directory.clone(),
+                FileTarget::CodeEditor(EditorLayout::NewTab),
+                None,
+                CodeSource::Link {
+                    path: directory,
+                    range_start: None,
+                    range_end: None,
+                },
+                ctx,
+            );
+        });
+        workspace.read(&app, |workspace, ctx| {
+            assert_eq!(workspace.tab_count(), tabs + 1);
+            let panes = workspace.active_tab_pane_group().as_ref(ctx);
+            assert!(panes.has_terminal_panes());
+            assert_eq!(panes.code_panes(ctx).count(), 0);
+            assert_eq!(panes.file_notebook_panes(ctx).count(), 0);
+        });
+    });
+}
+
 /// Regression test for the agent file-range preview's "Open file" button: the
 /// handler used to zero out `range_start`, so consumers that read the jump
 /// target off the `CodeSource` opened the file at the top.

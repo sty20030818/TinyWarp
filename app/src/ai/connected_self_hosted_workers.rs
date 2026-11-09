@@ -23,6 +23,11 @@ pub struct ConnectedSelfHostedWorkersModel {
 
 impl ConnectedSelfHostedWorkersModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                workers_by_team: HashMap::new(),
+            };
+        }
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, _, event, ctx| {
             if let NetworkStatusEvent::NetworkStatusChanged {
                 new_status: NetworkStatusKind::Online,
@@ -81,6 +86,10 @@ impl ConnectedSelfHostedWorkersModel {
     }
 
     pub fn refresh(&mut self, scope: &impl TeamScope, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             self.clear_workers(ctx);
             return;

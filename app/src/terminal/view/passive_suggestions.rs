@@ -29,6 +29,9 @@ impl TerminalView {
         resolution: PromptSuggestionResolution,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
         if self.resolve_prompt_suggestion_diff(resolution, ctx) {
             return true;
         }
@@ -47,6 +50,9 @@ impl TerminalView {
         action: impl Into<CodeDiffAction>,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
         let Some(ai_block) = self.last_ai_block() else {
             return false;
         };

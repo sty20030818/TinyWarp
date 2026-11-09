@@ -397,3 +397,22 @@ fn settings_change_applies_policy_update() {
         });
     });
 }
+
+#[test]
+fn local_terminal_keeps_shell_input_with_old_ai_policy_and_restore_config() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let input_model = app
+            .update(|ctx| BlocklistAIInputModel::mock(Rc::new(StubPolicy::inert(AI_LOCKED)), ctx));
+        input_model.update(&mut app, |model, ctx| {
+            assert_eq!(model.input_config(), SHELL_LOCKED);
+            model.set_input_config(AI_LOCKED, true, None, ctx);
+            model.restore_input_config(AI_LOCKED, true, ctx);
+            assert_eq!(model.input_config(), SHELL_LOCKED);
+            assert!(!model.should_run_input_autodetection(ctx));
+            assert!(!model.is_autodetection_enabled_for_current_context(ctx));
+            assert!(model.autodetect_abort_handle.is_none());
+            assert!(!ctx.has_singleton_model::<crate::input_classifier::InputClassifierModel>());
+        });
+    });
+}

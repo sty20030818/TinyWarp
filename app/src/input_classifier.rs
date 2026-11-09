@@ -14,7 +14,12 @@ pub struct InputClassifierModel {
 }
 
 impl InputClassifierModel {
-    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
+    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                classifier: Arc::new(HeuristicClassifier),
+            };
+        }
         #[cfg(feature = "nld_classifier_v1")]
         {
             match OnnxClassifier::new(OnnxModel::BertTinyV1) {

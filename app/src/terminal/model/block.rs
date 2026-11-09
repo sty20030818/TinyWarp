@@ -294,6 +294,11 @@ impl AgentViewVisibility {
     }
 }
 
+struct PreservedAiBlockData {
+    metadata: Option<String>,
+    visibility: Option<SerializedAgentViewVisibility>,
+}
+
 pub struct Block {
     id: BlockId,
     size: SizeInfo,
@@ -428,6 +433,8 @@ pub struct Block {
     ///
     /// This is only used if `FeatureFlag::AgentView` is enabled.
     agent_view_visibility: AgentViewVisibility,
+    // 仅本地终端升级恢复设置；再次保存历史块时不重新解释已停用功能的数据。
+    preserved_ai_data: Option<Box<PreservedAiBlockData>>,
 
     /// Whether natural language detection (NLD) was overridden (i.e., the user had manually locked
     /// the input type) at the time this block's command was submitted.
@@ -1021,10 +1028,21 @@ impl Block {
                 Some(id) => AgentViewVisibility::new_from_conversation(id),
                 None => AgentViewVisibility::new_from_terminal(),
             },
+            preserved_ai_data: None,
             nld_overridden: false,
             is_oz_environment_startup_command: false,
             visible_bootstrap_block_event_sent: false,
         }
+    }
+
+    pub(super) fn preserve_restored_ai_data(&mut self, original: &SerializedBlock) {
+        self.preserved_ai_data = Some(Box::new(PreservedAiBlockData {
+            metadata: original.ai_metadata.clone(),
+            visibility: original.agent_view_visibility.clone(),
+        }));
+        // 已结束的旧块按普通终端内容显示，原 AI 描述只用于兼容保存。
+        self.interaction_mode = InteractionMode::default();
+        self.clear_conversation_id();
     }
 
     pub fn id(&self) -> &BlockId {

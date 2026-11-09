@@ -4153,3 +4153,174 @@ fn test_undo_close_keeps_a_file_pane_watching_its_file() {
         });
     });
 }
+
+#[test]
+fn local_terminal_restores_retired_panes_without_constructing_feature_views() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        for contents in crate::app_state::retired_pane_test_fixtures() {
+            let expected = LeafSnapshot {
+                is_focused: true,
+                custom_vertical_tabs_title: Some("旧标签 {保持原样}".to_owned()),
+                contents,
+            };
+            let group = mock_pane_group(
+                &mut app,
+                MockOptions {
+                    layout: PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(
+                        expected.clone(),
+                    ))),
+                    ..Default::default()
+                },
+            );
+            group.read(&app, |group, ctx| {
+                assert_eq!(
+                    group.snapshot(ctx),
+                    PaneNodeSnapshot::Leaf(expected.clone())
+                );
+                assert_eq!(group.pane_contents.len(), 1);
+                let pane = group.pane_contents.values().next().unwrap();
+                assert!(
+                    pane.as_any()
+                        .is::<pane::unavailable_feature_pane::UnavailableFeaturePane>()
+                );
+            });
+            let window_id = app.read(|ctx| group.window_id(ctx));
+            assert!(app.views_of_type::<CodeView>(window_id).unwrap().is_empty());
+            assert!(
+                app.views_of_type::<crate::ai::ai_document_view::AIDocumentView>(window_id)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                app.views_of_type::<TerminalView>(window_id)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    });
+}
+
+#[test]
+fn local_terminal_restore_keeps_terminal_ai_snapshot_and_raw_block_metadata() {
+    use crate::terminal::model::block::{SerializedAgentViewVisibility, SerializedBlock};
+    use crate::terminal::model::test_utils::TestBlockListBuilder;
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let uuid = vec![51; 16];
+        let conversation_id = AIConversationId::new();
+        let original = TerminalPaneSnapshot {
+            uuid: uuid.clone(),
+            cwd: Some("/tmp".to_owned()),
+            shell_launch_data: None,
+            is_active: true,
+            is_read_only: false,
+            input_config: Some(InputConfig {
+                input_type: crate::ai::blocklist::InputType::AI,
+                is_locked: true,
+            }),
+            llm_model_override: Some("legacy-llm-opaque-value".to_owned()),
+            active_profile_id: Some(SyncId::ClientId(crate::server::ids::ClientId::new())),
+            conversation_ids_to_restore: vec![conversation_id],
+            active_conversation_id: Some(conversation_id),
+        };
+        let mut block = SerializedBlock::new_for_test("printf '旧命令'".into(), "旧输出".into());
+        block.ai_metadata = Some(format!(
+            "  {}  ",
+            serde_json::json!({
+                "requested_command_action_id": null, "conversation_id": conversation_id,
+                "subagent_task_id": null, "long_running_control_state": null,
+                "has_agent_written_to_block": true, "legacy_unknown_field": "保持原样",
+            })
+        ));
+        block.agent_view_visibility = Some(SerializedAgentViewVisibility::Agent {
+            origin_conversation_id: conversation_id,
+            pending_other_conversation_ids: Default::default(),
+            other_conversation_ids: Default::default(),
+        });
+        // 既有 restore 会重建 ANSI 样式和 CRLF；命令字节应与普通恢复的规范输出比较。
+        let originals = vec![block.clone().into()];
+        let baseline_blocks = TestBlockListBuilder::new()
+            .with_restored_blocks(&originals)
+            .build();
+        let baseline_block = baseline_blocks
+            .block_at(baseline_blocks.block_index_for_id(&block.id).unwrap())
+            .unwrap();
+        let baseline = SerializedBlock::from(baseline_block);
+        app.update(crate::local_terminal::enable_for_test);
+        let blocks = Arc::new(HashMap::from([(PaneUuid(uuid.clone()), originals)]));
+        let tips = app.add_model(|_| TipsCompleted::default());
+        let (_, group) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+            let banner = ctx.add_model(|_| BannerState::default());
+            PaneGroup::new_with_panes_layout(
+                tips,
+                banner,
+                ServerApiProvider::as_ref(ctx).get(),
+                PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(LeafSnapshot {
+                    is_focused: true,
+                    custom_vertical_tabs_title: Some("旧终端 {原值}".to_owned()),
+                    contents: LeafContents::Terminal(original.clone()),
+                }))),
+                blocks,
+                None,
+                ctx,
+            )
+        });
+        group.read(&app, |group, ctx| {
+            assert_eq!(group.pane_contents.len(), 1);
+            let pane = group
+                .pane_contents
+                .values()
+                .next()
+                .unwrap()
+                .as_any()
+                .downcast_ref::<TerminalPane>()
+                .expect("旧终端必须仍是终端 pane");
+            let LeafContents::Terminal(snapshot) = pane.snapshot(ctx) else {
+                panic!("保留终端快照类型");
+            };
+            assert_eq!(snapshot.uuid, original.uuid);
+            assert_eq!(snapshot.input_config, original.input_config);
+            assert_eq!(snapshot.llm_model_override, original.llm_model_override);
+            assert_eq!(snapshot.active_profile_id, original.active_profile_id);
+            assert_eq!(
+                snapshot.conversation_ids_to_restore,
+                original.conversation_ids_to_restore
+            );
+            assert_eq!(
+                snapshot.active_conversation_id,
+                original.active_conversation_id
+            );
+            let view = pane.terminal_view(ctx);
+            let model = view.as_ref(ctx).model.lock();
+            let list = model.block_list();
+            let restored = list
+                .block_at(list.block_index_for_id(&block.id).expect("旧命令块仍在"))
+                .unwrap();
+            assert!(restored.agent_interaction_metadata().is_none());
+            let saved = SerializedBlock::from(restored);
+            assert_eq!(saved.ai_metadata, block.ai_metadata);
+            assert_eq!(saved.agent_view_visibility, block.agent_view_visibility);
+            assert_eq!(saved.stylized_command, baseline.stylized_command);
+            assert_eq!(saved.stylized_output, baseline.stylized_output);
+            assert_eq!(
+                restored
+                    .command_with_secrets_unobfuscated(false)
+                    .trim_end_matches(['\r', '\n']),
+                "printf '旧命令'"
+            );
+            assert_eq!(
+                restored.output_to_string().trim_end_matches(['\r', '\n']),
+                "旧输出"
+            );
+            assert_eq!(
+                pane.pane_configuration()
+                    .as_ref(ctx)
+                    .custom_vertical_tabs_title(),
+                Some("旧终端 {原值}")
+            );
+        });
+    });
+}

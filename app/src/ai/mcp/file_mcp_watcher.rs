@@ -168,6 +168,10 @@ pub struct FileMCPWatcher {
 
 impl FileMCPWatcher {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self::new_inert();
+        }
+
         let (file_mcp_tx, file_mcp_rx) = async_channel::unbounded::<FileMCPDetectionMessage>();
         let settings_mode = settings::settings_mode();
 
@@ -249,9 +253,7 @@ impl FileMCPWatcher {
         watcher
     }
 
-    /// A watcher with no filesystem subscriptions and no owed scans, so tests can feed
-    /// consumers a deterministic event sequence.
-    #[cfg(test)]
+    /// 不注册文件监听，也不启动扫描；配置内容保持原样。
     pub(crate) fn new_inert() -> Self {
         Self {
             file_mcp_tx: async_channel::unbounded().0,
@@ -265,6 +267,10 @@ impl FileMCPWatcher {
 
     #[cfg(feature = "tui")]
     pub fn reload_global_config(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let Some(config) = warp_managed_mcp_config_path() else {
             return;
         };
@@ -283,6 +289,10 @@ impl FileMCPWatcher {
         ctx: &mut ModelContext<Self>,
         file_mcp_tx: Sender<FileMCPDetectionMessage>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if self.project_repo_watchers.contains(&repo_path) {
             return;
         }
@@ -330,6 +340,10 @@ impl FileMCPWatcher {
         home_provider_watchers: &mut HashMap<PathBuf, (ModelHandle<Repository>, SubscriberId)>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if home_provider_watchers.contains_key(subdir_path) {
             return;
         }
@@ -658,6 +672,10 @@ impl FileMCPWatcher {
         provider: MCPProvider,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let config_file_path = config_file_path.to_path_buf();
         let key = (config_file_path.clone(), provider);
         let callback_key = key.clone();

@@ -2654,3 +2654,71 @@ fn agent_transcript_navigable_items_include_prompts_and_user_shell_blocks() {
         ]
     );
 }
+
+#[test]
+fn local_terminal_restored_block_preserves_raw_ai_fields_after_runtime_visibility_changes() {
+    let mut original = SerializedBlock::new_for_test("printf '旧命令'".into(), "旧输出".into());
+    original.ai_metadata = Some(format!(
+        "  {}  ",
+        serde_json::json!({
+            "requested_command_action_id": null,
+            "conversation_id": crate::ai::agent::conversation::AIConversationId::new(),
+            "subagent_task_id": null, "long_running_control_state": null,
+            "has_agent_written_to_block": true,
+            "legacy_unknown_field": "原 AI 元数据 {保持原样}",
+        })
+    ));
+    original.agent_view_visibility = Some(
+        crate::terminal::model::block::SerializedAgentViewVisibility::Agent {
+            origin_conversation_id: crate::ai::agent::conversation::AIConversationId::new(),
+            pending_other_conversation_ids: Default::default(),
+            other_conversation_ids: Default::default(),
+        },
+    );
+    let originals = vec![original.clone().into()];
+    // 不调用本地 preserve 的普通恢复，提供既有 ANSI/CRLF 规范化基线。
+    let baseline_blocks = TestBlockListBuilder::new()
+        .with_restored_blocks(&originals)
+        .build();
+    let baseline_block = baseline_blocks
+        .block_at(baseline_blocks.block_index_for_id(&original.id).unwrap())
+        .unwrap();
+    let baseline = SerializedBlock::from(baseline_block);
+    let mut blocks = TestBlockListBuilder::new()
+        .with_restored_blocks(&originals)
+        .build();
+    blocks.preserve_restored_ai_data(&originals);
+    let index = blocks.block_index_for_id(&original.id).unwrap();
+    let restored = blocks.block_at_mut(index).unwrap();
+    restored.clear_conversation_id();
+    assert!(restored.agent_interaction_metadata().is_none());
+    let saved = SerializedBlock::from(&*restored);
+    assert_eq!(saved.ai_metadata, original.ai_metadata);
+    assert_eq!(saved.agent_view_visibility, original.agent_view_visibility);
+    assert_eq!(saved.stylized_command, baseline.stylized_command);
+    assert_eq!(saved.stylized_output, baseline.stylized_output);
+    assert_eq!(
+        restored
+            .command_with_secrets_unobfuscated(false)
+            .trim_end_matches(['\r', '\n']),
+        "printf '旧命令'"
+    );
+    assert_eq!(
+        restored.output_to_string().trim_end_matches(['\r', '\n']),
+        "旧输出"
+    );
+}
+
+#[test]
+fn ordinary_block_restoration_keeps_existing_serialization_without_local_preservation() {
+    let mut original = SerializedBlock::new_for_test("echo command".into(), "output".into());
+    original.ai_metadata = Some("{\"legacy_unknown_field\":true}".to_owned());
+    let originals = vec![original.clone().into()];
+    let blocks = TestBlockListBuilder::new()
+        .with_restored_blocks(&originals)
+        .build();
+    let restored = blocks
+        .block_at(blocks.block_index_for_id(&original.id).unwrap())
+        .unwrap();
+    assert!(SerializedBlock::from(restored).ai_metadata.is_none());
+}

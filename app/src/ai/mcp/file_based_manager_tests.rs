@@ -1102,3 +1102,23 @@ fn initial_global_scan_with_no_sources_resolves_to_empty_result() {
         });
     });
 }
+
+#[test]
+fn local_terminal_file_mcp_config_does_not_autostart_or_complete_fake_scan() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let manager = app.add_singleton_model(FileBasedMCPManager::new);
+        manager.update(&mut app, |manager, ctx| {
+            manager.apply_parsed_servers(
+                PathBuf::from("/local-mode-must-not-scan"),
+                MCPProvider::Warp,
+                parse_mcp_json(r#"{"mcpServers":{"local":{"command":"must-not-run"}}}"#),
+                ctx,
+            );
+            manager.activate_global_warp_servers(ctx);
+            assert!(manager.file_based_servers.is_empty());
+            assert!(!manager.global_warp_servers_activated);
+            assert!(manager.initial_global_scan_result().is_none());
+        });
+    });
+}

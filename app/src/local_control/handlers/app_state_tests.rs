@@ -81,3 +81,151 @@ fn unavailable_surface_open_returns_structured_error() {
     });
     drop(flag_guard);
 }
+
+#[test]
+fn local_terminal_surface_requests_return_errors_before_target_resolution() {
+    use ::local_control::protocol::TargetSelector;
+
+    use crate::local_control::LocalControlBridge;
+    use crate::settings_view::SettingsSection;
+
+    warpui::App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let bridge = app.add_singleton_model(LocalControlBridge::new);
+        for action in [
+            ActionKind::SurfaceWarpDriveOpen,
+            ActionKind::SurfaceWarpDriveToggle,
+            ActionKind::SurfaceAiAssistantToggle,
+            ActionKind::SurfaceCodeReviewOpen,
+            ActionKind::SurfaceCodeReviewToggle,
+            ActionKind::SurfaceProjectExplorerOpen,
+            ActionKind::SurfaceGlobalSearchOpen,
+            ActionKind::SurfaceConversationListOpen,
+            ActionKind::SurfaceLeftPanelToggle,
+            ActionKind::SurfaceRightPanelToggle,
+            ActionKind::SurfaceAgentManagementOpen,
+        ] {
+            let error = bridge
+                .update(&mut app, |_, ctx| {
+                    super::handle(
+                        &None,
+                        action,
+                        &serde_json::json!({}),
+                        &TargetSelector::default(),
+                        ctx,
+                    )
+                })
+                .expect_err("本地禁用功能应先于窗口查找返回不可用");
+            assert_eq!(error.code, ErrorCode::UnsupportedAction);
+            assert!(error.message.contains(action.as_str()));
+        }
+        let error = bridge
+            .update(&mut app, |_, ctx| {
+                super::handle(
+                    &None,
+                    ActionKind::SurfaceSettingsOpen,
+                    &serde_json::json!({ "page": SettingsSection::EditorAndCodeReview.slug() }),
+                    &TargetSelector::default(),
+                    ctx,
+                )
+            })
+            .expect_err("禁用编辑器设置不能返回成功");
+        assert_eq!(error.code, ErrorCode::UnsupportedAction);
+        assert!(app.read(|ctx| ctx.window_ids().next().is_none()));
+    });
+}
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn local_terminal_file_open_rejects_builtin_editor_and_markdown_before_dispatch() {
+    use ::local_control::protocol::TargetSelector;
+    use settings::Setting as _;
+    use warpui::SingletonEntity as _;
+
+    use crate::local_control::LocalControlBridge;
+    use crate::util::file::external_editor::EditorSettings;
+    use crate::util::file::external_editor::settings::EditorChoice;
+    use crate::workspace::view::tests::{initialize_app, mock_workspace};
+
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let workspace = mock_workspace(&mut app);
+        let count = workspace.read(&app, |workspace, _| workspace.tab_count());
+        EditorSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .open_file_editor
+                .set_value(EditorChoice::Warp, ctx)
+                .unwrap();
+            settings
+                .prefer_markdown_viewer
+                .set_value(true, ctx)
+                .unwrap();
+            settings
+                .open_file_layout
+                .set_value(
+                    crate::util::openable_file_type::EditorLayout::SplitPane,
+                    ctx,
+                )
+                .unwrap();
+        });
+        let fixture = tempfile::tempdir().expect("独立文件 fixture");
+        let bridge = app.add_singleton_model(LocalControlBridge::new);
+        for filename in ["legacy.md", "legacy.rs"] {
+            let path = fixture.path().join(filename);
+            std::fs::write(&path, "旧文件 {原值}").unwrap();
+            let error = bridge
+                .update(&mut app, |_, ctx| {
+                    super::handle(
+                        &None,
+                        ActionKind::FileOpen,
+                        &serde_json::json!({ "path": path }),
+                        &TargetSelector::default(),
+                        ctx,
+                    )
+                })
+                .expect_err("内置viewer/editor应在dispatch前拒绝");
+            assert_eq!(error.code, ErrorCode::UnsupportedAction);
+            assert!(error.message.contains("file.open"));
+            assert_eq!(
+                workspace.read(&app, |workspace, _| workspace.tab_count()),
+                count
+            );
+        }
+        // 后缀只用于使既有 resolver 选中 CodeEditor；目录本身仍应打开普通终端。
+        let directory = fixture.path().join("terminal-directory.rs");
+        std::fs::create_dir(&directory).unwrap();
+        let error = bridge
+            .update(&mut app, |_, ctx| {
+                super::handle(
+                    &None,
+                    ActionKind::FileOpen,
+                    &serde_json::json!({ "path": directory, "new_tab": false }),
+                    &TargetSelector::default(),
+                    ctx,
+                )
+            })
+            .expect_err("目录的 CodeEditor(SplitPane) 请求仍不可用");
+        assert_eq!(error.code, ErrorCode::UnsupportedAction);
+        assert_eq!(
+            workspace.read(&app, |workspace, _| workspace.tab_count()),
+            count
+        );
+        let response = bridge
+            .update(&mut app, |_, ctx| {
+                super::handle(
+                    &None,
+                    ActionKind::FileOpen,
+                    &serde_json::json!({ "path": directory, "new_tab": true }),
+                    &TargetSelector::default(),
+                    ctx,
+                )
+            })
+            .expect("CodeEditor(NewTab) 目录路径保留普通终端能力");
+        assert_eq!(response["action"], "file.open");
+        assert_eq!(
+            workspace.read(&app, |workspace, _| workspace.tab_count()),
+            count + 1
+        );
+    });
+}

@@ -121,6 +121,11 @@ pub struct ScheduledAgentManager {
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 impl ScheduledAgentManager {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                pending_deletes: HashMap::new(),
+            };
+        }
         ctx.subscribe_to_model(
             &UpdateManager::handle(ctx),
             Self::handle_update_manager_event,
@@ -143,9 +148,13 @@ impl ScheduledAgentManager {
         app: &AppContext,
     ) -> impl warpui::r#async::Spawnable<Output = anyhow::Result<Option<ScheduledAgentHistory>>> + use<>
     {
-        let ai_client = ServerApiProvider::as_ref(app).get_ai_client();
+        let ai_client = (!crate::local_terminal::is_enabled(app))
+            .then(|| ServerApiProvider::as_ref(app).get_ai_client());
 
         async move {
+            let Some(ai_client) = ai_client else {
+                anyhow::bail!("Scheduled agents are unavailable in local terminal mode");
+            };
             let SyncId::ServerId(server_id) = schedule_id else {
                 return Ok(None);
             };
@@ -200,11 +209,19 @@ impl ScheduledAgentManager {
         owner: Owner,
         ctx: &mut ModelContext<Self>,
     ) -> impl Future<Output = anyhow::Result<SyncId>> + Send + 'static + use<> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return async {
+                Err(anyhow::anyhow!(
+                    "Scheduled agents are unavailable in local terminal mode"
+                ))
+            }
+            .boxed();
+        }
         let client_id = ClientId::default();
         let create_future = UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
             update_manager.create_scheduled_ambient_agent_online(config, client_id, owner, ctx)
         });
-        async move { create_future.await.map(SyncId::ServerId) }
+        async move { create_future.await.map(SyncId::ServerId) }.boxed()
     }
 
     /// Helper method to fetch a schedule, modify its model, update it, and wait for completion.
@@ -218,6 +235,14 @@ impl ScheduledAgentManager {
     where
         F: FnOnce(&mut ScheduledAmbientAgent) + Send + 'static,
     {
+        if crate::local_terminal::is_enabled(ctx) {
+            return async {
+                Err(anyhow::anyhow!(
+                    "Scheduled agents are unavailable in local terminal mode"
+                ))
+            }
+            .boxed();
+        }
         let schedule_object = CloudScheduledAmbientAgent::get_by_id(&schedule_id, ctx);
 
         match schedule_object {
@@ -355,6 +380,14 @@ impl ScheduledAgentManager {
         schedule_id: SyncId,
         ctx: &mut ModelContext<Self>,
     ) -> impl Future<Output = anyhow::Result<()>> + Send + 'static + use<> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return async {
+                Err(anyhow::anyhow!(
+                    "Scheduled agents are unavailable in local terminal mode"
+                ))
+            }
+            .boxed();
+        }
         let id_and_type = CloudObjectTypeAndId::GenericStringObject {
             object_type: GenericStringObjectFormat::Json(JsonObjectType::ScheduledAmbientAgent),
             id: schedule_id,
@@ -386,6 +419,7 @@ impl ScheduledAgentManager {
             rx.await
                 .map_err(|e| anyhow::anyhow!("Failed to delete schedule: {}", e))?
         }
+        .boxed()
     }
 }
 
@@ -394,3 +428,32 @@ impl Entity for ScheduledAgentManager {
 }
 
 impl SingletonEntity for ScheduledAgentManager {}
+
+#[cfg(test)]
+mod local_terminal_tests {
+    use super::*;
+
+    #[test]
+    fn local_terminal_scheduled_agents_reject_requests_without_changing_cached_schedules() {
+        warpui::App::test((), |mut app| async move {
+            app.update(crate::local_terminal::enable_for_test);
+            let manager = app.add_model(ScheduledAgentManager::new);
+            let schedule_id = SyncId::ServerId(5_i64.into());
+            let history = manager.read(&app, |manager, ctx| {
+                manager.fetch_schedule_history(schedule_id, ctx)
+            });
+            let pause = manager.update(&mut app, |manager, ctx| {
+                manager.pause_schedule(schedule_id, ctx)
+            });
+            let delete = manager.update(&mut app, |manager, ctx| {
+                manager.delete_schedule(schedule_id, ctx)
+            });
+            assert!(history.await.is_err());
+            assert!(pause.await.is_err());
+            assert!(delete.await.is_err());
+            manager.read(&app, |manager, _| {
+                assert!(manager.pending_deletes.is_empty())
+            });
+        });
+    }
+}

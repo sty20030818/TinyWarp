@@ -1256,3 +1256,28 @@ fn conversation_server_token_assigned_skips_without_task_id() {
         );
     });
 }
+
+#[test]
+fn local_terminal_does_not_enqueue_or_send_cached_agent_task_updates() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let mut client = MockAIClient::new();
+        client.expect_update_agent_task().times(0);
+        let model = app.add_singleton_model(|ctx| {
+            LocalAgentTaskSyncModel::new_with_ai_client_for_test(Arc::new(client), ctx)
+        });
+        let task_id: AmbientAgentTaskId = "00000000-0000-0000-0000-000000000124".parse().unwrap();
+        model.update(&mut app, |model, ctx| {
+            model.enqueue_update(
+                task_id,
+                super::LocalTaskUpdate {
+                    task_state: Some(AgentTaskState::InProgress),
+                    ..Default::default()
+                },
+                ctx,
+            );
+            assert!(model.update_queue.is_idle(&task_id));
+            assert!(model.confirmed_terminal_state(&task_id).is_none());
+        });
+    });
+}

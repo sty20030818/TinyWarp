@@ -2968,6 +2968,18 @@ impl BlockList {
         }
     }
 
+    /// 本地恢复保持旧 AI 数据为原始描述，不依赖运行中的 AI 控制器重建。
+    pub(crate) fn preserve_restored_ai_data(&mut self, originals: &[SerializedBlockListItem]) {
+        for item in originals {
+            let SerializedBlockListItem::Command { block } = item;
+            if let Some(index) = self.block_index_for_id(&block.id)
+                && let Some(restored) = self.block_at_mut(index)
+            {
+                restored.preserve_restored_ai_data(block);
+            }
+        }
+    }
+
     /// Inserts a fully serialized block into the block list.
     ///
     /// This is used to insert a block snapshot from a CLI agent conversation

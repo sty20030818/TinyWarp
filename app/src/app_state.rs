@@ -5,7 +5,7 @@ use std::sync::Arc;
 use pathfinder_geometry::rect::RectF;
 use serde::{Deserialize, Serialize};
 use warpui::platform::FullscreenState;
-use warpui::{AppContext, SingletonEntity as _};
+use warpui::{AppContext, Entity, SingletonEntity};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentManagementFilters;
@@ -351,6 +351,39 @@ pub enum SplitDirection {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaneFlex(pub f32);
 
+struct PreservedLocalStartupMetadata {
+    running_mcp_servers: Vec<uuid::Uuid>,
+}
+
+impl Entity for PreservedLocalStartupMetadata {
+    type Event = ();
+}
+impl SingletonEntity for PreservedLocalStartupMetadata {}
+
+/// 保留未执行迁移的旧启动数据；不代表这些服务仍在运行。
+pub(crate) fn preserve_local_startup_metadata(state: Option<&AppState>, ctx: &mut AppContext) {
+    if crate::local_terminal::is_enabled(ctx) {
+        let running_mcp_servers = state
+            .map(|state| state.running_mcp_servers.clone())
+            .unwrap_or_default();
+        ctx.add_singleton_model(|_| PreservedLocalStartupMetadata {
+            running_mcp_servers,
+        });
+    }
+}
+
+fn preserved_running_mcp_servers(ctx: &AppContext) -> Vec<uuid::Uuid> {
+    if crate::local_terminal::is_enabled(ctx)
+        && ctx.has_singleton_model::<PreservedLocalStartupMetadata>()
+    {
+        PreservedLocalStartupMetadata::as_ref(ctx)
+            .running_mcp_servers
+            .clone()
+    } else {
+        Vec::new()
+    }
+}
+
 pub fn get_app_state(app: &AppContext) -> AppState {
     let active_window_id = app.windows().active_window();
     let quake_mode_id = quake_mode_window_id();
@@ -392,10 +425,59 @@ pub fn get_app_state(app: &AppContext) -> AppState {
         windows,
         active_window_index,
         block_lists: Default::default(),
-        running_mcp_servers: Vec::new(),
+        running_mcp_servers: preserved_running_mcp_servers(app),
     }
 }
 
 #[cfg(test)]
 #[path = "app_state_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+pub(crate) fn retired_pane_test_fixtures() -> Vec<LeafContents> {
+    vec![
+        LeafContents::Code(CodePaneSnapShot::Local {
+            tabs: vec![CodePaneTabSnapshot {
+                path: Some(PathBuf::from("/tmp/旧代码 {原值}.rs")),
+            }],
+            active_tab_index: 0,
+            source: None,
+        }),
+        LeafContents::Notebook(NotebookPaneSnapshot::LocalFileNotebook {
+            path: Some(PathBuf::from("/tmp/旧文档 {原值}.md")),
+        }),
+        LeafContents::Notebook(NotebookPaneSnapshot::CloudNotebook {
+            notebook_id: None,
+            settings: Default::default(),
+        }),
+        LeafContents::AIDocument(AIDocumentPaneSnapshot::Local {
+            document_id: "fixture-document-id".to_owned(),
+            version: 7,
+            content: Some("旧文档内容 {保持原样}".to_owned()),
+            title: Some("旧 AI 文档".to_owned()),
+        }),
+        LeafContents::EnvVarCollection(EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
+            env_var_collection_id: None,
+        }),
+        LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow {
+            workflow_id: None,
+            settings: Default::default(),
+        }),
+        LeafContents::Settings(SettingsPaneSnapshot::Local {
+            current_page: SettingsSection::Account,
+            search_query: Some("原搜索".to_owned()),
+        }),
+        LeafContents::AIFact(AIFactPaneSnapshot::Personal),
+        LeafContents::CustomRouterEditor,
+        LeafContents::ExecutionProfileEditor,
+        LeafContents::CodeReview(CodeReviewPaneSnapshot::Local {
+            terminal_uuid: vec![7; 16],
+            repo_path: PathBuf::from("/tmp/旧仓库 {原值}"),
+        }),
+        LeafContents::AmbientAgent(AmbientAgentPaneSnapshot {
+            uuid: vec![8; 16],
+            task_id: Some("11111111-2222-3333-4444-555555555555".parse().unwrap()),
+        }),
+        LeafContents::GetStarted,
+    ]
+}

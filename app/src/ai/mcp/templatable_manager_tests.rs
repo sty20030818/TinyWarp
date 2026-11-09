@@ -265,3 +265,39 @@ fn shutdown_ends_ephemeral_reconnect_lifecycle() {
         assert_eq!(error, "Server shut down");
     });
 }
+
+#[test]
+fn local_terminal_preserves_mcp_installations_without_restoring_processes() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let installation = builtin::factory_mcp_installation("cached-test-value", &[]);
+        let uuid = installation.uuid();
+        let manager = app.add_singleton_model(|ctx| {
+            TemplatableMCPServerManager::new(
+                [(uuid, installation.clone())].into(),
+                vec![uuid],
+                &[uuid],
+                ctx,
+            )
+        });
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        manager.update(&mut app, |manager, ctx| {
+            manager.spawn_server(uuid, ctx);
+            manager.spawn_cli_ephemeral_server(installation.clone(), ctx);
+            manager.reconnect_server(uuid, tx, ctx);
+            assert_eq!(manager.locally_installed_servers.len(), 1);
+            assert_eq!(
+                manager.locally_installed_servers[&uuid].template_json(),
+                installation.template_json()
+            );
+            assert!(manager.database_connection.is_none());
+            assert!(manager.spawner.is_none());
+            assert!(manager.spawned_servers.is_empty());
+            assert!(manager.active_servers.is_empty());
+            assert!(manager.server_states.is_empty());
+            assert!(manager.pending_reconnections.is_empty());
+            assert!(manager.cli_spawned_server_uuids.is_empty());
+        });
+        assert!(rx.await.unwrap().is_err());
+    });
+}

@@ -1896,3 +1896,19 @@ fn explicit_child_model_pin_preserves_gui_behavior_and_only_emits_for_effective_
         assert_eq!(active_model_events.get(), 1);
     });
 }
+
+#[test]
+fn local_terminal_model_catalog_stays_unstarted_without_cloud_dependencies() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let model = app.add_singleton_model(LLMPreferences::new);
+        model.update(&mut app, |model, ctx| {
+            model.refresh_available_models(&TeamlessScopeForTest, ctx);
+            model.refresh_public_models(ctx);
+            model.refresh_authed_models_for_team_uid(None, ctx);
+            assert!(model.custom_llms.is_empty());
+            assert!(model.custom_model_routers.is_empty());
+            assert!(model.last_update.is_none());
+        });
+    });
+}

@@ -85,6 +85,10 @@ impl SkillWatcher {
         repo_paths: &[PathBuf],
         ctx: &AppContext,
     ) -> Vec<ParsedSkill> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Vec::new();
+        }
+
         let repo_metadata = RepoMetadataModel::as_ref(ctx);
         let skill_files: Vec<PathBuf> = repo_paths
             .iter()
@@ -114,6 +118,19 @@ impl SkillWatcher {
         watcher_event_tx: Sender<SkillWatcherEvent>,
         home_dir: Option<PathBuf>,
     ) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                repository_message_tx: async_channel::unbounded().0,
+                project_skill_files_by_repo: HashMap::new(),
+                project_skill_refresh_generations: HashMap::new(),
+                next_project_skill_refresh_generation: 0,
+                failed_local_project_watchers: HashMap::new(),
+                watcher_event_tx,
+                home_provider_watchers: HashMap::new(),
+                symlink_canonical_to_originals: HashMap::new(),
+                symlink_target_watchers: HashMap::new(),
+            };
+        }
         // Create channel for receiving repository messages (scans and updates)
         let (repository_message_tx, repository_message_rx) = async_channel::unbounded();
 

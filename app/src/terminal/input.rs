@@ -1269,6 +1269,28 @@ pub enum InputAction {
     ActivateCloudHandoff,
 }
 
+impl InputAction {
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::ShowAiCommandSearch
+                | Self::ToggleConversationsMenu
+                | Self::StartNewAgentConversation { .. }
+                | Self::ToggleInputAutoDetection
+                | Self::EnableAutoDetection
+                | Self::CycleNextCommandSuggestion
+                | Self::InsertZeroStatePromptSuggestion(_)
+                | Self::ToggleAgentViewShortcuts
+                | Self::ToggleSlashCommandsMenu
+                | Self::OpenModelSelector
+                | Self::TriggerSlashCommandFromKeybinding(_)
+                | Self::FigmaAddButtonClicked
+                | Self::FigmaEnableButtonClicked
+                | Self::ActivateCloudHandoff
+        )
+    }
+}
+
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub enum MenuPositioning {
     /// Position floating input menus above the input box -- corresponds
@@ -3153,12 +3175,13 @@ impl Input {
             ai_input_model.clone(),
         );
 
-        let next_command_model = ctx.add_model(|_| {
+        let next_command_model = ctx.add_model(|ctx| {
             NextCommandModel::new(
                 sessions.clone(),
                 model.clone(),
                 server_api.clone(),
                 ai_controller.clone(),
+                ctx,
             )
         });
         ctx.subscribe_to_model(&next_command_model, |me, _, event, ctx| {
@@ -6568,6 +6591,9 @@ impl Input {
         triggered_from: ZeroStatePromptSuggestionTriggeredFrom,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         let has_any_ai = {
             let user_workspaces = UserWorkspaces::as_ref(ctx);
             let scope = user_workspaces.team_context_for_view(ctx);
@@ -7279,6 +7305,9 @@ impl Input {
         decision_source: Option<InputTypeAutoDetectionSource>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
         self.ai_input_model.update(ctx, |input_model, ctx| {
             let new_config = input_model.input_config().with_input_type(InputType::AI);
@@ -7298,6 +7327,9 @@ impl Input {
         decision_source: Option<InputTypeAutoDetectionSource>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         let ai_input_model = self.ai_input_model.as_ref(ctx);
         let config = ai_input_model.input_config();
 
@@ -15563,6 +15595,9 @@ impl Input {
 
     /// Set input mode to natural language detection (auto-detection)
     pub fn set_input_mode_natural_language_detection(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         if self.is_input_mode_toggle_disabled(ctx) {
             return;
         }
@@ -15626,6 +15661,10 @@ impl Input {
         ensure_input_is_focused: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            self.set_input_mode_terminal(ensure_input_is_focused, ctx);
+            return;
+        }
         // Don't allow input mode changes for read-only viewers in shared sessions
         if self.model.lock().shared_session_status().is_reader() {
             return;
@@ -16816,6 +16855,10 @@ impl TypedActionView for Input {
     }
 
     fn handle_action(&mut self, action: &InputAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
         match action {
             InputAction::FocusInputBox => self.focus_input_box(ctx),
             InputAction::Up => self.editor_up(ctx),
@@ -17364,6 +17407,9 @@ fn maybe_render_ai_input_indicators(
     terminal_view_id: EntityId,
     app: &AppContext,
 ) -> Option<Box<dyn Element>> {
+    if crate::local_terminal::is_enabled(app) {
+        return None;
+    }
     let ai_input_model = ai_input_model.as_ref(app);
     let appearance = Appearance::as_ref(app);
     let em_width = app.font_cache().em_width(

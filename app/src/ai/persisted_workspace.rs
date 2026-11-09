@@ -240,6 +240,15 @@ impl PersistedWorkspace {
             })
             .collect();
 
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self {
+                workspaces: metadata,
+                model_event_sender,
+                #[cfg(feature = "local_fs")]
+                lsp_installation_status: HashMap::new(),
+            };
+        }
+
         if FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
             ctx.subscribe_to_model(&CodebaseIndexManager::handle(ctx), |me, _, event, ctx| {
                 match event {
@@ -524,6 +533,10 @@ impl PersistedWorkspace {
         skip_cached: bool,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Workspaces that already have entries get an immediate emit; the rest need scanning.
         // When skip_cached is true (initial startup), always scan to pick up new server types.
         let mut paths_to_scan = Vec::new();
@@ -636,6 +649,10 @@ impl PersistedWorkspace {
 
     /// Enables or disables codebase indexing according to the setting.
     fn maybe_enable_codebase_indexing(ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         CodebaseIndexManager::handle(ctx).update(ctx, |manager, ctx| {
             if !manager.is_indexing_enabled() {
                 return;
@@ -654,6 +671,10 @@ impl PersistedWorkspace {
         manager: &mut CodebaseIndexManager,
         ctx: &mut ModelContext<CodebaseIndexManager>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let request_model = AIRequestUsageModel::handle(ctx);
         let codebase_limits = request_model.as_ref(ctx).codebase_context_limits();
         manager.update_max_limits(
@@ -678,6 +699,10 @@ impl PersistedWorkspace {
 
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     fn index_repo(&self, directory_path: PathBuf, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         ProjectContextModel::handle(ctx).update(ctx, |model, ctx| {
             let _ = model.index_and_store_rules(
                 directory_path.clone(),
@@ -702,6 +727,10 @@ impl PersistedWorkspace {
     /// scanning, and emits
     /// [`PersistedWorkspaceEvent::WorkspaceAdded`] so subscribers can refresh their UI.
     pub fn user_added_workspace(&mut self, path: PathBuf, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let now = Utc::now();
 
         match self.workspaces.get_mut(&path) {
@@ -827,6 +856,10 @@ impl PersistedWorkspace {
         terminal_view_id: warpui::EntityId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx) {
             return;
         }
@@ -870,8 +903,12 @@ impl PersistedWorkspace {
     fn clean_up_expired_metadata(
         &self,
         indices_to_remove: Arc<Vec<PathBuf>>,
-        _ctx: &mut ModelContext<Self>,
+        ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         log::info!("Cleaning up index metadata from SQLite");
 
         let indices_to_remove = indices_to_remove.as_ref();
@@ -911,6 +948,10 @@ impl PersistedWorkspace {
 
     #[cfg(feature = "local_fs")]
     fn clean_up_deleted_indices(&self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         CodebaseIndexManager::handle(ctx).update(ctx, |codebase_manager, ctx| {
             codebase_manager.clean_up_deleted_indices(ctx);
         });
@@ -940,6 +981,10 @@ impl PersistedWorkspace {
         path_env_var: Option<String>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Early return if already installing to prevent duplicate installations from repeated clicks
         if self.lsp_installation_status.get(&server_type)
             == Some(&LSPInstallationStatus::Installing)
@@ -1050,6 +1095,10 @@ impl PersistedWorkspace {
         path_env_var: Option<String>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let Some(workspace_root) = self.root_for_workspace(file_path) else {
             return;
         };
@@ -1161,6 +1210,10 @@ impl PersistedWorkspace {
     /// This is the main entry point for LSP operations that need the full PATH.
     #[cfg(feature = "local_fs")]
     pub fn execute_lsp_task(&mut self, task: LspTask, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // For Spawn tasks, check synchronously whether there are any enabled LSP
         // servers for this workspace before kicking off the expensive interactive
         // shell PATH capture.
@@ -1287,3 +1340,7 @@ pub fn all_working_directories(app: &AppContext) -> HashSet<PathBuf> {
     }
     working_directories
 }
+
+#[cfg(test)]
+#[path = "persisted_workspace_tests.rs"]
+mod tests;

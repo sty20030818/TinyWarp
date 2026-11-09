@@ -91,6 +91,7 @@ pub struct TerminalPane {
 
     /// Used to uniquely identify the pane, even across separate runs of the app.
     uuid: Vec<u8>,
+    restored_local_snapshot: Option<TerminalPaneSnapshot>,
 
     pane_configuration: ModelHandle<PaneConfiguration>,
 
@@ -169,9 +170,17 @@ impl TerminalPane {
         Self {
             model_event_sender,
             uuid,
+            restored_local_snapshot: None,
             pane_configuration,
             view,
         }
+    }
+
+    pub(in crate::pane_group) fn preserve_local_restored_snapshot(
+        &mut self,
+        original: TerminalPaneSnapshot,
+    ) {
+        self.restored_local_snapshot = Some(original);
     }
 
     /// The [`PaneView<TerminalView>`] for this pane.
@@ -467,6 +476,29 @@ impl PaneContent for TerminalPane {
     fn snapshot(&self, app: &AppContext) -> LeafContents {
         let view = self.terminal_view(app).as_ref(app);
         let is_active = view.is_active_session(app);
+
+        if crate::local_terminal::is_enabled(app) {
+            let original = self.restored_local_snapshot.as_ref();
+            return LeafContents::Terminal(TerminalPaneSnapshot {
+                uuid: self.uuid.clone(),
+                cwd: view.pwd_if_local(app),
+                shell_launch_data: view.shell_launch_data_if_local(app),
+                is_active,
+                is_read_only: view.model.lock().is_read_only(),
+                input_config: original.map_or_else(
+                    || Some(view.input_config(app)),
+                    |snapshot| snapshot.input_config,
+                ),
+                llm_model_override: original
+                    .and_then(|snapshot| snapshot.llm_model_override.clone()),
+                active_profile_id: original.and_then(|snapshot| snapshot.active_profile_id),
+                conversation_ids_to_restore: original
+                    .map(|snapshot| snapshot.conversation_ids_to_restore.clone())
+                    .unwrap_or_default(),
+                active_conversation_id: original
+                    .and_then(|snapshot| snapshot.active_conversation_id),
+            });
+        }
 
         // Capture the current input_config from the AI input model
         let current_input_config = view.input_config(app.as_ref());

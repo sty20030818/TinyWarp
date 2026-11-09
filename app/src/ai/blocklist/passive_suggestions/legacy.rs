@@ -92,13 +92,14 @@ impl PassiveSuggestionsModel {
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(model_event_dispatcher, |me, _, event, ctx| {
-            me.handle_model_event(event, ctx);
-        });
-        ctx.subscribe_to_model(&ai_controller, |me, _, event, _ctx| {
-            me.handle_controller_event(event, _ctx);
-        });
-
+        if !crate::local_terminal::is_enabled(ctx) {
+            ctx.subscribe_to_model(model_event_dispatcher, |me, _, event, ctx| {
+                me.handle_model_event(event, ctx);
+            });
+            ctx.subscribe_to_model(&ai_controller, |me, _, event, _ctx| {
+                me.handle_controller_event(event, _ctx);
+            });
+        }
         Self {
             active_session,
             terminal_model,
@@ -252,6 +253,10 @@ impl PassiveSuggestionsModel {
         block_completed: UserBlockCompleted,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let block_id = block_completed
             .serialized_block
             .get_with(|compute| {
@@ -337,6 +342,10 @@ impl PassiveSuggestionsModel {
         block_completed: UserBlockCompleted,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         #[cfg(target_family = "wasm")]
         {
             let (_, _) = (block_completed, ctx);
@@ -392,6 +401,10 @@ impl PassiveSuggestionsModel {
         block_id: BlockId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !passive_code_diffs_enabled(ctx) {
             return;
         }

@@ -6,7 +6,7 @@ use settings::Setting as _;
 use url::Url;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
-use warpui::{Entity, ModelContext, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::auth::AuthStateProvider;
 use crate::server::server_api::ai::AIClient;
@@ -36,15 +36,25 @@ impl ChatGPTSubscriptionModel {
 
     /// Starts a link attempt and returns the deep link the browser flow should finish at. The
     /// server-issued start URL arrives via the future; open it in the browser.
-    pub fn begin_link_attempt(&mut self) -> impl Future<Output = anyhow::Result<String>> + use<> {
-        let state = Uuid::new_v4().to_string();
-        let continue_url = format!(
-            "{}://{CHATGPT_LINK_URI_HOST}?{CHATGPT_LINK_STATE_PARAM}={state}",
-            ChannelState::url_scheme()
-        );
-        self.pending_link_state = Some(state);
-        let ai_client = self.ai_client.clone();
-        async move { ai_client.start_chatgpt_link(continue_url).await }
+    pub fn begin_link_attempt(
+        &mut self,
+        app: &AppContext,
+    ) -> impl Future<Output = anyhow::Result<String>> + use<> {
+        let attempt = (!crate::local_terminal::is_enabled(app)).then(|| {
+            let state = Uuid::new_v4().to_string();
+            let continue_url = format!(
+                "{}://{CHATGPT_LINK_URI_HOST}?{CHATGPT_LINK_STATE_PARAM}={state}",
+                ChannelState::url_scheme()
+            );
+            self.pending_link_state = Some(state);
+            (self.ai_client.clone(), continue_url)
+        });
+        async move {
+            let Some((ai_client, continue_url)) = attempt else {
+                anyhow::bail!("Built-in AI account linking is unavailable in local terminal mode");
+            };
+            ai_client.start_chatgpt_link(continue_url).await
+        }
     }
 
     /// Forgets the awaited link attempt; a later deep link for it is ignored.
@@ -54,6 +64,10 @@ impl ChatGPTSubscriptionModel {
 
     /// Settles the awaited link attempt from the deep link the browser flow opened.
     pub fn handle_link_redirect(&mut self, url: &Url, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let query: HashMap<_, _> = url.query_pairs().into_owned().collect();
         let state = query.get(CHATGPT_LINK_STATE_PARAM);
         if self.pending_link_state.is_none() || state != self.pending_link_state.as_ref() {
@@ -81,7 +95,9 @@ impl ChatGPTSubscriptionModel {
     /// Re-fetches the connection status. Leaves any in-flight connect attempt
     /// untouched, since the user may still be in the browser.
     pub fn refresh(&mut self, ctx: &mut ModelContext<Self>) {
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
+        if crate::local_terminal::is_enabled(ctx)
+            || !AuthStateProvider::as_ref(ctx).get().is_logged_in()
+        {
             return;
         }
         let ai_client = self.ai_client.clone();
@@ -99,7 +115,9 @@ impl ChatGPTSubscriptionModel {
     /// Re-fetches the connection status and uses the result to settle the connect attempt
     /// started from this client.
     fn resolve_pending_link(&mut self, ctx: &mut ModelContext<Self>) {
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
+        if crate::local_terminal::is_enabled(ctx)
+            || !AuthStateProvider::as_ref(ctx).get().is_logged_in()
+        {
             return;
         }
         let ai_client = self.ai_client.clone();
@@ -124,6 +142,10 @@ impl ChatGPTSubscriptionModel {
     /// reflects what the server actually did. A successful unlink also clears the
     /// plan-modal seen marker so a later reconnect re-confirms plan sharing.
     pub fn disconnect(&mut self, ctx: &mut ModelContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let ai_client = self.ai_client.clone();
         ctx.spawn(
             async move { ai_client.disconnect_chatgpt().await },
@@ -164,3 +186,31 @@ impl Entity for ChatGPTSubscriptionModel {
 }
 
 impl SingletonEntity for ChatGPTSubscriptionModel {}
+
+#[cfg(test)]
+mod local_terminal_tests {
+    use super::*;
+    use crate::server::server_api::ai::MockAIClient;
+
+    #[test]
+    fn local_terminal_chatgpt_link_and_refresh_make_no_requests() {
+        warpui::App::test((), |mut app| async move {
+            app.update(crate::local_terminal::enable_for_test);
+            let mut client = MockAIClient::new();
+            client.expect_start_chatgpt_link().times(0);
+            client.expect_get_chatgpt_connection().times(0);
+            client.expect_disconnect_chatgpt().times(0);
+            let model = app.add_model(|_| ChatGPTSubscriptionModel::new(Arc::new(client)));
+            let link = model.update(&mut app, |model, ctx| {
+                model.pending_link_state = Some("cached-attempt".to_string());
+                model.refresh(ctx);
+                model.disconnect(ctx);
+                model.begin_link_attempt(ctx)
+            });
+            assert!(link.await.is_err());
+            model.read(&app, |model, _| {
+                assert_eq!(model.pending_link_state.as_deref(), Some("cached-attempt"))
+            });
+        });
+    }
+}

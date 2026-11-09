@@ -26,6 +26,7 @@ pub(super) mod network_log_pane;
 pub(super) mod notebook_pane;
 pub(super) mod settings_pane;
 pub(super) mod terminal_pane;
+pub(super) mod unavailable_feature_pane;
 pub mod view;
 pub mod workflow_pane;
 
@@ -147,6 +148,7 @@ pub(crate) enum IPaneType {
     GetStarted,
     NetworkLog,
     DeferredPlaceholder,
+    UnavailableFeature,
     /// A pane type only for tests.
     #[cfg(test)]
     Dummy,
@@ -171,6 +173,7 @@ impl Display for IPaneType {
             IPaneType::GetStarted => write!(f, "GetStarted"),
             IPaneType::NetworkLog => write!(f, "Network Log"),
             IPaneType::DeferredPlaceholder => write!(f, "Placeholder"),
+            IPaneType::UnavailableFeature => write!(f, "Unavailable Feature"),
             #[cfg(test)]
             IPaneType::Dummy => write!(f, "Dummy"),
         }
@@ -497,6 +500,10 @@ impl PaneId {
             IPaneType::NetworkLog => {
                 ChildView::<PaneView<NetworkLogView>>::with_id(self.0.pane_view_id).finish()
             }
+            IPaneType::UnavailableFeature => ChildView::<
+                PaneView<unavailable_feature_pane::UnavailableFeatureView>,
+            >::with_id(self.0.pane_view_id)
+            .finish(),
             IPaneType::DeferredPlaceholder => warpui::elements::Empty::new().finish(),
             #[cfg(test)]
             IPaneType::Dummy => warpui::elements::Empty::new().finish(),

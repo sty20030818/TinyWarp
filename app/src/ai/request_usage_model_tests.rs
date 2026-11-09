@@ -1958,3 +1958,24 @@ fn test_availability_refresh_skipped_when_logged_out() {
         });
     });
 }
+
+#[test]
+fn local_terminal_does_not_refresh_ai_quota_even_with_cached_login() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+        let mut client = MockAIClient::new();
+        client.expect_get_request_limit_info().times(0);
+        client.expect_get_ai_credit_availability().times(0);
+        let model = add_request_usage_model_with_client(&mut app, Arc::new(client));
+        let refresh = model.update(&mut app, |model, ctx| {
+            model.request_limit_info.limit = 37;
+            model.request_availability_refresh(ctx);
+            assert!(!model.server_availability.refresh_in_flight);
+            assert_eq!(model.request_limit_info.limit, 37);
+            model.refresh_request_usage(ctx)
+        });
+        assert_eq!(refresh.await.unwrap(), None);
+        model.read(&app, |model, _| assert!(model.last_update_time.is_none()));
+    });
+}

@@ -1167,6 +1167,23 @@ fn to_string(b: bool) -> String {
 }
 
 impl FeaturesPageAction {
+    pub(crate) fn blocked_in_local_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::ToggleCodeAsDefaultEditor
+                | Self::ToggleAtContextMenuInTerminalMode
+                | Self::ToggleSlashCommandsInTerminalMode
+                | Self::ToggleOutlineCodebaseSymbolsForAtContextMenu
+                | Self::ToggleAutoOpenCodeReviewPane
+                | Self::ToggleShowTerminalInputMessageLine
+                | Self::ToggleAgentInAppNotifications
+                | Self::ToggleAgentTaskCompletedNotifications
+                | Self::ToggleNeedsAttentionNotifications
+                | Self::SetDefaultSessionMode(_)
+                | Self::SetDefaultTabConfig(_)
+        )
+    }
+
     fn telemetry_event(&self, ctx: &AppContext) -> TelemetryEvent {
         let workflow_settings = CommandSearchSettings::as_ref(ctx);
         let reporting_settings = AltScreenReporting::as_ref(ctx);
@@ -1742,6 +1759,10 @@ impl TypedActionView for FeaturesPageView {
     type Action = FeaturesPageAction;
 
     fn handle_action(&mut self, action: &FeaturesPageAction, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
         use FeaturesPageAction::*;
 
         match action {
@@ -3042,8 +3063,10 @@ impl FeaturesPageView {
     }
 
     fn build_page(ctx: &mut ViewContext<Self>) -> PageType<Self> {
-        let mut general_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
-            vec![Box::new(DefaultSessionModeWidget::default())];
+        let mut general_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
+        if !crate::local_terminal::is_enabled(ctx) {
+            general_widgets.push(Box::new(DefaultSessionModeWidget::default()));
+        }
 
         let native_preference_settings = NativePreferenceSettings::as_ref(ctx);
         if native_preference_settings
@@ -3249,6 +3272,7 @@ impl FeaturesPageView {
         if input_settings
             .at_context_menu_in_terminal_mode
             .is_supported_on_current_platform()
+            && !crate::local_terminal::is_enabled(ctx)
         {
             editor_widgets.push(Box::new(AtContextMenuInTerminalModeWidget::default()));
         }
@@ -3257,6 +3281,7 @@ impl FeaturesPageView {
             && input_settings
                 .enable_slash_commands_in_terminal
                 .is_supported_on_current_platform()
+            && !crate::local_terminal::is_enabled(ctx)
         {
             editor_widgets.push(Box::new(SlashCommandsInTerminalModeWidget::default()));
         }
@@ -3271,7 +3296,7 @@ impl FeaturesPageView {
             ));
         }
 
-        if FeatureFlag::AgentView.is_enabled() {
+        if FeatureFlag::AgentView.is_enabled() && !crate::local_terminal::is_enabled(ctx) {
             editor_widgets.push(Box::new(ShowTerminalInputMessageLineWidget::default()));
         }
 
@@ -5645,40 +5670,44 @@ impl SettingsWidget for DesktopNotificationsWidget {
             NotificationsMode::Enabled
         ) {
             let toggles = vec![
-                view.render_notification_toggle(
-                    session_settings
-                        .notifications
-                        .is_agent_task_completed_enabled,
-                    tr(
-                        "local_settings.notify_when_an_agent_completes_a_task",
-                        "Notify when an agent completes a task",
-                    ),
-                    FeaturesPageAction::ToggleAgentTaskCompletedNotifications,
-                    view.button_mouse_states
-                        .agent_task_completed_notifications_checkbox
-                        .clone(),
-                    appearance,
-                ),
-                view.render_long_running_notifications_setting(
+                (!crate::local_terminal::is_enabled(app)).then(|| {
+                    view.render_notification_toggle(
+                        session_settings
+                            .notifications
+                            .is_agent_task_completed_enabled,
+                        tr(
+                            "local_settings.notify_when_an_agent_completes_a_task",
+                            "Notify when an agent completes a task",
+                        ),
+                        FeaturesPageAction::ToggleAgentTaskCompletedNotifications,
+                        view.button_mouse_states
+                            .agent_task_completed_notifications_checkbox
+                            .clone(),
+                        appearance,
+                    )
+                }),
+                Some(view.render_long_running_notifications_setting(
                     &session_settings.notifications,
                     appearance,
-                ),
-                view.render_notification_toggle(
-                    session_settings.notifications.is_needs_attention_enabled,
-                    tr(
-                        "local_settings.notify_when_a_command_or_agent_needs_your_attention_to",
-                        "Notify when a command or agent needs your attention to continue",
-                    ),
-                    FeaturesPageAction::ToggleNeedsAttentionNotifications,
-                    view.button_mouse_states
-                        .agent_needs_attention_notifications_checkbox
-                        .clone(),
-                    appearance,
-                ),
+                )),
+                (!crate::local_terminal::is_enabled(app)).then(|| {
+                    view.render_notification_toggle(
+                        session_settings.notifications.is_needs_attention_enabled,
+                        tr(
+                            "local_settings.notify_when_a_command_or_agent_needs_your_attention_to",
+                            "Notify when a command or agent needs your attention to continue",
+                        ),
+                        FeaturesPageAction::ToggleNeedsAttentionNotifications,
+                        view.button_mouse_states
+                            .agent_needs_attention_notifications_checkbox
+                            .clone(),
+                        appearance,
+                    )
+                }),
                 // Add notification sound toggle only on macOS
                 #[cfg(target_os = "macos")]
                 {
-                    view.render_notification_toggle(
+                    Some(view.render_notification_toggle(
                         session_settings.notifications.play_notification_sound,
                         tr(
                             "local_settings.play_notification_sounds",
@@ -5687,14 +5716,16 @@ impl SettingsWidget for DesktopNotificationsWidget {
                         FeaturesPageAction::ToggleNotificationSound,
                         view.button_mouse_states.notification_sound_checkbox.clone(),
                         appearance,
-                    )
+                    ))
                 },
-            ];
+            ]
+            .into_iter()
+            .flatten();
 
             column.add_child(render_group(toggles, appearance));
         }
 
-        if FeatureFlag::HOANotifications.is_enabled() {
+        if FeatureFlag::HOANotifications.is_enabled() && !crate::local_terminal::is_enabled(app) {
             let ai_settings = AISettings::as_ref(app);
             let show_agent_notifications = *ai_settings.show_agent_notifications;
             column.add_child(render_body_item::<FeaturesPageAction>(

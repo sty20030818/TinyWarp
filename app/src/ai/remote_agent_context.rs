@@ -34,6 +34,10 @@ pub(crate) struct RemoteAgentContext;
 
 impl RemoteAgentContext {
     pub(crate) fn new(ctx: &mut ModelContext<Self>) -> Self {
+        if crate::local_terminal::is_enabled(ctx) {
+            return Self;
+        }
+
         let remote_server_manager = RemoteServerManager::handle(ctx);
         ctx.subscribe_to_model(&remote_server_manager, |me, _, event, ctx| {
             if let RemoteServerManagerEvent::RemoteAgentContextSnapshot { host_id, snapshot } =
@@ -55,6 +59,10 @@ impl RemoteAgentContext {
         snapshot: RemoteAgentContextSnapshot,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let RemoteAgentContextState {
             bundled_skills,
             home_skills,

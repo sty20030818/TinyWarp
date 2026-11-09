@@ -967,10 +967,12 @@ impl OrchestrationEventStreamer {
         let provider = ServerApiProvider::as_ref(ctx);
         let ai_client = provider.get_ai_client();
         let server_api = provider.get();
-        let history_model = BlocklistAIHistoryModel::handle(ctx);
-        ctx.subscribe_to_model(&history_model, |me, _, event, ctx| {
-            me.handle_history_event(event, ctx);
-        });
+        if !crate::local_terminal::is_enabled(ctx) {
+            let history_model = BlocklistAIHistoryModel::handle(ctx);
+            ctx.subscribe_to_model(&history_model, |me, _, event, ctx| {
+                me.handle_history_event(event, ctx);
+            });
+        }
         Self {
             ai_client,
             server_api,
@@ -992,10 +994,12 @@ impl OrchestrationEventStreamer {
         server_api: Arc<ServerApi>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let history_model = BlocklistAIHistoryModel::handle(ctx);
-        ctx.subscribe_to_model(&history_model, |me, _, event, ctx| {
-            me.handle_history_event(event, ctx);
-        });
+        if !crate::local_terminal::is_enabled(ctx) {
+            let history_model = BlocklistAIHistoryModel::handle(ctx);
+            ctx.subscribe_to_model(&history_model, |me, _, event, ctx| {
+                me.handle_history_event(event, ctx);
+            });
+        }
         Self {
             ai_client,
             server_api,
@@ -1049,6 +1053,10 @@ impl OrchestrationEventStreamer {
         consumer_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let stream = self.streams.entry(conversation_id).or_default();
         stream.consumers.insert(consumer_id);
         // If the server-token event fired before this registration, pick
@@ -1082,6 +1090,10 @@ impl OrchestrationEventStreamer {
         run_id: String,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let inserted = self
             .streams
             .entry(conversation_id)
@@ -1127,6 +1139,10 @@ impl OrchestrationEventStreamer {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if !self.should_register_parent_on_wait(conversation_id, ctx) {
             return;
         }
@@ -1203,6 +1219,10 @@ impl OrchestrationEventStreamer {
         consumer_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let needs_seed;
         {
             let entry = self
@@ -1330,6 +1350,10 @@ impl OrchestrationEventStreamer {
         parent_task_id: AmbientAgentTaskId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let ai_client = self.ai_client.clone();
         let filter = TaskListFilter {
             ancestor_run_id: Some(parent_task_id.to_string()),
@@ -1631,6 +1655,10 @@ impl OrchestrationEventStreamer {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         if self
             .streams
             .get(&conversation_id)
@@ -1911,6 +1939,10 @@ impl OrchestrationEventStreamer {
         sqlite_cursor: i64,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let ai_client = self.ai_client.clone();
         ctx.spawn(
             async move { ai_client.get_ambient_agent_task(&task_id).await },
@@ -1993,6 +2025,10 @@ impl OrchestrationEventStreamer {
         err: &anyhow::Error,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let backoff_steps = if is_transient_http_error(err) {
             RESTORE_FETCH_BACKOFF_STEPS
         } else {
@@ -2219,6 +2255,10 @@ impl OrchestrationEventStreamer {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let eligible = self.is_eligible(conversation_id, ctx);
         let connected = self
             .streams

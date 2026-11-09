@@ -105,6 +105,10 @@ pub(crate) fn current_geap_policy<S: TeamScope + ?Sized>(
     scope: &S,
     app: &AppContext,
 ) -> GeapPolicy {
+    if crate::local_terminal::is_enabled(app) {
+        return GeapPolicy::Disabled;
+    }
+
     let user_workspaces = UserWorkspaces::as_ref(app);
     if !user_workspaces.is_gemini_enterprise_credentials_enabled(scope, app) {
         return GeapPolicy::Disabled;
@@ -120,6 +124,10 @@ pub(crate) fn current_geap_policy<S: TeamScope + ?Sized>(
 /// background GEAP work succeeds if any one of them enables it. See
 /// [`UserWorkspaces::gemini_enterprise_host_for_any_enabling_team`].
 pub(crate) fn current_geap_policy_for_any_team(app: &AppContext) -> GeapPolicy {
+    if crate::local_terminal::is_enabled(app) {
+        return GeapPolicy::Disabled;
+    }
+
     match UserWorkspaces::as_ref(app).gemini_enterprise_host_for_any_enabling_team(app) {
         GeminiEnterpriseBackgroundHost::NoneEnabled => GeapPolicy::Disabled,
         // Nothing can be minted, but the user's org does use GEAP and an admin has to align
@@ -230,6 +238,13 @@ fn refresh_geap_credentials_with_options(
     waiter: Option<oneshot::Sender<GeapRefreshOutcome>>,
     ctx: &mut ModelContext<ApiKeyManager>,
 ) {
+    if crate::local_terminal::is_enabled(ctx) {
+        if let Some(waiter) = waiter {
+            let _ = waiter.send(GeapRefreshOutcome::Failed);
+        }
+        return;
+    }
+
     let minted_for = match current_geap_policy_for_any_team(ctx) {
         GeapPolicy::Disabled => {
             manager.set_geap_credentials_state(GeapCredentialsState::Disabled, ctx);
@@ -443,6 +458,10 @@ fn apply_geap_mint_result_inner(
 /// loaded token's expiry. The timer is armed once per token — no periodic
 /// polling; the process wakes exactly once per token lifetime.
 fn schedule_geap_token_refresh(manager: &mut ApiKeyManager, ctx: &mut ModelContext<ApiKeyManager>) {
+    if crate::local_terminal::is_enabled(ctx) {
+        return;
+    }
+
     let GeapCredentialsState::Loaded { credentials, .. } = manager.geap_credentials_state() else {
         return;
     };

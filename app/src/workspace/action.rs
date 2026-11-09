@@ -903,9 +903,87 @@ impl From<&WorkspaceAction> for LoginGatedFeature {
 }
 
 impl WorkspaceAction {
-    /// 只限制账户与云服务入口；本地配置和终端输入同步仍可用。
+    /// 限制已停用的内置功能入口；本地配置和终端输入同步仍可用。
     pub(crate) fn blocked_in_local_terminal(&self) -> bool {
         use WorkspaceAction::*;
+        match self {
+            AddAmbientAgentTab
+            | AddAgentTab
+            | AddDockerSandboxTab
+            | ToggleAIAssistant
+            | ClickedAIAssistantIcon
+            | ShowAIAssistantWarmWelcome
+            | ClickedAIAssistantWarmWelcome
+            | RunAISuggestedCommand(..)
+            | NewTabInAgentMode { .. }
+            | NewPaneInAgentMode { .. }
+            | OpenCloudAgentSetupGuide
+            | OpenPromptSuggestionsUnavailableModal
+            | FixInAgentMode { .. }
+            | OpenAIFactCollection
+            | OpenMCPServerCollection
+            | OpenEnvironmentManagementPane
+            | ToggleAIDocumentPane { .. }
+            | OpenAIDocumentPane { .. }
+            | OpenFileInNewTab { .. }
+            | OpenNotebook { .. }
+            | ForkAIConversation { .. }
+            | OpenLocalToCloudHandoffPane { .. }
+            | AutoHandoffActiveAgentToCloud { .. }
+            | ShowCloudModeV2EnvironmentCreationModal
+            | OpenCreateAuthSecretModal { .. }
+            | SummarizeAIConversation { .. }
+            | NewCodeFile
+            | ToggleLeftPanel
+            | ToggleRightPanel
+            | OpenCodeReviewPanel(..)
+            | ToggleProjectExplorer
+            | OpenProjectExplorer
+            | ToggleGlobalSearch
+            | ToggleHiddenFiles
+            | OpenGlobalSearch
+            | ToggleConversationListView
+            | OpenConversationListView
+            | OpenAgentManagementView
+            | ToggleAgentManagementView
+            | ToggleNotificationMailbox { .. }
+            | ViewAgentRunsForEnvironment { .. }
+            | ExecuteRewindAIConversation { .. }
+            | OpenOrAttachAmbientAgentConversation { .. }
+            | OpenConversationTranscriptViewer { .. }
+            | StartAgentOnboardingTutorial(..)
+            | OpenNewWorktreeModal
+            | OpenNewWorktreeRepoPicker
+            | OpenWorktreeInRepo { .. }
+            | OpenWorktreeAddRepoPicker
+            | OpenAgentToolbarEditor
+            | OpenCLIAgentToolbarEditor
+            | FixSettingsWithOz { .. }
+            | OpenRepository { .. }
+            | ShowHandoffEnvironmentCreationModal
+            | UndoRevertInCodeReviewPane { .. } => return true,
+            #[cfg(target_family = "wasm")]
+            ToggleConversationTranscriptDetailsPanel => return true,
+            #[cfg(debug_assertions)]
+            OpenOzLaunchModal
+            | OpenOpenWarpLaunchModal
+            | OpenOrchestrationLaunchModal
+            | OpenAgentCliLaunchModal
+            | OpenFeatureIntroModal
+            | OpenAutoHandoffSleepModal
+            | OpenChatGPTPlanModal
+            | TriggerAutoHandoffToCloud
+            | OpenFreeAiRemovalModal
+            | InstallOpenCodeWarpPlugin
+            | UseLocalOpenCodeWarpPlugin
+            | OpenBuildPlanMigrationModal => return true,
+            #[cfg(not(target_family = "wasm"))]
+            ContinueConversationLocally { .. } | ContinueThirdPartyConversationLocally { .. } => {
+                return true;
+            }
+            _ => {}
+        }
+
         match self {
             ShowSettingsPage(section) => !section.is_available_in_local_terminal(),
             ShowSettingsPageWithSearch {

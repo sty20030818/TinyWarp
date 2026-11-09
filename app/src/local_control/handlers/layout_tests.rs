@@ -62,3 +62,24 @@ fn tab_create_rejects_shell_parameter() {
         assert_eq!(err.code, ErrorCode::InvalidParams);
     });
 }
+
+#[test]
+fn local_terminal_tab_create_rejects_agent_before_resolving_or_mutating_a_window() {
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let bridge = app.add_singleton_model(LocalControlBridge::new);
+        let error = bridge
+            .update(&mut app, |_, ctx| {
+                create_tab(
+                    &None,
+                    &serde_json::json!({ "tab_type": "agent" }),
+                    &TargetSelector::default(),
+                    ctx,
+                )
+            })
+            .expect_err("无窗口也应先返回明确的不可用错误");
+        assert_eq!(error.code, ErrorCode::UnsupportedAction);
+        assert!(error.message.contains("tab.create"));
+        assert!(app.read(|ctx| ctx.window_ids().next().is_none()));
+    });
+}

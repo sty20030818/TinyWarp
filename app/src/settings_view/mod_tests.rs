@@ -1297,6 +1297,13 @@ fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_feat
         SettingsSection::WarpCloudAgentAPIKeys,
         SettingsSection::SharedBlocks,
         SettingsSection::WarpDrive,
+        SettingsSection::WarpAgent,
+        SettingsSection::AgentProfiles,
+        SettingsSection::AgentMCPServers,
+        SettingsSection::Knowledge,
+        SettingsSection::ThirdPartyCLIAgents,
+        SettingsSection::CodeIndexing,
+        SettingsSection::EditorAndCodeReview,
     ];
     for section in unavailable {
         let parsed = SettingsSection::from_slug(section.slug()).expect("旧 slug 仍需可读");

@@ -60,18 +60,19 @@ impl SkillManager {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let (skill_watcher_tx, skill_watcher_rx) = async_channel::unbounded();
 
-        ctx.spawn_stream_local(
-            skill_watcher_rx,
-            |me, message, ctx| {
-                me.handle_skill_watcher_event(message, ctx);
-            },
-            |_, _| {}, // No cleanup needed when stream ends
-        );
-
+        if !crate::local_terminal::is_enabled(ctx) {
+            ctx.spawn_stream_local(
+                skill_watcher_rx,
+                |me, message, ctx| {
+                    me.handle_skill_watcher_event(message, ctx);
+                },
+                |_, _| {}, // No cleanup needed when stream ends
+            );
+        }
         // Create skill watcher
         let skill_watcher = ctx.add_model(|ctx| SkillWatcher::new(ctx, skill_watcher_tx));
 
-        if FeatureFlag::BundledSkills.is_enabled() {
+        if !crate::local_terminal::is_enabled(ctx) && FeatureFlag::BundledSkills.is_enabled() {
             ctx.spawn(BundledSkill::detect(), |me, result, _| {
                 me.bundled_skills.set_local(result);
             });

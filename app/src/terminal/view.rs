@@ -8400,6 +8400,9 @@ impl TerminalView {
     }
 
     fn is_in_agent_or_cli_attach_context(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
         let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
         agent_view_state.is_fullscreen()
             || agent_view_state.is_inline()
@@ -9139,6 +9142,7 @@ impl TerminalView {
     }
     /// Shows or hides the CLI agent footer from a shared session update.
     pub fn apply_cli_agent_footer_visibility(&mut self, show: bool, ctx: &mut ViewContext<Self>) {
+        let show = show && !crate::local_terminal::is_enabled(ctx);
         if show {
             self.maybe_show_use_agent_footer_in_blocklist(ctx);
         } else {
@@ -13748,14 +13752,16 @@ impl TerminalView {
                 // Intercept structured CLI agent notifications (e.g. from Claude Code plugin).
                 // The listener's own subscription handles subsequent events; we just
                 // suppress the raw JSON from becoming a toast/desktop notification.
-                if title.as_deref() == Some(CLI_AGENT_NOTIFICATION_SENTINEL) {
+                if !crate::local_terminal::is_enabled(ctx)
+                    && title.as_deref() == Some(CLI_AGENT_NOTIFICATION_SENTINEL)
+                {
                     self.handle_cli_agent_notification(title.as_deref(), body, ctx);
                     return;
                 }
 
                 // Suppress OSC 9 notifications when a Codex listener is active.
                 // The listener's subscription handles these via CodexSessionHandler.
-                if title.is_none() {
+                if title.is_none() && !crate::local_terminal::is_enabled(ctx) {
                     let has_codex_listener = CLIAgentSessionsModel::as_ref(ctx)
                         .session(self.view_id)
                         .is_some_and(|s| s.agent == CLIAgent::Codex && s.listener.is_some());
@@ -14127,6 +14133,9 @@ impl TerminalView {
         body: &str,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         let Some(notification) = parse_event(title, body) else {
             return;
         };
@@ -14163,6 +14172,9 @@ impl TerminalView {
         notification: &CLIAgentEvent,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
         if !is_agent_supported(&notification.agent) {
             return false;
         }
@@ -14207,6 +14219,9 @@ impl TerminalView {
         agent: CLIAgent,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         #[cfg(not(target_family = "wasm"))]
         let plugin_version = if matches!(agent, CLIAgent::Codex) {
             // We use the lack of a plugin version for codex to differentiate between
@@ -14287,6 +14302,9 @@ impl TerminalView {
     /// CLI agent session. Called after creating a command-detected session or
     /// registering a listener so rich input is shown immediately.
     fn maybe_auto_open_cli_agent_rich_input(&mut self, ctx: &mut ViewContext<Self>) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         let ai_settings = AISettings::as_ref(ctx);
         if !*ai_settings.auto_open_rich_input_on_cli_agent_start
             || !ai_settings.is_any_ai_enabled(ctx)
@@ -14314,6 +14332,9 @@ impl TerminalView {
         event: &CLIAgentSessionsModelEvent,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         match event {
             CLIAgentSessionsModelEvent::Started {
                 terminal_view_id, ..
@@ -17480,6 +17501,9 @@ impl TerminalView {
     }
 
     fn has_active_cli_agent_session(&self, ctx: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
         CLIAgentSessionsModel::as_ref(ctx)
             .session(self.view_id)
             .is_some()
@@ -19570,6 +19594,10 @@ impl TerminalView {
         line_and_column_num: Option<LineAndColumnArg>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) && matches!(target, FileTarget::CodeEditor(_)) {
+            crate::local_terminal::show_feature_unavailable(ctx);
+            return;
+        }
         ctx.notify();
         ctx.emit(Event::OpenFileWithTarget {
             path,
@@ -24498,6 +24526,9 @@ impl TerminalView {
 
     /// Returns the CLI agent currently active in this terminal, if any.
     pub fn active_cli_agent(&self, ctx: &AppContext) -> Option<super::CLIAgent> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return None;
+        }
         if !FeatureFlag::HoaCodeReview.is_enabled() {
             return None;
         }
@@ -24508,6 +24539,9 @@ impl TerminalView {
 
     /// Returns `true` if CLI agent rich input is currently open.
     pub fn is_cli_agent_rich_input_open(&self, ctx: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(ctx) {
+            return false;
+        }
         CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.view_id)
     }
 
@@ -24529,6 +24563,9 @@ impl TerminalView {
         text: String,
         ctx: &mut ViewContext<Self>,
     ) -> Option<CliAgentRouting> {
+        if crate::local_terminal::is_enabled(ctx) {
+            return None;
+        }
         self.active_cli_agent(ctx)?;
         if self.is_cli_agent_rich_input_open(ctx) {
             self.append_to_rich_input(&text, ctx);
@@ -25546,6 +25583,9 @@ impl TerminalView {
     /// Returns true when cursor rendering should be suppressed because the
     /// CLI agent rich input is open.
     fn should_hide_cli_agent_cursor_cell(&self, app: &AppContext) -> bool {
+        if crate::local_terminal::is_enabled(app) {
+            return false;
+        }
         CLIAgentSessionsModel::as_ref(app)
             .session(self.view_id)
             .is_some_and(|s| matches!(s.input_state, CLIAgentInputState::Open { .. }))
@@ -28034,7 +28074,7 @@ impl TypedActionView for TerminalView {
     fn handle_action(&mut self, action: &TerminalAction, ctx: &mut ViewContext<Self>) {
         use TerminalAction::*;
         if crate::local_terminal::is_enabled(ctx) && action.blocked_in_local_terminal() {
-            crate::local_terminal::show_unavailable(ctx);
+            crate::local_terminal::show_feature_unavailable(ctx);
             return;
         }
         let input_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
@@ -29830,7 +29870,9 @@ impl View for TerminalView {
             context.set.insert(init::KEYBOARD_PROTOCOL_ENABLED_KEY);
         }
 
-        if let Some(session) = CLIAgentSessionsModel::as_ref(app).session(self.view_id) {
+        if !crate::local_terminal::is_enabled(app)
+            && let Some(session) = CLIAgentSessionsModel::as_ref(app).session(self.view_id)
+        {
             context.set.insert(init::CLI_AGENT_SESSION_ACTIVE_KEY);
             if session.agent.supports_cli_agent_footer()
                 && *AISettings::as_ref(app).should_render_cli_agent_footer

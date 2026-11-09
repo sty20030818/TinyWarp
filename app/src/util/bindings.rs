@@ -44,6 +44,21 @@ pub(crate) fn is_action_available_in_local_terminal(action: &dyn Action, ctx: &A
     {
         return !action.blocked_in_local_terminal();
     }
+    if let Some(action) = action
+        .as_any()
+        .downcast_ref::<crate::terminal::input::InputAction>()
+    {
+        return !action.blocked_in_local_terminal();
+    }
+    #[cfg(feature = "voice_input")]
+    if matches!(
+        action
+            .as_any()
+            .downcast_ref::<crate::editor::EditorAction>(),
+        Some(crate::editor::EditorAction::ToggleVoiceInput(_))
+    ) {
+        return false;
+    }
     true
 }
 

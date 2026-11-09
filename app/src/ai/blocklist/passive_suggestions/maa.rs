@@ -115,13 +115,14 @@ impl PassiveSuggestionsModel {
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(model_event_dispatcher, |me, _, event, ctx| {
-            me.handle_model_event(event, ctx);
-        });
-        ctx.subscribe_to_model(&ai_controller, |me, _, event, ctx| {
-            me.handle_controller_event(event, ctx);
-        });
-
+        if !crate::local_terminal::is_enabled(ctx) {
+            ctx.subscribe_to_model(model_event_dispatcher, |me, _, event, ctx| {
+                me.handle_model_event(event, ctx);
+            });
+            ctx.subscribe_to_model(&ai_controller, |me, _, event, ctx| {
+                me.handle_controller_event(event, ctx);
+            });
+        }
         Self {
             active_session,
             ai_controller,
@@ -179,6 +180,10 @@ impl PassiveSuggestionsModel {
         supported_tools: Vec<warp_multi_agent_api::ToolType>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Capture before the call — `Some` means there's a real conversation
         // the user can continue in; `None` means ephemeral.
         let continuable_conversation_id = followup_conversation_id;
@@ -477,6 +482,10 @@ impl PassiveSuggestionsModel {
         block_completed: &UserBlockCompleted,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         self.abort_pending_requests(ctx);
         // Suppress passive suggestions in cloud mode sessions.
         if self.is_ambient_agent_session(ctx) {

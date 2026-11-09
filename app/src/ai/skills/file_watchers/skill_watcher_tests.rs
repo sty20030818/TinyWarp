@@ -835,3 +835,23 @@ fn test_refresh_project_skills_for_repo_removes_missing_project_skill_paths() {
         );
     });
 }
+
+#[test]
+fn local_terminal_skill_watcher_has_no_filesystem_subscriptions_or_scans() {
+    warpui::App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let (tx, _rx) = async_channel::unbounded();
+        let watcher = app.add_model(|ctx| SkillWatcher::new(ctx, tx));
+        watcher.read(&app, |watcher, ctx| {
+            assert!(watcher.project_skill_files_by_repo.is_empty());
+            assert!(watcher.failed_local_project_watchers.is_empty());
+            assert!(watcher.home_provider_watchers.is_empty());
+            assert!(watcher.symlink_target_watchers.is_empty());
+            assert_eq!(watcher.next_project_skill_refresh_generation, 0);
+            assert!(
+                SkillWatcher::read_local_skills_for_repos(&[PathBuf::from("/must-not-scan")], ctx)
+                    .is_empty()
+            );
+        });
+    });
+}

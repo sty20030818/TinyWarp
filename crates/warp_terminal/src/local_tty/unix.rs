@@ -235,6 +235,7 @@ pub(super) fn spawn(options: PtyOptions) -> Result<PtySpawnInfo> {
         shell_starter,
         start_dir,
         env_vars,
+        enable_cli_agent_protocol,
         enable_ssh_wrapper,
         reuse_ssh_control_master,
         shell_debug_mode,
@@ -255,6 +256,7 @@ pub(super) fn spawn(options: PtyOptions) -> Result<PtySpawnInfo> {
         shell_starter,
         window_id,
         env_vars,
+        enable_cli_agent_protocol,
         start_dir,
         enable_ssh_wrapper,
         reuse_ssh_control_master,
@@ -276,6 +278,7 @@ fn build_host_shell_command(
     shell_starter: DirectShellStarter,
     window_id: Option<usize>,
     env_vars: HashMap<OsString, OsString>,
+    enable_cli_agent_protocol: bool,
     start_dir: Option<PathBuf>,
     enable_ssh_wrapper: bool,
     reuse_ssh_control_master: bool,
@@ -383,7 +386,7 @@ fn build_host_shell_command(
     // Only advertise the protocol version when the HOA notifications feature is enabled.
     // Without it, Warp can't render structured CLI agent notifications,
     // so the plugin should fall back to legacy notifications.
-    if FeatureFlag::HOANotifications.is_enabled() {
+    if enable_cli_agent_protocol && FeatureFlag::HOANotifications.is_enabled() {
         builder.env(
             WARP_CLI_AGENT_PROTOCOL_VERSION_ENV,
             CLI_AGENT_PROTOCOL_VERSION.to_string(),
@@ -440,6 +443,10 @@ fn build_host_shell_command(
     // Apply any caller-provided environment overrides last, so they win.
     for (key, value) in env_vars {
         builder.env(key, value);
+    }
+    if !enable_cli_agent_protocol {
+        // 必须晚于调用方覆盖项移除，也阻止继承父进程的协议广告。
+        builder.env_remove(WARP_CLI_AGENT_PROTOCOL_VERSION_ENV);
     }
 
     // Set the initial working directory to the user's home directory.  If
@@ -787,6 +794,7 @@ fn spawn_docker_sandbox(
         shell_starter: _,
         start_dir: _,
         env_vars,
+        enable_cli_agent_protocol,
         enable_ssh_wrapper,
         reuse_ssh_control_master,
         shell_debug_mode,
@@ -799,6 +807,7 @@ fn spawn_docker_sandbox(
         &docker_starter,
         window_id,
         env_vars,
+        enable_cli_agent_protocol,
         enable_ssh_wrapper,
         reuse_ssh_control_master,
         shell_debug_mode,
@@ -820,6 +829,7 @@ fn build_docker_sandbox_command(
     docker_starter: &DockerSandboxShellStarter,
     window_id: Option<usize>,
     env_vars: HashMap<OsString, OsString>,
+    enable_cli_agent_protocol: bool,
     enable_ssh_wrapper: bool,
     reuse_ssh_control_master: bool,
     shell_debug_mode: bool,
@@ -889,7 +899,7 @@ fn build_docker_sandbox_command(
     );
     builder.env("SSH_SOCKET_DIR", ssh_socket_dir());
     builder.env("WARP_IS_LOCAL_SHELL_SESSION", "1");
-    if FeatureFlag::HOANotifications.is_enabled() {
+    if enable_cli_agent_protocol && FeatureFlag::HOANotifications.is_enabled() {
         builder.env(
             WARP_CLI_AGENT_PROTOCOL_VERSION_ENV,
             CLI_AGENT_PROTOCOL_VERSION.to_string(),
@@ -920,6 +930,10 @@ fn build_docker_sandbox_command(
     // Apply any caller-provided environment overrides last, so they win.
     for (key, value) in env_vars {
         builder.env(key, value);
+    }
+    if !enable_cli_agent_protocol {
+        // 必须晚于调用方覆盖项移除，也阻止继承父进程的协议广告。
+        builder.env_remove(WARP_CLI_AGENT_PROTOCOL_VERSION_ENV);
     }
 
     builder.current_dir(home_dir);

@@ -161,20 +161,26 @@ pub enum NextCommandModelEvent {
 }
 
 impl NextCommandModel {
+    #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     pub fn new(
         sessions: ModelHandle<Sessions>,
         model: Arc<FairMutex<TerminalModel>>,
         server_api: Arc<ServerApi>,
         ai_controller: ModelHandle<BlocklistAIController>,
+        app: &warpui::AppContext,
     ) -> Self {
         #[cfg(feature = "local_fs")]
-        let conn = database_file_path_for_current_scope()
-            .to_str()
-            .and_then(|db_url| {
-                establish_ro_connection(db_url)
-                    .ok()
-                    .map(|conn| Arc::new(Mutex::new(conn)))
-            });
+        let conn = if crate::local_terminal::is_enabled(app) {
+            None
+        } else {
+            database_file_path_for_current_scope()
+                .to_str()
+                .and_then(|db_url| {
+                    establish_ro_connection(db_url)
+                        .ok()
+                        .map(|conn| Arc::new(Mutex::new(conn)))
+                })
+        };
         Self {
             sessions,
             model,
@@ -327,6 +333,10 @@ impl NextCommandModel {
         previous_result: Option<IntelligentAutosuggestionResult>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         // Clear the cached next command context so we don't use stale data.
         self.cached_zerostate_next_command_context = None;
         self.zerostate_suggestion_info = None;
@@ -374,6 +384,10 @@ impl NextCommandModel {
         previous_result: Option<IntelligentAutosuggestionResult>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
+
         let server_api = self.server_api.clone();
         let terminal_model = self.model.clone();
         let cached_next_command_context = self.cached_zerostate_next_command_context.clone();

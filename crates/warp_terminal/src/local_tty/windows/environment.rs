@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
@@ -135,7 +135,7 @@ pub(super) fn get_shell_environment_variables(options: &PtyOptions) -> Vec<u16> 
         },
     );
 
-    if FeatureFlag::HOANotifications.is_enabled() {
+    if options.enable_cli_agent_protocol && FeatureFlag::HOANotifications.is_enabled() {
         env.insert(
             map_key(WARP_CLI_AGENT_PROTOCOL_VERSION_ENV.into()),
             EnvEntry {
@@ -180,7 +180,10 @@ pub(super) fn get_shell_environment_variables(options: &PtyOptions) -> Vec<u16> 
         }
         ShellStarter::Wsl(_) => {
             // TODO(CORE-3107): Hook this up to a new setting "Working directory for new sessions" setting for WSL.
-            let mut wslenv = wsl_env_allowlist(options.start_dir.is_some());
+            let mut wslenv = wsl_env_allowlist(
+                options.start_dir.is_some(),
+                options.enable_cli_agent_protocol,
+            );
             if let Some(user_val) = env.get(&map_key(WSLENV.into())) {
                 wslenv.push(":");
                 wslenv.push(&user_val.value);
@@ -196,8 +199,21 @@ pub(super) fn get_shell_environment_variables(options: &PtyOptions) -> Vec<u16> 
         _ => {}
     }
 
-    // Apply any caller-provided overrides last, so they win.
-    for (key, value) in &options.env_vars {
+    apply_environment_overrides(
+        &mut env,
+        &options.env_vars,
+        options.enable_cli_agent_protocol,
+    );
+
+    environment_block(env.into_iter())
+}
+
+fn apply_environment_overrides(
+    env: &mut BTreeMap<OsString, EnvEntry>,
+    overrides: &HashMap<OsString, OsString>,
+    enable_cli_agent_protocol: bool,
+) {
+    for (key, value) in overrides {
         env.insert(
             map_key(key.clone()),
             EnvEntry {
@@ -206,15 +222,54 @@ pub(super) fn get_shell_environment_variables(options: &PtyOptions) -> Vec<u16> 
             },
         );
     }
-
-    environment_block(env.into_iter())
+    if !enable_cli_agent_protocol {
+        env.remove(&map_key(WARP_CLI_AGENT_PROTOCOL_VERSION_ENV.into()));
+        if let Some(entry) = env.get_mut(&map_key(WSLENV.into())) {
+            // 用 UTF-16 原值拆分，保留其他条目的大小写、标志及非 Unicode 内容。
+            let units: Vec<u16> = entry.value.encode_wide().collect();
+            let protocol_name: Vec<u16> = WARP_CLI_AGENT_PROTOCOL_VERSION_ENV
+                .to_ascii_lowercase()
+                .encode_utf16()
+                .collect();
+            let mut retained = Vec::new();
+            let mut first_entry = true;
+            for item in units.split(|unit| *unit == u16::from(b':')) {
+                let name = item
+                    .split(|unit| *unit == u16::from(b'/'))
+                    .next()
+                    .unwrap_or_default();
+                if name
+                    .iter()
+                    .map(|unit| {
+                        if (u16::from(b'A')..=u16::from(b'Z')).contains(unit) {
+                            *unit + u16::from(b'a' - b'A')
+                        } else {
+                            *unit
+                        }
+                    })
+                    .eq(protocol_name.iter().copied())
+                {
+                    continue;
+                }
+                if !first_entry {
+                    retained.push(u16::from(b':'));
+                }
+                first_entry = false;
+                retained.extend_from_slice(item);
+            }
+            entry.value = OsString::from_wide(&retained);
+        }
+    }
 }
 
 /// Build the WSLENV allowlist for variables that Windows should forward into WSL.
 ///
 /// See https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
 /// for more on how WSLENV should be formatted.
-fn wsl_env_allowlist(include_initial_working_dir: bool) -> OsString {
+fn wsl_env_allowlist(
+    include_initial_working_dir: bool,
+    enable_cli_agent_protocol: bool,
+) -> OsString {
     let mut entries = vec![
         format!("{HONOR_PS1_NAME}/u"),
         format!("{USE_SSH_WRAPPER_NAME}/u"),
@@ -229,7 +284,7 @@ fn wsl_env_allowlist(include_initial_working_dir: bool) -> OsString {
         format!("{PROMPT_NODE_VERSION_ENABLED_NAME}/u"),
     ];
 
-    if FeatureFlag::HOANotifications.is_enabled() {
+    if enable_cli_agent_protocol && FeatureFlag::HOANotifications.is_enabled() {
         entries.push(format!("{WARP_CLI_AGENT_PROTOCOL_VERSION_ENV}/u"));
     }
 

@@ -316,3 +316,67 @@ fn local_terminal_hides_account_candidates_without_removing_registered_bindings(
         });
     });
 }
+
+#[test]
+fn local_terminal_candidates_keep_raw_cli_bytes_and_local_history_actions() {
+    use super::CommandBinding;
+    use crate::terminal::input::InputAction;
+    use crate::terminal::view::TerminalAction;
+
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            crate::local_terminal::enable_for_test(ctx);
+            let raw_bytes = vec![0x1b, b'[', b'A', 0x03, 0x07];
+            ctx.register_editable_bindings([
+                EditableBinding::new(
+                    "test:l2_raw_cli",
+                    "CLI bytes",
+                    TerminalAction::UserInputSequence(raw_bytes.clone()),
+                ),
+                EditableBinding::new("test:l2_paste", "Paste", TerminalAction::Paste),
+                EditableBinding::new("test:l2_history", "History", InputAction::CtrlR),
+                EditableBinding::new(
+                    "test:l2_completions",
+                    "Shell completions",
+                    InputAction::MaybeOpenCompletionSuggestions,
+                ),
+                EditableBinding::new("test:l2_agent", "Agent", TerminalAction::SetInputModeAgent),
+                EditableBinding::new(
+                    "test:l2_rich_cli",
+                    "Rich CLI",
+                    TerminalAction::ToggleCLIAgentRichInput,
+                ),
+            ]);
+            for (name, visible) in [
+                ("test:l2_raw_cli", true),
+                ("test:l2_paste", true),
+                ("test:l2_history", true),
+                ("test:l2_completions", true),
+                ("test:l2_agent", false),
+                ("test:l2_rich_cli", false),
+            ] {
+                let lens = ctx.get_binding_by_name(name).expect("原注册与ID保留");
+                let id = lens.id;
+                let binding = CommandBinding::from_lens(lens, ctx);
+                assert_eq!(binding.is_some(), visible, "{name}");
+                if let Some(binding) = binding {
+                    assert_eq!(binding.id, id);
+                    if name == "test:l2_raw_cli" {
+                        let action = binding
+                            .action
+                            .as_ref()
+                            .unwrap()
+                            .as_ref()
+                            .as_any()
+                            .downcast_ref::<TerminalAction>()
+                            .unwrap();
+                        let TerminalAction::UserInputSequence(bytes) = action else {
+                            panic!("保留原始PTY动作")
+                        };
+                        assert_eq!(bytes, &raw_bytes);
+                    }
+                }
+            }
+        });
+    });
+}

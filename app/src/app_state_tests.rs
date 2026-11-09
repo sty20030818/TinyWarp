@@ -106,3 +106,39 @@ fn test_code_pane_snapshot_with_multiple_tabs() {
     assert_eq!(tabs[2].path, None);
     assert!(matches!(source, Some(CodeSource::Link { .. })));
 }
+
+#[test]
+fn local_terminal_snapshot_keeps_unmigrated_mcp_startup_ids_as_data() {
+    warpui::App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        let ids = vec![uuid::Uuid::new_v4(), uuid::Uuid::new_v4()];
+        let state = AppState {
+            windows: vec![],
+            active_window_index: None,
+            block_lists: Default::default(),
+            running_mcp_servers: ids.clone(),
+        };
+        app.update(|ctx| preserve_local_startup_metadata(Some(&state), ctx));
+        app.read(|ctx| {
+            assert_eq!(preserved_running_mcp_servers(ctx), ids);
+            assert_eq!(get_app_state(ctx).running_mcp_servers, ids);
+        });
+    });
+}
+
+#[test]
+fn regular_launch_does_not_install_local_startup_metadata() {
+    warpui::App::test((), |mut app| async move {
+        let state = AppState {
+            windows: vec![],
+            active_window_index: None,
+            block_lists: Default::default(),
+            running_mcp_servers: vec![uuid::Uuid::new_v4()],
+        };
+        app.update(|ctx| preserve_local_startup_metadata(Some(&state), ctx));
+        app.read(|ctx| {
+            assert!(!ctx.has_singleton_model::<PreservedLocalStartupMetadata>());
+            assert!(preserved_running_mcp_servers(ctx).is_empty());
+        });
+    });
+}

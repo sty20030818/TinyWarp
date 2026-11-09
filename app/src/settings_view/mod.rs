@@ -374,16 +374,15 @@ impl Display for SettingsSection {
 
 impl SettingsSection {
     pub(crate) fn is_available_in_local_terminal(self) -> bool {
-        !matches!(
+        matches!(
             self,
-            Self::Account
-                | Self::BillingAndUsage
-                | Self::Teams
-                | Self::Referrals
-                | Self::CloudEnvironments
-                | Self::WarpCloudAgentAPIKeys
-                | Self::SharedBlocks
-                | Self::WarpDrive
+            Self::About
+                | Self::Appearance
+                | Self::Features
+                | Self::Keybindings
+                | Self::Privacy
+                | Self::Scripting
+                | Self::Warpify
         )
     }
 
@@ -1063,7 +1062,13 @@ impl SettingsAction {
             Self::SelectAndRefresh(section) => !section.is_available_in_local_terminal(),
             Self::MainPageToggle(_) | Self::WarpDrive(_) => true,
             Self::PrivacyPageToggle(action) => action.blocked_in_local_terminal(),
-            Self::WarpAgent(action) => action.blocked_in_local_terminal(),
+            Self::WarpAgent(_)
+            | Self::AgentProfiles(_)
+            | Self::Knowledge(_)
+            | Self::CLIAgents(_)
+            | Self::CodeIndexing(_)
+            | Self::EditorAndCodeReview(_) => true,
+            Self::FeaturesPageToggle(action) => action.blocked_in_local_terminal(),
             _ => false,
         }
     }
@@ -1326,29 +1331,49 @@ impl SettingsView {
         // About page
         let about_page_handle = ctx.add_typed_action_view(AboutPageView::new);
 
-        // Warp Agent page
-        let warp_agent_page_handle = ctx.add_typed_action_view(WarpAgentPageView::new);
-        ctx.subscribe_to_view(&warp_agent_page_handle, |me, _, event, ctx| {
-            me.handle_warp_agent_page_event(event, ctx);
-        });
+        let warp_agent_page = if is_local_terminal {
+            None
+        } else {
+            // Warp Agent page
+            let warp_agent_page_handle = ctx.add_typed_action_view(WarpAgentPageView::new);
+            ctx.subscribe_to_view(&warp_agent_page_handle, |me, _, event, ctx| {
+                me.handle_warp_agent_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(warp_agent_page_handle))
+        };
 
-        // Agent profiles page, under the Agents umbrella
-        let agent_profiles_page_handle = ctx.add_typed_action_view(AgentProfilesPageView::new);
-        ctx.subscribe_to_view(&agent_profiles_page_handle, |me, _, event, ctx| {
-            me.handle_agent_profiles_page_event(event, ctx);
-        });
+        let agent_profiles_page = if is_local_terminal {
+            None
+        } else {
+            // Agent profiles page, under the Agents umbrella
+            let agent_profiles_page_handle = ctx.add_typed_action_view(AgentProfilesPageView::new);
+            ctx.subscribe_to_view(&agent_profiles_page_handle, |me, _, event, ctx| {
+                me.handle_agent_profiles_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(agent_profiles_page_handle))
+        };
 
-        // Knowledge page, under the Agents umbrella
-        let knowledge_page_handle = ctx.add_typed_action_view(KnowledgePageView::new);
-        ctx.subscribe_to_view(&knowledge_page_handle, |me, _, event, ctx| {
-            me.handle_knowledge_page_event(event, ctx);
-        });
+        let knowledge_page = if is_local_terminal {
+            None
+        } else {
+            // Knowledge page, under the Agents umbrella
+            let knowledge_page_handle = ctx.add_typed_action_view(KnowledgePageView::new);
+            ctx.subscribe_to_view(&knowledge_page_handle, |me, _, event, ctx| {
+                me.handle_knowledge_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(knowledge_page_handle))
+        };
 
-        // Third party CLI agents page, under the Agents umbrella
-        let cli_agents_page_handle = ctx.add_typed_action_view(CLIAgentsPageView::new);
-        ctx.subscribe_to_view(&cli_agents_page_handle, |me, _, event, ctx| {
-            me.handle_cli_agents_page_event(event, ctx);
-        });
+        let cli_agents_page = if is_local_terminal {
+            None
+        } else {
+            // Third party CLI agents page, under the Agents umbrella
+            let cli_agents_page_handle = ctx.add_typed_action_view(CLIAgentsPageView::new);
+            ctx.subscribe_to_view(&cli_agents_page_handle, |me, _, event, ctx| {
+                me.handle_cli_agents_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(cli_agents_page_handle))
+        };
 
         let environments_page_handle = if is_local_terminal {
             None
@@ -1376,12 +1401,24 @@ impl SettingsView {
         // Keybindings page
         let keybindings_handle = ctx.add_typed_action_view(KeybindingsView::new);
 
-        // Code umbrella pages
-        let code_indexing_page_handle = ctx.add_typed_action_view(CodeIndexingPageView::new);
-        ctx.subscribe_to_view(&code_indexing_page_handle, |me, _, event, ctx| {
-            me.handle_code_indexing_page_event(event, ctx);
-        });
-        let editor_review_page_handle = ctx.add_typed_action_view(EditorAndCodeReviewPageView::new);
+        let code_indexing_page = if is_local_terminal {
+            None
+        } else {
+            // Code umbrella pages
+            let code_indexing_page_handle = ctx.add_typed_action_view(CodeIndexingPageView::new);
+            ctx.subscribe_to_view(&code_indexing_page_handle, |me, _, event, ctx| {
+                me.handle_code_indexing_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(code_indexing_page_handle))
+        };
+
+        let editor_review_page = if is_local_terminal {
+            None
+        } else {
+            let editor_review_page_handle =
+                ctx.add_typed_action_view(EditorAndCodeReviewPageView::new);
+            Some(SettingsPage::new(editor_review_page_handle))
+        };
 
         let teams_page = if is_local_terminal {
             None
@@ -1456,11 +1493,17 @@ impl SettingsView {
             Some(SettingsPage::new(platform_page_handle))
         };
 
-        // MCP Servers page
-        let mcp_servers_page_handle = ctx.add_typed_action_view(MCPServersSettingsPageView::new);
-        ctx.subscribe_to_view(&mcp_servers_page_handle, |me, _, event, ctx| {
-            me.handle_mcp_servers_page_event(event, ctx);
-        });
+        let mcp_servers_page = if is_local_terminal {
+            None
+        } else {
+            // MCP Servers page
+            let mcp_servers_page_handle =
+                ctx.add_typed_action_view(MCPServersSettingsPageView::new);
+            ctx.subscribe_to_view(&mcp_servers_page_handle, |me, _, event, ctx| {
+                me.handle_mcp_servers_page_event(event, ctx);
+            });
+            Some(SettingsPage::new(mcp_servers_page_handle))
+        };
 
         let font_family = Appearance::as_ref(ctx).ui_font_family();
         let search_editor = ctx.add_typed_action_view(|ctx| {
@@ -1492,13 +1535,13 @@ impl SettingsView {
 
         let mut settings_pages = vec![
             main_page,
-            Some(SettingsPage::new(warp_agent_page_handle)),
-            Some(SettingsPage::new(agent_profiles_page_handle)),
-            Some(SettingsPage::new(knowledge_page_handle)),
-            Some(SettingsPage::new(cli_agents_page_handle)),
+            warp_agent_page,
+            agent_profiles_page,
+            knowledge_page,
+            cli_agents_page,
             billing_and_usage_page,
-            Some(SettingsPage::new(code_indexing_page_handle)),
-            Some(SettingsPage::new(editor_review_page_handle)),
+            code_indexing_page,
+            editor_review_page,
             teams_page,
             Some(SettingsPage::new(appearance_page_handle)),
             Some(SettingsPage::new(features_page_handle)),
@@ -1519,7 +1562,7 @@ impl SettingsView {
 
         settings_pages.extend(
             [
-                Some(SettingsPage::new(mcp_servers_page_handle)),
+                mcp_servers_page,
                 environments_page_handle.clone().map(SettingsPage::new),
                 Some(SettingsPage::new(privacy_page_handle)),
                 Some(SettingsPage::new(about_page_handle)),
