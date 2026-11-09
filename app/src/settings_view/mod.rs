@@ -35,6 +35,7 @@ use warp_core::send_telemetry_from_ctx;
 use warp_core::settings::ToggleableSetting as _;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::editor::NavigationKey;
+use warp_i18n::tr;
 use warpify_page::{WarpifyPageAction, WarpifyPageView};
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ClippedScrollable,
@@ -44,7 +45,7 @@ use warpui::elements::{
     Text, Wrap,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::keymap::{ContextPredicate, EnabledPredicate, FixedBinding};
+use warpui::keymap::{BindingDescription, ContextPredicate, EnabledPredicate, FixedBinding};
 use warpui::{
     Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView,
     UpdateView as _, View, ViewContext, ViewHandle, id,
@@ -215,8 +216,8 @@ pub fn nav_page_position_id(section: SettingsSection) -> String {
 }
 
 /// Saved-position id for a collapsible umbrella header row.
-pub fn nav_umbrella_position_id(label: &str) -> String {
-    format!("settings_nav_umbrella:{label}")
+pub fn nav_umbrella_position_id(id: &str) -> String {
+    format!("settings_nav_umbrella:{id}")
 }
 
 /// Saved-position id for a subpage row nested under an umbrella.
@@ -344,23 +345,30 @@ use crate::util::bindings::custom_tag_to_keystroke;
 
 impl Display for SettingsSection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SettingsSection::BillingAndUsage => write!(f, "Billing and usage"),
-            SettingsSection::Keybindings => write!(f, "Keyboard shortcuts"),
-            SettingsSection::SharedBlocks => write!(f, "Shared blocks"),
-            SettingsSection::Scripting => write!(f, "Scripting"),
-            SettingsSection::WarpDrive => write!(f, "Warp Drive"),
-            SettingsSection::WarpAgent => write!(f, "Warp Agent"),
-            SettingsSection::AgentProfiles => write!(f, "Profiles"),
-            SettingsSection::AgentMCPServers => write!(f, "MCP servers"),
-            SettingsSection::Knowledge => write!(f, "Knowledge"),
-            SettingsSection::ThirdPartyCLIAgents => write!(f, "Third party CLI agents"),
-            SettingsSection::CodeIndexing => write!(f, "Indexing and projects"),
-            SettingsSection::EditorAndCodeReview => write!(f, "Editor and Code Review"),
-            SettingsSection::CloudEnvironments => write!(f, "Environments"),
-            SettingsSection::WarpCloudAgentAPIKeys => write!(f, "API keys"),
-            _ => write!(f, "{self:?}"),
-        }
+        f.write_str(match self {
+            Self::About => tr("settings.nav.about", "About"),
+            Self::Account => tr("settings.nav.account", "Account"),
+            Self::BillingAndUsage => tr("settings.nav.billing", "Billing and usage"),
+            Self::Appearance => tr("settings.nav.appearance", "Appearance"),
+            Self::Features => tr("settings.nav.features", "Features"),
+            Self::Keybindings => tr("settings.nav.keybindings", "Keyboard shortcuts"),
+            Self::Privacy => tr("settings.nav.privacy", "Privacy"),
+            Self::Referrals => tr("settings.nav.referrals", "Referrals"),
+            Self::Scripting => tr("settings.nav.scripting", "Scripting"),
+            Self::SharedBlocks => tr("settings.nav.shared_blocks", "Shared blocks"),
+            Self::Teams => tr("settings.nav.teams", "Teams"),
+            Self::WarpDrive => tr("settings.nav.warp_drive", "Warp Drive"),
+            Self::Warpify => tr("settings.nav.warpify", "Warpify"),
+            Self::WarpAgent => tr("settings.nav.warp_agent", "Warp Agent"),
+            Self::AgentProfiles => tr("settings.nav.profiles", "Profiles"),
+            Self::AgentMCPServers => tr("settings.nav.mcp", "MCP servers"),
+            Self::Knowledge => tr("settings.nav.knowledge", "Knowledge"),
+            Self::ThirdPartyCLIAgents => tr("settings.nav.cli_agents", "Third party CLI agents"),
+            Self::CodeIndexing => tr("settings.nav.indexing", "Indexing and projects"),
+            Self::EditorAndCodeReview => tr("settings.nav.editor", "Editor and Code Review"),
+            Self::CloudEnvironments => tr("settings.nav.environments", "Environments"),
+            Self::WarpCloudAgentAPIKeys => tr("settings.nav.api_keys", "API keys"),
+        })
     }
 }
 
@@ -808,6 +816,7 @@ impl SettingActionPairContexts {
 pub struct ToggleSettingActionPair<T: Action + Clone> {
     /// The user will actually read these strings.
     descriptions: SettingActionPairDescriptions,
+    localized_descriptions: Option<SettingActionPairDescriptions>,
     /// The actual action to toggle a setting on/off.
     toggle_action: T,
     /// We use our Context tree to determine where this setting should show up.
@@ -859,6 +868,7 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                 disable_predicate: context_prefix.to_owned() & id!(context_boolean_flag),
             },
             toggle_action,
+            localized_descriptions: None,
             custom_action: None,
             binding_group: BindingGroup::Settings,
             supported_on_current_platform: true,
@@ -876,11 +886,20 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
             toggle_action,
             contexts,
             descriptions,
+            localized_descriptions: None,
             custom_action,
             binding_group: BindingGroup::Settings,
             supported_on_current_platform: true,
             enabled_predicate: None,
         }
+    }
+
+    pub fn with_localized_suffix(mut self, suffix: &str) -> Self {
+        self.localized_descriptions = Some(SettingActionPairDescriptions {
+            enable: format!("{} {suffix}", tr("common.enable", "Enable")),
+            disable: format!("{} {suffix}", tr("common.disable", "Disable")),
+        });
+        self
     }
 
     pub fn with_group(mut self, group: BindingGroup) -> Self {
@@ -911,6 +930,7 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                         toggle_action,
                         contexts,
                         descriptions,
+                        localized_descriptions,
                         custom_action,
                         binding_group,
                         supported_on_current_platform,
@@ -920,19 +940,29 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                     if !supported_on_current_platform {
                         None
                     } else {
+                        let (enable_description, disable_description) = match localized_descriptions
+                        {
+                            Some(localized) => (
+                                BindingDescription::new_preserve_case(localized.enable)
+                                    .with_search_alias(descriptions.enable),
+                                BindingDescription::new_preserve_case(localized.disable)
+                                    .with_search_alias(descriptions.disable),
+                            ),
+                            None => (descriptions.enable.into(), descriptions.disable.into()),
+                        };
                         match custom_action {
                             Some(custom_action) => {
                                 let mut enable_binding = FixedBinding::custom(
                                     custom_action,
                                     toggle_action.clone(),
-                                    descriptions.enable,
+                                    enable_description,
                                     contexts.enable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
                                 let mut disable_binding = FixedBinding::custom(
                                     custom_action,
                                     toggle_action,
-                                    descriptions.disable,
+                                    disable_description,
                                     contexts.disable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
@@ -947,13 +977,13 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                             }
                             None => {
                                 let mut enable_binding = FixedBinding::empty(
-                                    descriptions.enable,
+                                    enable_description,
                                     toggle_action.clone(),
                                     contexts.enable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
                                 let mut disable_binding = FixedBinding::empty(
-                                    descriptions.disable,
+                                    disable_description,
                                     toggle_action,
                                     contexts.disable_predicate,
                                 )
@@ -1199,7 +1229,8 @@ pub struct SettingsView {
 
 impl SettingsView {
     pub fn new(page: Option<SettingsSection>, ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Settings"));
+        let pane_configuration =
+            ctx.add_model(|_ctx| PaneConfiguration::new(tr("settings.title", "Settings")));
 
         let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
         // Main settings page with accounts info
@@ -1357,7 +1388,7 @@ impl SettingsView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Search", ctx);
+            editor.set_placeholder_text(tr("settings.search", "Search"), ctx);
             editor
         });
 
@@ -1409,6 +1440,7 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::Account),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Agents",
+                tr("settings.nav.agents", "Agents"),
                 vec![
                     SettingsSection::WarpAgent,
                     SettingsSection::AgentProfiles,
@@ -1420,6 +1452,7 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::BillingAndUsage),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Code",
+                tr("settings.nav.code", "Code"),
                 vec![
                     SettingsSection::CodeIndexing,
                     SettingsSection::EditorAndCodeReview,
@@ -1427,6 +1460,7 @@ impl SettingsView {
             )),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Cloud platform",
+                tr("settings.nav.cloud", "Cloud platform"),
                 vec![
                     SettingsSection::CloudEnvironments,
                     SettingsSection::WarpCloudAgentAPIKeys,
@@ -1653,28 +1687,28 @@ impl SettingsView {
 
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend(vec![
-                MenuItemFields::new("Split pane right")
+                MenuItemFields::new(tr("settings.split_right", "Split pane right"))
                     .with_on_select_action(SettingsAction::Split(Direction::Right))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_right",
                         ctx,
                     ))
                     .into_item(),
-                MenuItemFields::new("Split pane left")
+                MenuItemFields::new(tr("settings.split_left", "Split pane left"))
                     .with_on_select_action(SettingsAction::Split(Direction::Left))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_left",
                         ctx,
                     ))
                     .into_item(),
-                MenuItemFields::new("Split pane down")
+                MenuItemFields::new(tr("settings.split_down", "Split pane down"))
                     .with_on_select_action(SettingsAction::Split(Direction::Down))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_down",
                         ctx,
                     ))
                     .into_item(),
-                MenuItemFields::new("Split pane up")
+                MenuItemFields::new(tr("settings.split_up", "Split pane up"))
                     .with_on_select_action(SettingsAction::Split(Direction::Up))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_up",
@@ -1703,7 +1737,7 @@ impl SettingsView {
             );
 
             items.push(
-                MenuItemFields::new("Close pane")
+                MenuItemFields::new(tr("settings.close_pane", "Close pane"))
                     .with_on_select_action(SettingsAction::Close)
                     .with_key_shortcut_label(
                         custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
@@ -2082,7 +2116,7 @@ impl SettingsView {
 
         #[cfg(feature = "crash_reporting")]
         {
-            crate::crash_reporting::set_tag("warp.settings_page", section.to_string());
+            crate::crash_reporting::set_tag("warp.settings_page", section.slug());
         }
 
         if let Some(settings_page) = self.current_settings_page() {
@@ -2418,7 +2452,7 @@ impl SettingsView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_children([
                         Text::new(
-                            "No settings match your search.",
+                            tr("settings.no_results", "No settings match your search."),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -2426,7 +2460,7 @@ impl SettingsView {
                         .with_color(theme.sub_text_color(theme.background()).into_solid())
                         .finish(),
                         Text::new(
-                            "You may want to try using different keywords or checking for any possible typos.",
+                            tr("settings.search_hint", "You may want to try using different keywords or checking for any possible typos."),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -2448,9 +2482,7 @@ impl SettingsView {
 impl SettingsView {
     pub fn is_umbrella_expanded(&self, label: &str) -> Option<bool> {
         self.nav_items.iter().find_map(|nav_item| match nav_item {
-            SettingsNavItem::Umbrella(umbrella) if umbrella.label == label => {
-                Some(umbrella.expanded)
-            }
+            SettingsNavItem::Umbrella(umbrella) if umbrella.id == label => Some(umbrella.expanded),
             SettingsNavItem::Umbrella(_) | SettingsNavItem::Page(_) => None,
         })
     }
@@ -2544,7 +2576,7 @@ impl View for SettingsView {
                                     ));
                                 })
                                 .finish(),
-                            &nav_umbrella_position_id(umbrella.label),
+                            &nav_umbrella_position_id(umbrella.id),
                         )
                         .for_single_frame()
                         .finish(),
@@ -2899,7 +2931,7 @@ impl BackingView for SettingsView {
         _ctx: &view::HeaderRenderContext<'_>,
         _app: &AppContext,
     ) -> view::HeaderContent {
-        view::HeaderContent::simple("Settings")
+        view::HeaderContent::simple(tr("settings.title", "Settings"))
     }
 
     fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle, _ctx: &mut ViewContext<Self>) {

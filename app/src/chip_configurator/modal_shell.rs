@@ -7,6 +7,7 @@
 
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
+use warp_i18n::tr;
 use warpui::elements::{
     Align, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
@@ -146,7 +147,13 @@ fn render_restore_default_button<A: Action + Clone + Copy + 'static>(
     let button = Hoverable::new(mouse_handle.clone(), |_state| {
         appearance
             .ui_builder()
-            .span(RESTORE_DEFAULT_LABEL.to_string())
+            .span(
+                tr(
+                    "settings.toolbar_editor.restore_default",
+                    RESTORE_DEFAULT_LABEL,
+                )
+                .to_string(),
+            )
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 ..Default::default()
@@ -205,7 +212,10 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
     );
 
     let left_section = Flex::column()
-        .with_child(render_section_label("Left side", appearance))
+        .with_child(render_section_label(
+            tr("settings.toolbar_editor.left_side", "Left side"),
+            appearance,
+        ))
         .with_child(
             Container::new(chip_configurator.render_left_drop_zone(
                 config.activate_action,
@@ -218,7 +228,10 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
         .finish();
 
     let right_section = Flex::column()
-        .with_child(render_section_label("Right side", appearance))
+        .with_child(render_section_label(
+            tr("settings.toolbar_editor.right_side", "Right side"),
+            appearance,
+        ))
         .with_child(
             Container::new(chip_configurator.render_right_drop_zone(
                 config.activate_action,
@@ -293,7 +306,7 @@ fn render_buttons<A: Action + Clone + Copy + 'static>(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let cancel_button = render_primary_button(
-        "Cancel".to_string(),
+        tr("settings.toolbar_editor.cancel", "Cancel").to_string(),
         ButtonVariant::Outlined,
         false,
         &config.mouse_handles.cancel,
@@ -302,7 +315,7 @@ fn render_buttons<A: Action + Clone + Copy + 'static>(
     );
 
     let save_button = render_primary_button(
-        "Save changes".to_string(),
+        tr("settings.toolbar_editor.save_changes", "Save changes").to_string(),
         ButtonVariant::Accent,
         !config.is_dirty,
         &config.mouse_handles.save,

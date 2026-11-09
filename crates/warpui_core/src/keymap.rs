@@ -87,11 +87,16 @@ pub struct BindingDescription {
     // description deduplication that runs against already-materialized
     // `CommandBinding`s.
     dynamic_override: Option<DynamicDescriptionResolver>,
+
+    search_aliases: Vec<String>,
+    preserve_case: bool,
 }
 
 impl PartialEq for BindingDescription {
     fn eq(&self, other: &Self) -> bool {
-        self.description == other.description && self.custom == other.custom
+        self.description == other.description
+            && self.custom == other.custom
+            && self.search_aliases == other.search_aliases
     }
 }
 impl Eq for BindingDescription {}
@@ -101,6 +106,7 @@ impl fmt::Debug for BindingDescription {
         f.debug_struct("BindingDescription")
             .field("description", &self.description)
             .field("custom", &self.custom)
+            .field("search_aliases", &self.search_aliases)
             .field(
                 "dynamic_override",
                 &self.dynamic_override.as_ref().map(|_| "<dynamic>"),
@@ -120,8 +126,22 @@ impl BindingDescription {
     pub fn new_preserve_case<S: Into<String>>(description: S) -> Self {
         BindingDescription {
             description: description.into(),
+            preserve_case: true,
             ..Default::default()
         }
+    }
+
+    /// 添加只用于搜索的别名，不改变任何显示描述。
+    pub fn with_search_alias<S: Into<String>>(mut self, alias: S) -> Self {
+        let alias = alias.into();
+        if !alias.trim().is_empty() && !self.search_aliases.contains(&alias) {
+            self.search_aliases.push(alias);
+        }
+        self
+    }
+
+    pub fn search_aliases(&self) -> &[String] {
+        &self.search_aliases
     }
 
     pub fn with_custom_description<S: Into<String>>(
@@ -164,7 +184,11 @@ impl BindingDescription {
     pub fn resolve(&self, ctx: &AppContext, context: DescriptionContext) -> Cow<'_, str> {
         match &self.dynamic_override {
             Some(f) => match f(ctx) {
-                Some(description) => Cow::Owned(titlecase(&description)),
+                Some(description) => Cow::Owned(if self.preserve_case {
+                    description
+                } else {
+                    titlecase(&description)
+                }),
                 None => Cow::Borrowed(self.in_context(context)),
             },
             None => Cow::Borrowed(self.in_context(context)),
@@ -176,6 +200,8 @@ impl BindingDescription {
         let mut description = BindingDescription::new_preserve_case(
             self.resolve(ctx, DescriptionContext::Default).into_owned(),
         );
+
+        description.search_aliases = self.search_aliases.clone();
 
         if let Some(custom) = &self.custom {
             description.custom = Some(

@@ -12,12 +12,19 @@ pub enum MenuItem {
     Services,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MenuRole {
+    Normal,
+    Window,
+}
+
 // We allow dead_code here because the title is only read when compiling the
 // Mac bits.
 #[allow(dead_code)]
 pub struct Menu {
     pub title: String,
     pub menu_items: Vec<MenuItem>,
+    role: MenuRole,
 }
 
 impl Menu {
@@ -25,11 +32,17 @@ impl Menu {
         Menu {
             title: title.into(),
             menu_items,
+            role: MenuRole::Normal,
         }
     }
 
+    pub fn with_window_role(mut self) -> Self {
+        self.role = MenuRole::Window;
+        self
+    }
+
     pub fn is_window_menu(&self) -> bool {
-        &self.title == "Window"
+        self.role == MenuRole::Window
     }
 }
 
@@ -166,3 +179,7 @@ impl CustomMenuItem {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "menu_tests.rs"]
+mod tests;

@@ -20,6 +20,7 @@ use objc2_app_kit::{
     NSUpArrowFunctionKey,
 };
 use objc2_foundation::{NSInteger, NSString, ns_string};
+use warp_i18n::tr;
 use warpui_core::actions::StandardAction;
 use warpui_core::keymap::Keystroke;
 use warpui_core::platform::menu::{
@@ -164,7 +165,7 @@ unsafe extern "C" {
 
 struct StandardMenuItemProperties {
     /// The menu item title.
-    title: &'static NSString,
+    title: Retained<NSString>,
     /// The selector to invoke.
     action: Sel,
     /// The key equivalent string, or empty for none.
@@ -194,13 +195,13 @@ fn resolve_standard_action(action: StandardAction) -> StandardMenuItemProperties
     let none = NSEventModifierFlags::empty();
 
     fn make(
-        title: &'static NSString,
+        title: &str,
         action: Sel,
         modifiers: NSEventModifierFlags,
         shortcut: &'static NSString,
     ) -> StandardMenuItemProperties {
         StandardMenuItemProperties {
-            title,
+            title: NSString::from_str(title),
             action,
             shortcut,
             modifiers,
@@ -209,50 +210,65 @@ fn resolve_standard_action(action: StandardAction) -> StandardMenuItemProperties
 
     match action {
         StandardAction::Close => make(
-            ns_string!("Close Window"),
+            tr("menu.standard.close_window", "Close Window"),
             sel!(performClose:),
             none,
             ns_string!(""),
         ),
         StandardAction::Quit => make(
-            ns_string!("Quit Warp"),
+            tr("menu.standard.quit", "Quit TinyWarp"),
             sel!(terminate:),
             cmd,
             ns_string!("q"),
         ),
-        StandardAction::Hide => make(ns_string!("Hide Warp"), sel!(hide:), cmd, ns_string!("h")),
+        StandardAction::Hide => make(
+            tr("menu.standard.hide", "Hide TinyWarp"),
+            sel!(hide:),
+            cmd,
+            ns_string!("h"),
+        ),
         StandardAction::HideOtherApps => make(
-            ns_string!("Hide Others"),
+            tr("menu.standard.hide_other_apps", "Hide Others"),
             sel!(hideOtherApplications:),
             cmd | option,
             ns_string!("h"),
         ),
         StandardAction::ShowAllApps => make(
-            ns_string!("Show All"),
+            tr("menu.standard.show_all_apps", "Show All"),
             sel!(unhideAllApplications:),
             none,
             ns_string!(""),
         ),
         StandardAction::Minimize => make(
-            ns_string!("Minimize"),
+            tr("menu.standard.minimize", "Minimize"),
             sel!(performMiniaturize:),
             cmd,
             ns_string!("m"),
         ),
-        StandardAction::Zoom => make(ns_string!("Zoom"), sel!(performZoom:), none, ns_string!("")),
+        StandardAction::Zoom => make(
+            tr("menu.standard.zoom", "Zoom"),
+            sel!(performZoom:),
+            none,
+            ns_string!(""),
+        ),
         StandardAction::BringAllToFront => make(
-            ns_string!("Bring All to Front"),
+            tr("menu.standard.bring_all_to_front", "Bring All to Front"),
             sel!(arrangeInFront:),
             none,
             ns_string!(""),
         ),
         StandardAction::ToggleFullScreen => make(
-            ns_string!("ToggleFullScreen"),
+            tr("menu.standard.toggle_full_screen", "Toggle Full Screen"),
             sel!(toggleFullScreen:),
             cmd | ctrl,
             ns_string!("f"),
         ),
-        StandardAction::Paste => make(ns_string!("Paste"), sel!(paste:), none, ns_string!("")),
+        StandardAction::Paste => make(
+            tr("menu.standard.paste", "Paste"),
+            sel!(paste:),
+            none,
+            ns_string!(""),
+        ),
     }
 }
 
@@ -356,7 +372,7 @@ unsafe fn make_menu_item(menu_item: MenuItem) -> id {
                 let properties = resolve_standard_action(standard_action);
                 let nsmenu_item = NSMenuItem::initWithTitle_action_keyEquivalent(
                     mtm.alloc(),
-                    properties.title,
+                    &properties.title,
                     Some(properties.action),
                     properties.shortcut,
                 );
@@ -367,7 +383,15 @@ unsafe fn make_menu_item(menu_item: MenuItem) -> id {
             MenuItem::Separator => Retained::autorelease_ptr(NSMenuItem::separatorItem(
                 MainThreadMarker::new_unchecked(),
             )) as id,
-            MenuItem::Services => make_services_menu_item(),
+            MenuItem::Services => {
+                let item = make_services_menu_item();
+                let item_ref = &*item.cast::<NSMenuItem>();
+                item_ref.setTitle(&NSString::from_str(tr(
+                    "menu.standard.services",
+                    "Services",
+                )));
+                item
+            }
         }
     }
 }

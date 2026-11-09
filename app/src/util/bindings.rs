@@ -21,6 +21,11 @@ use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChange
 
 pub const MAC_MENUS_CONTEXT: DescriptionContext = DescriptionContext::Custom("mac_menus");
 
+/// 中文显示文字保留源码英文标签作为搜索别名。
+pub fn localized_description(key: &str, en: &'static str) -> BindingDescription {
+    BindingDescription::new_preserve_case(warp_i18n::tr(key, en)).with_search_alias(en)
+}
+
 // CustomActions are attached to menu items, and may be attached to Bindings.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Sequence)]
 #[repr(isize)]

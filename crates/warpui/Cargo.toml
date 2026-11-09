@@ -59,6 +59,7 @@ thiserror.workspace = true
 url.workspace = true
 vec1.workspace = true
 version-compare = { workspace = true, optional = true }
+warp_i18n.workspace = true
 warpui_core.workspace = true
 wgpu = { workspace = true, optional = true }
 

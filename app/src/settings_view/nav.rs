@@ -16,6 +16,7 @@ const SUBPAGE_LEFT_MARGIN: f32 = NAV_ITEM_LEFT_MARGIN + 12.;
 
 /// A collapsible group of settings subpages in the sidebar.
 pub struct SettingsUmbrella {
+    pub id: &'static str,
     pub label: &'static str,
     pub subpages: Vec<SettingsSection>,
     pub expanded: bool,
@@ -26,9 +27,10 @@ pub struct SettingsUmbrella {
 }
 
 impl SettingsUmbrella {
-    pub fn new(label: &'static str, subpages: Vec<SettingsSection>) -> Self {
+    pub fn new(id: &'static str, label: &'static str, subpages: Vec<SettingsSection>) -> Self {
         let subpage_count = subpages.len();
         Self {
+            id,
             label,
             subpages,
             expanded: false,

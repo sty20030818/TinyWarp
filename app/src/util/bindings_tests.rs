@@ -191,3 +191,39 @@ fn test_markdown_display_mode_toggle_is_rebound_in_both_directions() {
         });
     });
 }
+
+#[test]
+fn localized_description_survives_command_binding_materialization() {
+    use warpui::keymap::DescriptionContext;
+
+    use super::{CommandBinding, localized_description};
+
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            let description = localized_description("action.open_settings", "Open Settings")
+                .with_search_alias("Settings")
+                .with_dynamic_override(|_| Some("打开 MCP 设置".into()));
+            ctx.register_editable_bindings([EditableBinding::new(
+                "workspace:h1_localized_settings",
+                description,
+                WorkspaceAction::ShowSettings,
+            )]);
+            let lens = ctx
+                .editable_bindings()
+                .find(|binding| binding.name == "workspace:h1_localized_settings")
+                .expect("localized binding is registered");
+            let id = lens.id;
+            let binding = CommandBinding::from_editable_lens(lens, ctx);
+            assert_eq!(binding.id, id);
+            assert_eq!(binding.name, "workspace:h1_localized_settings");
+            assert_eq!(
+                binding.description.in_context(DescriptionContext::Default),
+                "打开 MCP 设置"
+            );
+            assert_eq!(
+                binding.description.search_aliases(),
+                &["Open Settings", "Settings"]
+            );
+        });
+    });
+}

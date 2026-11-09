@@ -10,6 +10,7 @@ use settings::Setting;
 use warp_core::settings::SyncToCloud;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::color::internal_colors;
+use warp_i18n::tr;
 use warpui::elements::new_scrollable::{
     ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig,
 };
@@ -639,7 +640,7 @@ pub fn render_info_icon<T: Clone + Action>(
 ) -> Box<dyn Element> {
     let tooltip_text = additional_info
         .tooltip_override_text
-        .unwrap_or("Click to learn more in docs".to_owned());
+        .unwrap_or(tr("settings.common.learn_more", "Click to learn more in docs").to_owned());
     let icon = Container::new(
         ConstrainedBox::new(
             Icon::Info
@@ -697,7 +698,13 @@ pub fn render_local_only_icon(
         .ui_builder()
         .local_only_icon_with_tooltip(
             13.,
-            custom_tooltip.unwrap_or("This setting is not synced to your other devices".to_owned()),
+            custom_tooltip.unwrap_or(
+                tr(
+                    "settings.common.local_only",
+                    "This setting is not synced to your other devices",
+                )
+                .to_owned(),
+            ),
             mouse_state.clone(),
         )
         .finish();
@@ -1269,7 +1276,13 @@ fn render_workspace_override_row_tooltip(
         if state.is_hovered() {
             let tooltip = appearance
                 .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_TEXT.to_string())
+                .tool_tip(
+                    tr(
+                        "settings.common.organization_enforced",
+                        WORKSPACE_OVERRIDE_TOOLTIP_TEXT,
+                    )
+                    .to_string(),
+                )
                 .build()
                 .finish();
             stack.add_positioned_child(
@@ -2209,5 +2222,5 @@ pub(super) fn build_reset_button(
             font_size: Some(appearance.ui_font_size() * 0.8),
             ..Default::default()
         })
-        .with_text_label("Reset to default".to_owned())
+        .with_text_label(tr("settings.common.reset_default", "Reset to default").to_owned())
 }

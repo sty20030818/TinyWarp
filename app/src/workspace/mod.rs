@@ -51,7 +51,9 @@ use crate::palette::PaletteMode;
 use crate::server::telemetry::{AgentModeEntrypoint, PaletteSource};
 use crate::settings_view::{self, SettingsSection, flags};
 use crate::tab::{NewSessionMenuItem, uses_vertical_tabs};
-use crate::util::bindings::{self, CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant};
+use crate::util::bindings::{
+    self, CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant, localized_description,
+};
 use crate::{code, modal, notebooks, tab_configs};
 
 // Helper function to access panel header corner radius from other modules
@@ -344,20 +346,20 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::CycleNextSession,
             WorkspaceAction::CycleNextSession,
-            "Switch to next tab",
+            localized_description("action.switch_next_tab", "Switch to next tab"),
             id!("Workspace") & id!("Workspace_MultipleTabs"),
         ),
         FixedBinding::custom(
             CustomAction::CyclePrevSession,
             WorkspaceAction::CyclePrevSession,
-            "Switch to previous tab",
+            localized_description("action.switch_previous_tab", "Switch to previous tab"),
             id!("Workspace") & id!("Workspace_MultipleTabs"),
         ),
     ]);
 
     app.register_editable_bindings([EditableBinding::new(
         NEW_WINDOW_BINDING_NAME,
-        BindingDescription::new("Create New Window"),
+        localized_description("action.new_window", "Create New Window"),
         WorkspaceAction::AddWindow,
     )
     .with_custom_action(CustomAction::AddWindow)
@@ -366,7 +368,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         NEW_FILE_BINDING_NAME,
-        BindingDescription::new("New File"),
+        localized_description("action.new_file", "New File"),
         WorkspaceAction::NewCodeFile,
     )
     .with_custom_action(CustomAction::NewFile)
@@ -377,21 +379,21 @@ pub fn init(app: &mut AppContext) {
             FixedBinding::custom(
                 CustomAction::IncreaseZoom,
                 WorkspaceAction::IncreaseZoom,
-                "Zoom In",
+                localized_description("action.zoom_in", "Zoom In"),
                 id!("Workspace"),
             )
             .with_group(bindings::BindingGroup::Settings.as_str()),
             FixedBinding::custom(
                 CustomAction::DecreaseZoom,
                 WorkspaceAction::DecreaseZoom,
-                "Zoom Out",
+                localized_description("action.zoom_out", "Zoom Out"),
                 id!("Workspace"),
             )
             .with_group(bindings::BindingGroup::Settings.as_str()),
             FixedBinding::custom(
                 CustomAction::ResetZoom,
                 WorkspaceAction::ResetZoom,
-                "Reset Zoom",
+                localized_description("action.reset_zoom", "Reset Zoom"),
                 id!("Workspace"),
             )
             .with_group(bindings::BindingGroup::Settings.as_str()),
@@ -401,14 +403,14 @@ pub fn init(app: &mut AppContext) {
             FixedBinding::custom(
                 CustomAction::IncreaseFontSize,
                 WorkspaceAction::IncreaseFontSize,
-                "Increase font size",
+                localized_description("action.increase_font_size", "Increase font size"),
                 id!("Workspace"),
             )
             .with_group(bindings::BindingGroup::Settings.as_str()),
             FixedBinding::custom(
                 CustomAction::DecreaseFontSize,
                 WorkspaceAction::DecreaseFontSize,
-                "Decrease font size",
+                localized_description("action.decrease_font_size", "Decrease font size"),
                 id!("Workspace"),
             )
             .with_group(bindings::BindingGroup::Settings.as_str()),
@@ -454,7 +456,7 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:increase_zoom",
-                "Increase zoom level",
+                localized_description("action.increase_zoom", "Increase zoom level"),
                 WorkspaceAction::IncreaseZoom,
             )
             .with_context_predicate(id!("Workspace"))
@@ -462,7 +464,7 @@ pub fn init(app: &mut AppContext) {
             .with_key_binding("cmdorctrl-="),
             EditableBinding::new(
                 "workspace:decrease_zoom",
-                "Decrease zoom level",
+                localized_description("action.decrease_zoom", "Decrease zoom level"),
                 WorkspaceAction::DecreaseZoom,
             )
             .with_context_predicate(id!("Workspace"))
@@ -470,14 +472,14 @@ pub fn init(app: &mut AppContext) {
             .with_key_binding("cmdorctrl--"),
             EditableBinding::new(
                 "workspace:reset_zoom",
-                "Reset zoom level to default",
+                localized_description("action.reset_zoom_default", "Reset zoom level to default"),
                 WorkspaceAction::ResetZoom,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
             .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:increase_font_size",
-                "Increase font size",
+                localized_description("action.increase_font_size", "Increase font size"),
                 WorkspaceAction::IncreaseFontSize,
             )
             .with_context_predicate(id!("Workspace"))
@@ -485,7 +487,7 @@ pub fn init(app: &mut AppContext) {
             .with_key_binding("alt-shift->"),
             EditableBinding::new(
                 "workspace:decrease_font_size",
-                "Decrease font size",
+                localized_description("action.decrease_font_size", "Decrease font size"),
                 WorkspaceAction::DecreaseFontSize,
             )
             .with_context_predicate(id!("Workspace"))
@@ -493,7 +495,7 @@ pub fn init(app: &mut AppContext) {
             .with_key_binding("alt-shift-<"),
             EditableBinding::new(
                 "workspace:reset_font_size",
-                "Reset font size to default",
+                localized_description("action.reset_font_size", "Reset font size to default"),
                 WorkspaceAction::ResetFontSize,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
@@ -503,7 +505,7 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:increase_font_size",
-                "Increase font size",
+                localized_description("action.increase_font_size", "Increase font size"),
                 WorkspaceAction::IncreaseFontSize,
             )
             .with_context_predicate(id!("Workspace"))
@@ -511,7 +513,7 @@ pub fn init(app: &mut AppContext) {
             .with_key_binding("cmdorctrl-="),
             EditableBinding::new(
                 "workspace:decrease_font_size",
-                "Decrease font size",
+                localized_description("action.decrease_font_size", "Decrease font size"),
                 WorkspaceAction::DecreaseFontSize,
             )
             .with_context_predicate(id!("Workspace"))
@@ -519,7 +521,7 @@ pub fn init(app: &mut AppContext) {
             .with_key_binding("cmdorctrl--"),
             EditableBinding::new(
                 "workspace:reset_font_size",
-                "Reset font size to default",
+                localized_description("action.reset_font_size", "Reset font size to default"),
                 WorkspaceAction::ResetFontSize,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
@@ -532,7 +534,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:show_theme_chooser",
-            "Open theme picker",
+            localized_description("action.theme_picker", "Open theme picker"),
             WorkspaceAction::ShowThemeChooserForActiveTheme,
         )
         .with_context_predicate(id!("Workspace"))
@@ -547,7 +549,7 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-alt-shift-T"),
         EditableBinding::new(
             "workspace:activate_first_tab",
-            "Switch to 1st tab",
+            localized_description("action.switch_tab_1", "Switch to 1st tab"),
             WorkspaceAction::ActivateTabByNumber(1),
         )
         .with_context_predicate(id!("Workspace"))
@@ -555,7 +557,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-1"),
         EditableBinding::new(
             "workspace:activate_second_tab",
-            "Switch to 2nd tab",
+            localized_description("action.switch_tab_2", "Switch to 2nd tab"),
             WorkspaceAction::ActivateTabByNumber(2),
         )
         .with_context_predicate(id!("Workspace"))
@@ -563,7 +565,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-2"),
         EditableBinding::new(
             "workspace:activate_third_tab",
-            "Switch to 3rd tab",
+            localized_description("action.switch_tab_3", "Switch to 3rd tab"),
             WorkspaceAction::ActivateTabByNumber(3),
         )
         .with_context_predicate(id!("Workspace"))
@@ -571,7 +573,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-3"),
         EditableBinding::new(
             "workspace:activate_fourth_tab",
-            "Switch to 4th tab",
+            localized_description("action.switch_tab_4", "Switch to 4th tab"),
             WorkspaceAction::ActivateTabByNumber(4),
         )
         .with_context_predicate(id!("Workspace"))
@@ -579,7 +581,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-4"),
         EditableBinding::new(
             "workspace:activate_fifth_tab",
-            "Switch to 5th tab",
+            localized_description("action.switch_tab_5", "Switch to 5th tab"),
             WorkspaceAction::ActivateTabByNumber(5),
         )
         .with_context_predicate(id!("Workspace"))
@@ -587,7 +589,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-5"),
         EditableBinding::new(
             "workspace:activate_sixth_tab",
-            "Switch to 6th tab",
+            localized_description("action.switch_tab_6", "Switch to 6th tab"),
             WorkspaceAction::ActivateTabByNumber(6),
         )
         .with_context_predicate(id!("Workspace"))
@@ -595,7 +597,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-6"),
         EditableBinding::new(
             "workspace:activate_seventh_tab",
-            "Switch to 7th tab",
+            localized_description("action.switch_tab_7", "Switch to 7th tab"),
             WorkspaceAction::ActivateTabByNumber(7),
         )
         .with_context_predicate(id!("Workspace"))
@@ -603,7 +605,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-7"),
         EditableBinding::new(
             "workspace:activate_eighth_tab",
-            "Switch to 8th tab",
+            localized_description("action.switch_tab_8", "Switch to 8th tab"),
             WorkspaceAction::ActivateTabByNumber(8),
         )
         .with_context_predicate(id!("Workspace"))
@@ -611,7 +613,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-8"),
         EditableBinding::new(
             "workspace:activate_last_tab",
-            "Switch to last tab",
+            localized_description("action.switch_last_tab", "Switch to last tab"),
             WorkspaceAction::ActivateLastTab,
         )
         .with_context_predicate(id!("Workspace"))
@@ -619,7 +621,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-9"),
         EditableBinding::new(
             "workspace:activate_prev_tab",
-            "Activate previous tab",
+            localized_description("action.activate_previous_tab", "Activate previous tab"),
             WorkspaceAction::ActivatePrevTab,
         )
         .with_context_predicate(
@@ -629,7 +631,7 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-pageup"),
         EditableBinding::new(
             "workspace:activate_next_tab",
-            "Activate next tab",
+            localized_description("action.activate_next_tab", "Activate next tab"),
             WorkspaceAction::ActivateNextTab,
         )
         .with_context_predicate(
@@ -723,7 +725,7 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace") & id!(flags::ENABLE_WARP_DRIVE) & id!("IsOnline")),
         EditableBinding::new(
             NEW_TAB_BINDING_NAME,
-            BindingDescription::new("Create new tab"),
+            localized_description("action.new_tab", "Create new tab"),
             WorkspaceAction::AddDefaultTab,
         )
         .with_context_predicate(id!("Workspace") & !id!("Workspace_PaneDragging"))
@@ -731,7 +733,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
             NEW_TERMINAL_TAB_BINDING_NAME,
-            BindingDescription::new("New Terminal Tab"),
+            localized_description("action.new_terminal_tab", "New Terminal Tab"),
             WorkspaceAction::AddTerminalTab {
                 hide_homepage: false,
             },
@@ -780,8 +782,14 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-shift-+"),
         EditableBinding::new(
             TOGGLE_VERTICAL_TABS_PANEL_BINDING_NAME,
-            BindingDescription::new("Toggle vertical tabs panel")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Toggle Vertical Tabs Panel"),
+            localized_description("action.toggle_vertical_tabs", "Toggle vertical tabs panel")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr(
+                        "action.menu.vertical_tabs_sidebar",
+                        "Toggle Vertical Tabs Panel",
+                    ),
+                ),
             WorkspaceAction::ToggleVerticalTabsPanel,
         )
         .with_context_predicate(id!("Workspace") & id!(flags::USE_VERTICAL_TABS_FLAG))
@@ -871,16 +879,22 @@ pub fn init(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::WarpAi.as_str()),
         EditableBinding::new(
             "workspace:close_panel",
-            BindingDescription::new("Close focused panel")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Close focused panel"),
+            localized_description("action.close_panel", "Close focused panel")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.close_panel", "Close focused panel"),
+                ),
             WorkspaceAction::ClosePanel,
         )
         .with_context_predicate(id!("Workspace"))
         .with_custom_action(CustomAction::CloseCurrentSession),
         EditableBinding::new(
             "workspace:toggle_command_palette",
-            BindingDescription::new("Toggle command palette")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Command Palette"),
+            localized_description("action.command_palette", "Toggle command palette")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.command_palette", "Command Palette"),
+                ),
             WorkspaceAction::TogglePalette {
                 mode: PaletteMode::Command,
                 source: PaletteSource::Keybinding,
@@ -891,8 +905,12 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::CommandPalette),
         EditableBinding::new(
             "workspace:move_tab_left",
-            BindingDescription::new("Move tab left")
-                .with_dynamic_override(|ctx| uses_vertical_tabs(ctx).then(|| "move tab up".into())),
+            localized_description("action.move_tab_left", "Move tab left")
+                .with_search_alias("Move Tab Up")
+                .with_dynamic_override(|ctx| {
+                    uses_vertical_tabs(ctx)
+                        .then(|| warp_i18n::tr("action.move_tab_up", "Move Tab Up").into())
+                }),
             WorkspaceAction::MoveActiveTabLeft,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
@@ -905,9 +923,12 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::MoveTabLeft),
         EditableBinding::new(
             "workspace:move_tab_right",
-            BindingDescription::new("Move tab right").with_dynamic_override(|ctx| {
-                uses_vertical_tabs(ctx).then(|| "move tab down".into())
-            }),
+            localized_description("action.move_tab_right", "Move tab right")
+                .with_search_alias("Move Tab Down")
+                .with_dynamic_override(|ctx| {
+                    uses_vertical_tabs(ctx)
+                        .then(|| warp_i18n::tr("action.move_tab_down", "Move Tab Down").into())
+                }),
             WorkspaceAction::MoveActiveTabRight,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
@@ -920,7 +941,10 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::MoveTabRight),
         EditableBinding::new(
             "workspace:toggle_keybindings_page",
-            "Toggle keyboard shortcuts",
+            localized_description(
+                "action.toggle_keyboard_shortcuts",
+                "Toggle keyboard shortcuts",
+            ),
             WorkspaceAction::ToggleKeybindingsPage,
         )
         .with_group(bindings::BindingGroup::KeyboardShortcuts.as_str())
@@ -928,7 +952,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::ToggleKeybindingsPage),
         EditableBinding::new(
             "workspace:show_keybinding_settings",
-            "Open keybindings editor",
+            localized_description("action.keybindings_editor", "Open keybindings editor"),
             WorkspaceAction::ConfigureKeybindingSettings {
                 keybinding_name: None,
             },
@@ -967,7 +991,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:rename_active_tab",
-        "Rename the current tab",
+        localized_description("action.rename_tab", "Rename the current tab"),
         WorkspaceAction::RenameActiveTab,
     )
     .with_group(bindings::BindingGroup::Settings.as_str())
@@ -981,7 +1005,7 @@ pub fn init(app: &mut AppContext) {
     // reachable via the binding registry.
     app.register_editable_bindings([EditableBinding::new(
         "workspace:rename_active_pane",
-        "Rename the current pane",
+        localized_description("action.rename_pane", "Rename the current pane"),
         WorkspaceAction::RenameActivePane,
     )
     .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1091,7 +1115,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:terminate_app",
-            "Quit Warp",
+            localized_description("action.quit", "Quit Warp"),
             WorkspaceAction::TerminateApp,
         )
         .with_context_predicate(id!("Workspace"))
@@ -1099,8 +1123,10 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CloseWindow.is_enabled()),
         EditableBinding::new(
             "workspace:close_window",
-            BindingDescription::new("Close Window")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Close Window"),
+            localized_description("action.close_window", "Close Window").with_custom_description(
+                bindings::MAC_MENUS_CONTEXT,
+                warp_i18n::tr("action.menu.close_window", "Close Window"),
+            ),
             WorkspaceAction::CloseWindow,
         )
         .with_mac_key_binding("cmd-shift-W")
@@ -1110,7 +1136,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CloseWindow.is_enabled()),
         EditableBinding::new(
             "workspace:close_active_tab",
-            "Close the current tab",
+            localized_description("action.close_tab", "Close the current tab"),
             WorkspaceAction::CloseActiveTab,
         )
         .with_custom_action(CustomAction::CloseTab)
@@ -1120,7 +1146,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:close_other_tabs",
-            "Close other tabs",
+            localized_description("action.close_other_tabs", "Close other tabs"),
             WorkspaceAction::CloseNonActiveTabs,
         )
         .with_custom_action(CustomAction::CloseOtherTabs)
@@ -1128,9 +1154,13 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:close_tabs_right_active_tab",
-            BindingDescription::new("Close tabs to the right").with_dynamic_override(|ctx| {
-                uses_vertical_tabs(ctx).then(|| "close tabs below".into())
-            }),
+            localized_description("action.close_tabs_right", "Close tabs to the right")
+                .with_search_alias("Close Tabs Below")
+                .with_dynamic_override(|ctx| {
+                    uses_vertical_tabs(ctx).then(|| {
+                        warp_i18n::tr("action.close_tabs_below", "Close Tabs Below").into()
+                    })
+                }),
             WorkspaceAction::CloseTabsRightActiveTab,
         )
         .with_group(bindings::BindingGroup::Close.as_str())
@@ -1154,8 +1184,11 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace") & id!("Notifications_Enabled")),
         EditableBinding::new(
             "workspace:toggle_navigation_palette",
-            BindingDescription::new("Toggle navigation palette")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Navigation Palette"),
+            localized_description("action.navigation_palette", "Toggle navigation palette")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.navigation_palette", "Navigation Palette"),
+                ),
             WorkspaceAction::TogglePalette {
                 mode: PaletteMode::Navigation,
                 source: PaletteSource::Keybinding,
@@ -1460,15 +1493,21 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:copy_current_path",
-            BindingDescription::new("Copy current path")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Copy Current Path"),
+            localized_description("action.copy_current_path", "Copy current path")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.copy_current_path", "Copy Current Path"),
+                ),
             WorkspaceAction::CopyCurrentPath,
         )
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:open_repository",
-            BindingDescription::new("Open repository")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open Repository"),
+            localized_description("action.open_repository", "Open repository")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.open_repository", "Open Repository"),
+                ),
             WorkspaceAction::OpenRepository { path: None },
         )
         .with_context_predicate(id!("Workspace"))
@@ -1543,8 +1582,10 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:show_settings",
-            BindingDescription::new("Open Settings")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Settings"),
+            localized_description("action.open_settings", "Open Settings").with_custom_description(
+                bindings::MAC_MENUS_CONTEXT,
+                warp_i18n::tr("action.menu.settings", "Settings"),
+            ),
             WorkspaceAction::ShowSettings,
         )
         .with_context_predicate(id!("Workspace"))
@@ -1560,8 +1601,11 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_custom_action(CustomAction::ShowAccount),
         EditableBinding::new(
             "workspace:show_settings_appearance_page",
-            BindingDescription::new("Open Settings: Appearance")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Appearance..."),
+            localized_description("action.open_appearance", "Open Settings: Appearance")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.appearance", "Appearance..."),
+                ),
             WorkspaceAction::ShowSettingsPage(SettingsSection::Appearance),
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1569,7 +1613,7 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_custom_action(CustomAction::ShowAppearance),
         EditableBinding::new(
             "workspace:show_settings_features_page",
-            "Open Settings: Features",
+            localized_description("action.open_features", "Open Settings: Features"),
             WorkspaceAction::ShowSettingsPage(SettingsSection::Features),
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1585,9 +1629,16 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_custom_action(CustomAction::ViewSharedBlocks),
         EditableBinding::new(
             "workspace:show_settings_keyboard_shortcuts_page",
-            BindingDescription::new("Open Settings: Keyboard Shortcuts").with_custom_description(
+            localized_description(
+                "action.open_keyboard_shortcuts",
+                "Open Settings: Keyboard Shortcuts",
+            )
+            .with_custom_description(
                 bindings::MAC_MENUS_CONTEXT,
-                "Configure Keyboard Shortcuts...",
+                warp_i18n::tr(
+                    "action.menu.keyboard_shortcuts",
+                    "Configure Keyboard Shortcuts...",
+                ),
             ),
             WorkspaceAction::ShowSettingsPage(SettingsSection::Keybindings),
         )
@@ -1596,8 +1647,11 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_custom_action(CustomAction::ConfigureKeybindings),
         EditableBinding::new(
             "workspace:show_settings_about_page",
-            BindingDescription::new("Open Settings: About")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "About Warp"),
+            localized_description("action.open_about", "Open Settings: About")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("action.menu.about", "About Warp"),
+                ),
             WorkspaceAction::ShowSettingsPage(SettingsSection::About),
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1614,7 +1668,7 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:show_settings_privacy_page",
-            BindingDescription::new("Open Settings: Privacy"),
+            localized_description("action.open_privacy", "Open Settings: Privacy"),
             WorkspaceAction::ShowSettingsPage(SettingsSection::Privacy),
         )
         .with_group(bindings::BindingGroup::Settings.as_str())

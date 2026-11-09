@@ -94,28 +94,22 @@ fn match_data_countable_zero_is_not_truthy() {
 #[test]
 fn subpage_display_names_are_correct() {
     assert_eq!(SettingsSection::WarpAgent.to_string(), "Warp Agent");
-    assert_eq!(SettingsSection::AgentProfiles.to_string(), "Profiles");
-    assert_eq!(SettingsSection::AgentMCPServers.to_string(), "MCP servers");
-    assert_eq!(SettingsSection::Knowledge.to_string(), "Knowledge");
+    assert_eq!(SettingsSection::AgentProfiles.to_string(), "配置方案");
+    assert_eq!(SettingsSection::AgentMCPServers.to_string(), "MCP 服务器");
+    assert_eq!(SettingsSection::Knowledge.to_string(), "知识");
     assert_eq!(
         SettingsSection::ThirdPartyCLIAgents.to_string(),
-        "Third party CLI agents"
+        "第三方 CLI Agent"
     );
-    assert_eq!(
-        SettingsSection::CodeIndexing.to_string(),
-        "Indexing and projects"
-    );
+    assert_eq!(SettingsSection::CodeIndexing.to_string(), "索引与项目");
     assert_eq!(
         SettingsSection::EditorAndCodeReview.to_string(),
-        "Editor and Code Review"
+        "编辑器与代码审查"
     );
-    assert_eq!(
-        SettingsSection::CloudEnvironments.to_string(),
-        "Environments"
-    );
+    assert_eq!(SettingsSection::CloudEnvironments.to_string(), "环境");
     assert_eq!(
         SettingsSection::WarpCloudAgentAPIKeys.to_string(),
-        "API keys"
+        "API 密钥"
     );
 }
 
@@ -149,12 +143,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::CloudEnvironments,
     SettingsSection::WarpCloudAgentAPIKeys,
 ];
-
-/// Sections whose user-facing Display label has deliberately diverged from the
-/// slug it was seeded from, because the slug is a stored contract that the
-/// rename must not follow.
-const SECTIONS_WITH_RENAMED_DISPLAY_LABELS: &[SettingsSection] =
-    &[SettingsSection::WarpCloudAgentAPIKeys];
 
 #[test]
 fn all_sections_list_is_exhaustive() {
@@ -212,22 +200,53 @@ fn slugs_are_unique_across_sections() {
 }
 
 #[test]
-fn slugs_were_seeded_from_the_display_labels_they_replaced() {
-    // Slugs were seeded from the Display strings that used to double as the
-    // persistence key, so no data migration was needed. Display is now free to
-    // diverge; when it does, list the section in
-    // SECTIONS_WITH_RENAMED_DISPLAY_LABELS rather than moving the slug, which
-    // is a stored contract.
-    for section in ALL_SECTIONS {
-        if SECTIONS_WITH_RENAMED_DISPLAY_LABELS.contains(section) {
-            continue;
-        }
-        assert_eq!(
-            section.slug(),
-            section.to_string(),
-            "{section:?} slug diverged from the Display label it was seeded from"
-        );
+fn localized_labels_preserve_every_historical_slug() {
+    let historical_slugs = [
+        (SettingsSection::About, "About"),
+        (SettingsSection::Account, "Account"),
+        (SettingsSection::BillingAndUsage, "Billing and usage"),
+        (SettingsSection::Appearance, "Appearance"),
+        (SettingsSection::Features, "Features"),
+        (SettingsSection::Keybindings, "Keyboard shortcuts"),
+        (SettingsSection::Privacy, "Privacy"),
+        (SettingsSection::Referrals, "Referrals"),
+        (SettingsSection::Scripting, "Scripting"),
+        (SettingsSection::SharedBlocks, "Shared blocks"),
+        (SettingsSection::Teams, "Teams"),
+        (SettingsSection::WarpDrive, "Warp Drive"),
+        (SettingsSection::Warpify, "Warpify"),
+        (SettingsSection::WarpAgent, "Warp Agent"),
+        (SettingsSection::AgentProfiles, "Profiles"),
+        (SettingsSection::AgentMCPServers, "MCP servers"),
+        (SettingsSection::Knowledge, "Knowledge"),
+        (
+            SettingsSection::ThirdPartyCLIAgents,
+            "Third party CLI agents",
+        ),
+        (SettingsSection::CodeIndexing, "Indexing and projects"),
+        (
+            SettingsSection::EditorAndCodeReview,
+            "Editor and Code Review",
+        ),
+        (SettingsSection::CloudEnvironments, "Environments"),
+        (SettingsSection::WarpCloudAgentAPIKeys, "Oz Cloud API Keys"),
+    ];
+    assert_eq!(historical_slugs.len(), ALL_SECTIONS.len());
+    for (section, slug) in historical_slugs {
+        assert_eq!(section.slug(), slug);
+        assert_eq!(SettingsSection::from_slug(slug), Some(section));
     }
+    assert_eq!(SettingsSection::Appearance.to_string(), "外观");
+    assert_eq!(SettingsSection::from_slug("外观"), None);
+}
+
+#[test]
+fn localized_umbrella_preserves_saved_position_id() {
+    let umbrella = SettingsUmbrella::new("Agents", "Agent", vec![SettingsSection::WarpAgent]);
+    assert_eq!(
+        nav_umbrella_position_id(umbrella.id),
+        "settings_nav_umbrella:Agents"
+    );
 }
 
 #[test]
@@ -236,7 +255,7 @@ fn renamed_sections_keep_the_slug_they_were_seeded_with() {
     // and `surface.settings.open --page` still speak the original slug.
     assert_eq!(
         SettingsSection::WarpCloudAgentAPIKeys.to_string(),
-        "API keys"
+        "API 密钥"
     );
     assert_eq!(
         SettingsSection::WarpCloudAgentAPIKeys.slug(),
@@ -341,10 +360,15 @@ const AGENT_SUBPAGES: &[SettingsSection] = &[
 fn realistic_nav_items() -> Vec<SettingsNavItem> {
     vec![
         SettingsNavItem::Page(SettingsSection::Account),
-        SettingsNavItem::Umbrella(SettingsUmbrella::new("Agents", AGENT_SUBPAGES.to_vec())),
+        SettingsNavItem::Umbrella(SettingsUmbrella::new(
+            "Agents",
+            "Agent",
+            AGENT_SUBPAGES.to_vec(),
+        )),
         SettingsNavItem::Page(SettingsSection::BillingAndUsage),
         SettingsNavItem::Umbrella(SettingsUmbrella::new(
             "Code",
+            "代码",
             vec![
                 SettingsSection::CodeIndexing,
                 SettingsSection::EditorAndCodeReview,
@@ -352,6 +376,7 @@ fn realistic_nav_items() -> Vec<SettingsNavItem> {
         )),
         SettingsNavItem::Umbrella(SettingsUmbrella::new(
             "Cloud platform",
+            "云平台",
             vec![
                 SettingsSection::CloudEnvironments,
                 SettingsSection::WarpCloudAgentAPIKeys,
@@ -1159,4 +1184,104 @@ fn category_header_with_trailing_element_and_no_subtitle_does_not_panic_flex_lay
             presenter.build_scene(vec2f(800., 600.), 1., None, ctx);
         });
     });
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LocalizedToggleTestAction(u8);
+
+#[test]
+fn localized_toggle_registration_preserves_english_aliases_and_actions() {
+    use warpui::keymap::macros::id;
+    use warpui::keymap::{Context, CustomTag, DescriptionContext, Trigger};
+
+    use crate::util::bindings::{CommandBinding, CustomAction};
+
+    for custom_action in [None, Some(CustomAction::NewTab)] {
+        App::test((), move |mut app| async move {
+            app.update(|ctx| {
+                let mut pair = ToggleSettingActionPair::new(
+                    "compact mode",
+                    LocalizedToggleTestAction(7),
+                    &id!("Workspace"),
+                    "Test_CompactMode",
+                )
+                .with_localized_suffix("API 与 TinyWarp");
+                pair.custom_action = custom_action;
+
+                for workspace_active in [false, true] {
+                    for setting_enabled in [false, true] {
+                        let mut context = Context::default();
+                        if workspace_active {
+                            context.set.insert("Workspace");
+                        }
+                        if setting_enabled {
+                            context.set.insert("Test_CompactMode");
+                        }
+                        assert_eq!(
+                            pair.contexts.enable_predicate.eval(&context),
+                            workspace_active && !setting_enabled,
+                        );
+                        assert_eq!(
+                            pair.contexts.disable_predicate.eval(&context),
+                            workspace_active && setting_enabled,
+                        );
+                    }
+                }
+
+                ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
+                    vec![pair],
+                    ctx,
+                );
+                let bindings: Vec<_> = ctx
+                    .get_key_bindings()
+                    .filter(|binding| {
+                        binding
+                            .action
+                            .as_ref()
+                            .as_any()
+                            .is::<LocalizedToggleTestAction>()
+                    })
+                    .collect();
+                assert_eq!(bindings.len(), 2);
+
+                let mut seen_aliases = Vec::new();
+                for lens in bindings {
+                    assert_eq!(
+                        lens.action
+                            .as_ref()
+                            .as_any()
+                            .downcast_ref::<LocalizedToggleTestAction>(),
+                        Some(&LocalizedToggleTestAction(7)),
+                    );
+                    match (custom_action, lens.trigger) {
+                        (None, Trigger::Empty) => {}
+                        (Some(action), Trigger::Custom(tag)) => {
+                            assert_eq!(*tag, CustomTag::from(action))
+                        }
+                        _ => panic!("本地化不得改变注册动作的触发方式"),
+                    }
+
+                    let projected = CommandBinding::from_lens(lens, ctx).unwrap();
+                    assert_eq!(projected.id, lens.id);
+                    assert_eq!(projected.group.unwrap().as_str(), "settings");
+                    let label = projected
+                        .description
+                        .in_context(DescriptionContext::Default);
+                    let aliases = projected.description.search_aliases();
+                    assert_eq!(aliases.len(), 1);
+                    match aliases[0].as_str() {
+                        "Enable compact mode" => assert_eq!(label, "启用 API 与 TinyWarp"),
+                        "Disable compact mode" => assert_eq!(label, "停用 API 与 TinyWarp"),
+                        alias => panic!("原英文动作名必须保留为搜索别名: {alias}"),
+                    }
+                    seen_aliases.push(aliases[0].clone());
+                }
+                seen_aliases.sort();
+                assert_eq!(
+                    seen_aliases,
+                    ["Disable compact mode", "Enable compact mode"]
+                );
+            });
+        });
+    }
 }

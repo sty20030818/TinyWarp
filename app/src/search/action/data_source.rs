@@ -118,9 +118,18 @@ impl Entity for CommandBindingDataSource {
 }
 
 type SearcherAction = <CommandBindingDataSource as SyncDataSource>::Action;
+type ActionMatch = (FuzzyMatchResult, Arc<CommandBinding>);
 
 trait ActionSearcher {
-    fn search(&self, _search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>>;
+    fn search_matches(&self, search_term: &str) -> anyhow::Result<Vec<ActionMatch>>;
+
+    fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
+        Ok(self
+            .search_matches(search_term)?
+            .into_iter()
+            .map(|(match_result, binding)| MatchedBinding::new(match_result, binding).into())
+            .collect())
+    }
 
     fn build_index(&mut self);
 
@@ -137,34 +146,8 @@ struct FuzzyActionSearcher {
 }
 
 impl ActionSearcher for FuzzyActionSearcher {
-    fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
-        Ok(self
-            .all_bindings
-            .values()
-            .filter_map(move |binding| {
-                if is_excluded_binding(binding) {
-                    return None;
-                }
-
-                // Binding descriptions are almost always upper case. If a user searches with
-                // lowercase text, the fuzzy matcher will weight this match lower because the case
-                // between the search term and the description differ. As a result, we lowercase
-                // both the search term and the description to ensure that we are matching the two
-                // with the same casing.
-                match_indices_case_insensitive(
-                    binding
-                        .description
-                        .in_context(DescriptionContext::Default)
-                        .to_lowercase()
-                        .as_str(),
-                    search_term.to_lowercase().as_str(),
-                )
-                .map(|result| (result, binding))
-            })
-            .map(|(match_result, binding)| {
-                MatchedBinding::new(match_result, binding.clone()).into()
-            })
-            .collect())
+    fn search_matches(&self, search_term: &str) -> anyhow::Result<Vec<ActionMatch>> {
+        Ok(fuzzy_search_bindings(&self.all_bindings, search_term))
     }
 
     fn build_index(&mut self) {}
@@ -178,6 +161,45 @@ impl ActionSearcher for FuzzyActionSearcher {
     }
 }
 
+fn fuzzy_search_bindings(
+    bindings: &HashMap<BindingId, Arc<CommandBinding>>,
+    search_term: &str,
+) -> Vec<ActionMatch> {
+    let search_term = search_term.to_lowercase();
+    bindings
+        .values()
+        .filter(|binding| !is_excluded_binding(binding))
+        .filter_map(|binding| {
+            let label = binding.description.in_context(DescriptionContext::Default);
+            let mut best = match_indices_case_insensitive(&label.to_lowercase(), &search_term);
+            if let Some(result) = &mut best {
+                let original_indices = label
+                    .chars()
+                    .enumerate()
+                    .flat_map(|(index, ch)| ch.to_lowercase().map(move |_| index))
+                    .collect::<Vec<_>>();
+                result.matched_indices = result
+                    .matched_indices
+                    .iter()
+                    .filter_map(|&index| original_indices.get(index).copied())
+                    .collect();
+                result.matched_indices.dedup();
+            }
+            for alias in binding.description.search_aliases() {
+                if let Some(mut result) =
+                    match_indices_case_insensitive(&alias.to_lowercase(), &search_term)
+                    && best.as_ref().is_none_or(|best| result.score > best.score)
+                {
+                    // 别名下标对应另一段文字，不能用于高亮当前显示标签。
+                    result.matched_indices.clear();
+                    best = Some(result);
+                }
+            }
+            best.map(|result| (result, binding.clone()))
+        })
+        .collect()
+}
+
 #[cfg(not(target_family = "wasm"))]
 mod full_text_searcher {
     use std::collections::HashMap;
@@ -187,9 +209,9 @@ mod full_text_searcher {
     use warp_search_core::define_search_schema;
     use warpui::keymap::{BindingId, DescriptionContext};
 
-    use crate::search::action::data_source::{ActionSearcher, SearcherAction, is_excluded_binding};
-    use crate::search::action::search_item::MatchedBinding;
-    use crate::search::data_source::QueryResult;
+    use crate::search::action::data_source::{
+        ActionMatch, ActionSearcher, fuzzy_search_bindings, is_excluded_binding,
+    };
     use crate::search::searcher::{
         DEFAULT_MEMORY_BUDGET, SCORE_CONVERSION_FACTOR, SimpleFullTextSearcher,
     };
@@ -200,7 +222,7 @@ mod full_text_searcher {
         config_name: ActionSearchConfig,
         search_doc: ActionDocument,
         identifying_doc: ActionIdDocument,
-        search_fields: [action: 1.0],
+        search_fields: [action: 1.0, aliases: 1.0],
         id_fields: [id: u64]
     );
 
@@ -210,47 +232,51 @@ mod full_text_searcher {
     }
 
     impl ActionSearcher for FullTextActionSearcher {
-        fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
-            // If the search term is empty, return all bindings (except excluded ones)
+        fn search_matches(&self, search_term: &str) -> anyhow::Result<Vec<ActionMatch>> {
+            if !search_term.is_ascii() {
+                return Ok(fuzzy_search_bindings(&self.all_bindings, search_term));
+            }
             if search_term.is_empty() {
                 return Ok(self
                     .all_bindings
                     .values()
-                    .filter_map(|binding| {
-                        if is_excluded_binding(binding) {
-                            return None;
-                        }
-                        let matched_binding =
-                            MatchedBinding::new(FuzzyMatchResult::no_match(), binding.clone());
-                        Some(QueryResult::from(matched_binding))
-                    })
+                    .filter(|binding| !is_excluded_binding(binding))
+                    .map(|binding| (FuzzyMatchResult::no_match(), binding.clone()))
                     .collect());
             }
 
-            // Execute the full-text search
-            let matched_bindings = self.searcher.search_id(search_term)?;
+            let matched_bindings = self.searcher.search_id(&search_term.to_lowercase())?;
             Ok(matched_bindings
                 .into_iter()
                 .filter_map(|match_result| {
                     let binding = self
                         .all_bindings
                         .get(&BindingId(match_result.values.id as usize))?;
-
                     if is_excluded_binding(binding) {
                         return None;
                     }
-
-                    let matched_indices = match_result.highlights.action;
-                    Some(
-                        MatchedBinding::new(
-                            FuzzyMatchResult {
-                                score: (match_result.score * SCORE_CONVERSION_FACTOR) as i64,
-                                matched_indices,
-                            },
-                            binding.clone(),
-                        )
-                        .into(),
-                    )
+                    let label = binding.description.in_context(DescriptionContext::Default);
+                    let byte_indices = match_result.highlights.action;
+                    let mut offset = 0;
+                    let matched_indices = label
+                        .chars()
+                        .enumerate()
+                        .filter_map(|(index, ch)| {
+                            let end = offset + ch.to_lowercase().map(char::len_utf8).sum::<usize>();
+                            let matched = byte_indices
+                                .iter()
+                                .any(|&byte| (offset..end).contains(&byte));
+                            offset = end;
+                            matched.then_some(index)
+                        })
+                        .collect();
+                    Some((
+                        FuzzyMatchResult {
+                            score: (match_result.score * SCORE_CONVERSION_FACTOR) as i64,
+                            matched_indices,
+                        },
+                        binding.clone(),
+                    ))
                 })
                 .collect())
         }
@@ -288,6 +314,11 @@ mod full_text_searcher {
 
                 ActionDocument {
                     action: binding_description,
+                    aliases: binding
+                        .description
+                        .search_aliases()
+                        .join("\n")
+                        .to_lowercase(),
                     id: id.0 as u64,
                 }
             });
@@ -307,3 +338,7 @@ mod full_text_searcher {
 fn is_excluded_binding(binding: &CommandBinding) -> bool {
     binding.name == *"workspace:search_drive"
 }
+
+#[cfg(test)]
+#[path = "data_source_tests.rs"]
+mod tests;

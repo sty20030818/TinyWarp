@@ -541,3 +541,65 @@ fn test_binding_description_resolve_dynamic_override_falls_back_to_custom_contex
         assert_eq!(resolved, "menu-static");
     });
 }
+
+#[test]
+fn test_binding_description_materialization_preserves_aliases_and_dynamic_case() {
+    App::test((), |app| async move {
+        let vertical = Arc::new(AtomicBool::new(false));
+        let resolver_state = vertical.clone();
+        let description = BindingDescription::new_preserve_case("向左移动 MCP 标签页")
+            .with_search_alias("Move Tab Left")
+            .with_search_alias("Move Tab Up")
+            .with_custom_description(DescriptionContext::Custom("menu"), "标签页菜单")
+            .with_dynamic_override(move |_| {
+                resolver_state
+                    .load(Ordering::SeqCst)
+                    .then(|| "向上移动 MCP 标签页".into())
+            });
+
+        let horizontal = app.read(|ctx| description.materialized(ctx));
+        assert_eq!(
+            horizontal.in_context(DescriptionContext::Default),
+            "向左移动 MCP 标签页"
+        );
+        assert_eq!(
+            horizontal.in_context(DescriptionContext::Custom("menu")),
+            "标签页菜单"
+        );
+        assert_eq!(
+            horizontal.search_aliases(),
+            &["Move Tab Left", "Move Tab Up"]
+        );
+        assert!(!horizontal.has_dynamic_override());
+
+        vertical.store(true, Ordering::SeqCst);
+        let vertical = app.read(|ctx| description.materialized(ctx));
+        assert_eq!(
+            vertical.in_context(DescriptionContext::Default),
+            "向上移动 MCP 标签页"
+        );
+        assert_eq!(
+            vertical.in_context(DescriptionContext::Custom("menu")),
+            "向上移动 MCP 标签页"
+        );
+        assert_eq!(vertical.search_aliases(), horizontal.search_aliases());
+        assert!(!vertical.has_dynamic_override());
+    });
+}
+
+#[test]
+fn test_binding_description_search_aliases_do_not_change_display_contexts() {
+    let description = BindingDescription::new_preserve_case("打开设置")
+        .with_search_alias("Open Settings")
+        .with_search_alias("Open Settings")
+        .with_search_alias("  ");
+    assert_eq!(description.search_aliases(), &["Open Settings"]);
+    assert_eq!(
+        description.in_context(DescriptionContext::Default),
+        "打开设置"
+    );
+    assert_eq!(
+        description.in_context(DescriptionContext::Custom("menu")),
+        "打开设置"
+    );
+}

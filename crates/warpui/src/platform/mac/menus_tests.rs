@@ -92,3 +92,62 @@ fn apply_changes_local_pool_memory_behavior() {
         let _: () = msg_send![item, release];
     }
 }
+
+#[test]
+fn localized_standard_actions_keep_native_selectors_and_shortcuts() {
+    use objc2_app_kit::NSEventModifierFlags as Modifiers;
+
+    let cmd = Modifiers::Command;
+    let none = Modifiers::empty();
+    let cases = [
+        (StandardAction::Close, objc2::sel!(performClose:), none, ""),
+        (StandardAction::Quit, objc2::sel!(terminate:), cmd, "q"),
+        (StandardAction::Hide, objc2::sel!(hide:), cmd, "h"),
+        (
+            StandardAction::HideOtherApps,
+            objc2::sel!(hideOtherApplications:),
+            cmd | Modifiers::Option,
+            "h",
+        ),
+        (
+            StandardAction::ShowAllApps,
+            objc2::sel!(unhideAllApplications:),
+            none,
+            "",
+        ),
+        (
+            StandardAction::Minimize,
+            objc2::sel!(performMiniaturize:),
+            cmd,
+            "m",
+        ),
+        (StandardAction::Zoom, objc2::sel!(performZoom:), none, ""),
+        (
+            StandardAction::BringAllToFront,
+            objc2::sel!(arrangeInFront:),
+            none,
+            "",
+        ),
+        (
+            StandardAction::ToggleFullScreen,
+            objc2::sel!(toggleFullScreen:),
+            cmd | Modifiers::Control,
+            "f",
+        ),
+        (StandardAction::Paste, objc2::sel!(paste:), none, ""),
+    ];
+
+    for (action, selector, modifiers, shortcut) in cases {
+        let properties = super::resolve_standard_action(action);
+        assert_eq!(properties.action, selector);
+        assert_eq!(properties.modifiers, modifiers);
+        assert_eq!(properties.shortcut.to_string(), shortcut);
+    }
+}
+
+#[test]
+fn localized_standard_title_stays_owned_after_its_autorelease_pool() {
+    let properties =
+        objc2::rc::autoreleasepool(|_| super::resolve_standard_action(StandardAction::Quit));
+    assert_eq!(properties.title.to_string(), "退出 TinyWarp");
+}

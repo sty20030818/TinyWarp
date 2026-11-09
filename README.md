@@ -1,3 +1,17 @@
+# TinyWarp
+
+基于 Warp 公开 master 的个人终端 fork，先在 macOS 上完成简体中文界面，再逐步收敛为本地终端。
+
+- [项目范围与阶段记录](docs/fork/README.md)
+- [技术方案](docs/fork/2026-11-09-technical-plan.md)
+- [macOS 构建方法](docs/fork/build-macos.md)
+
+TinyWarp 保留 OSS 的数据身份，与已安装的 Warp Preview 分开保存配置和会话。H1 已完成菜单、常用命令搜索、设置导航与外观页汉化；其余终端界面、账号与 AI 精简按后续阶段推进。
+
+以下保留上游项目说明和许可入口。
+
+---
+
 <a href="https://www.warp.dev">
     <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
 </a>

@@ -15512,6 +15512,7 @@ dependencies = [
  "warp_files",
  "warp_graphql",
  "warp_harness_usage",
+ "warp_i18n",
  "warp_isolation_platform",
  "warp_logging",
  "warp_managed_secrets",
@@ -15865,6 +15866,14 @@ name = "warp_harness_usage"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "warp_i18n"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
 ]
@@ -16372,6 +16381,7 @@ dependencies = [
  "version-compare",
  "virtual-fs",
  "warp_errors",
+ "warp_i18n",
  "warpui",
  "warpui_core",
  "wasm-bindgen",

@@ -141,6 +141,7 @@ line-ending.workspace = true
 log.workspace = true
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 lsp.workspace = true
+warp_i18n.workspace = true
 warp_logging.workspace = true
 warp_harness_usage.workspace = true
 sentry = { workspace = true, optional = true }
@@ -1046,10 +1047,10 @@ acp_harness = []
 category = "public.app-category.developer-tools"
 copyright = "© 2025, Denver Technologies, Inc"
 identifier = "dev.warp.WarpOss"
-name = "WarpOss"
+name = "TinyWarp"
 resources = ["assets/onboarding"]
 icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
-short_description = "The open-source, cloud-backed terminal for individuals and teams."
+short_description = "TinyWarp 中文终端，基于 Warp 开源客户端。"
 
 [package.metadata.bundle.bin.stable]
 category = "public.app-category.developer-tools"
