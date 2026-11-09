@@ -1,3 +1,4 @@
+use warp_i18n::tr;
 mod accessibility;
 pub mod ai;
 mod alias_expansion;
@@ -114,19 +115,58 @@ impl SettingsFileError {
     /// (`Workspace::render_settings_error_banner`) and the settings nav rail
     /// footer (`render_settings_error_alert`) so the two UIs stay in sync.
     pub fn heading_and_description(&self) -> (String, String) {
+        let details = match self {
+            Self::FileParseFailed(_) => tr(
+                "settings_error.invalid_syntax",
+                "Couldn't parse due to invalid syntax",
+            )
+            .to_owned(),
+            Self::InvalidSettings(keys) => format!(
+                "{} {}",
+                tr("settings_error.invalid_values", "Invalid values for:"),
+                keys.join(", ")
+            ),
+        };
         match self {
             Self::FileParseFailed(_) => (
-                "Your settings file contains an error.".to_owned(),
-                format!("{self}. Open the file to fix it."),
+                tr(
+                    "settings_error.error",
+                    "Your settings file contains an error.",
+                )
+                .to_owned(),
+                format!(
+                    "{details}. {}",
+                    tr("settings_error.open_to_fix", "Open the file to fix it.")
+                ),
             ),
             Self::InvalidSettings(keys) => match keys.len() {
                 1 => (
-                    "Your settings file contains an error.".to_owned(),
-                    format!("{self}. The default value is being used."),
+                    tr(
+                        "settings_error.error",
+                        "Your settings file contains an error.",
+                    )
+                    .to_owned(),
+                    format!(
+                        "{details}. {}",
+                        tr(
+                            "settings_error.default_value",
+                            "The default value is being used."
+                        )
+                    ),
                 ),
                 _ => (
-                    "Your settings file contains errors.".to_owned(),
-                    format!("{self}. Default values are being used."),
+                    tr(
+                        "settings_error.errors",
+                        "Your settings file contains errors.",
+                    )
+                    .to_owned(),
+                    format!(
+                        "{details}. {}",
+                        tr(
+                            "settings_error.default_values",
+                            "Default values are being used."
+                        )
+                    ),
                 ),
             },
         }

@@ -155,3 +155,44 @@ fn raw_byte_indices_produce_wrong_highlights() {
     assert_eq!(highlights.command_indices, Some(vec![]));
     assert_eq!(highlights.hint_text_indices, vec![3, 4]); // wrong!
 }
+
+#[test]
+fn translated_session_hint_keeps_english_search_outside_display_highlights() {
+    use fuzzy_match::match_indices_case_insensitive;
+
+    use super::append_search_hint;
+
+    let mut searchable = "→ ls".to_owned();
+    let hint_text_range = append_search_hint(&mut searchable, "运行中…", "Running...");
+    for query in ["running", "运行"] {
+        let matched = match_indices_case_insensitive(&searchable, query).unwrap();
+        let highlights = SessionHighlightIndices::new(
+            matched.matched_indices,
+            SearchableSessionStringRanges {
+                command_range: Some(2..4),
+                hint_text_range: hint_text_range.clone(),
+            },
+        );
+        assert!(highlights.command_indices.unwrap().is_empty());
+        if query.is_ascii() {
+            assert!(highlights.hint_text_indices.is_empty());
+        } else {
+            assert_eq!(highlights.hint_text_indices, vec![0, 1]);
+        }
+    }
+}
+
+#[test]
+fn localized_completion_hint_preserves_minutes_and_command_verbatim() {
+    use crate::search::command_palette::navigation::render::CommandRenderInfo;
+    use crate::session_management::CommandContext;
+
+    let command = "printf '{用户输入}'".to_owned();
+    let rendered = CommandRenderInfo::from_context(CommandContext::LastRunCommand {
+        last_run_command: command.clone(),
+        mins_since_completion: Some(7),
+    });
+    assert_eq!(rendered.command_text.as_deref(), Some(command.as_str()));
+    assert!(rendered.hint_text.contains('7'));
+    assert_eq!(rendered.search_hint_text, "Completed 7 minutes ago");
+}

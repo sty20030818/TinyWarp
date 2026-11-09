@@ -15,6 +15,7 @@ pub use view::{
     DetailsRenderConfig, InlineMenuAction, InlineMenuClickBehavior, InlineMenuEvent,
     InlineMenuHeaderConfig, InlineMenuRowAction, InlineMenuView, QueryResultRendererExt,
 };
+use warp_i18n::tr;
 
 use super::{InputSuggestionsMode, UserQueryMenuAction};
 
@@ -60,7 +61,7 @@ impl InlineMenuType {
             InlineMenuType::SkillMenu => "/Skills",
             InlineMenuType::UserQueryMenu => "/Fork",
             InlineMenuType::RewindMenu => "/Rewind",
-            InlineMenuType::InlineHistoryMenu => "History",
+            InlineMenuType::InlineHistoryMenu => tr("terminal.history.title", "History"),
             InlineMenuType::IndexedReposMenu => "/Repos",
             InlineMenuType::PlanMenu => "/Plans",
         }

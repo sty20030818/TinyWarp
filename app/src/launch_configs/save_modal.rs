@@ -5,6 +5,7 @@ use pathfinder_geometry::vector::vec2f;
 use serde::{Deserialize, Serialize};
 use warp_core::paths::home_relative_path;
 use warp_core::ui::theme::Fill;
+use warp_i18n::tr;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
@@ -339,7 +340,7 @@ impl LaunchConfigSaveModal {
     ) -> Box<dyn Element> {
         self.save_modal_button(
             appearance,
-            SAVE_CONFIG_BUTTON_LABEL.to_owned(),
+            tr("layout.save.confirm", SAVE_CONFIG_BUTTON_LABEL).to_owned(),
             self.mouse_states.save_button_state.clone(),
             disabled,
         )
@@ -353,7 +354,7 @@ impl LaunchConfigSaveModal {
     fn render_open_file_button(&self, appearance: &Appearance) -> Box<dyn Element> {
         self.save_modal_button(
             appearance,
-            OPEN_FILE_BUTTON_LABEL.to_owned(),
+            tr("layout.save.open_yaml", OPEN_FILE_BUTTON_LABEL).to_owned(),
             self.mouse_states.open_file_button_state.clone(),
             false,
         )
@@ -436,7 +437,7 @@ impl LaunchConfigSaveModal {
                     1.0,
                     Align::new(
                         Text::new_inline(
-                            "Save Current Configuration",
+                            tr("layout.save.title", "Save Current Configuration"),
                             appearance.header_font_family(),
                             appearance.header_font_size(),
                         )
@@ -525,7 +526,7 @@ impl LaunchConfigSaveModal {
                 appearance
                     .ui_builder()
                     .link(
-                        "Link to Documentation".to_string(),
+                        tr("layout.save.documentation", "Link to Documentation").to_string(),
                         Some(
                             "https://docs.warp.dev/terminal/sessions/launch-configurations"
                                 .to_string(),
@@ -547,9 +548,9 @@ impl LaunchConfigSaveModal {
             SaveState::Success => header
                 .with_child(
                     self.render_formatted_text_line(appearance, vec![
-                        FormattedTextFragment::plain_text("Saved successfully to "),
+                        FormattedTextFragment::plain_text(tr("layout.save.success_prefix", "Saved successfully to ")),
                         FormattedTextFragment::inline_code(self.file_name.clone().unwrap_or_default()),
-                        FormattedTextFragment::plain_text(".")
+                        FormattedTextFragment::plain_text(tr("layout.sentence_end", "."))
                     ])
                     .with_padding_bottom(24.)
                     .finish(),
@@ -560,21 +561,22 @@ impl LaunchConfigSaveModal {
                     appearance,
                     match failure_type {
                         FailureType::FileAlreadyExists => {
-                            "Failed to save. A launch configuration with the same name already exists.".to_string()
+                            tr("layout.save.already_exists", "Failed to save. A launch configuration with the same name already exists.").to_string()
                         }
-                        FailureType::Other => "An issue was encountered while saving.".to_string(),
+                        FailureType::Other => tr("layout.save.failed", "An issue was encountered while saving.").to_string(),
                     },
                 )
                 .with_padding_bottom(24.)
                 .finish(),
             ),
             SaveState::NotSaved => {
-                let mut text = "This will save your current configuration of windows, tabs \
-                and panes to a file so you can easily open it again".to_string();
+                let mut text = tr("layout.save.description", "This will save your current configuration of windows, tabs \
+                and panes to a file so you can easily open it again").to_string();
                 if self.open_modal_keybinding_str.is_empty() {
-                    text.push('.');
+                    text.push_str(tr("layout.sentence_end", "."));
                 } else {
-                    text.push_str(&format!(" with {}.", self.open_modal_keybinding_str));
+                    text.push_str(&tr("layout.save.with_shortcut", " with {shortcut}.")
+                        .replace("{shortcut}", &self.open_modal_keybinding_str));
                 }
                 header
                     .with_child(
@@ -584,9 +586,9 @@ impl LaunchConfigSaveModal {
                     )
                     .with_child(
                         self.render_formatted_text_line(appearance, vec![
-                            FormattedTextFragment::plain_text("\nThe YAML file is saved to "),
+                            FormattedTextFragment::plain_text(tr("layout.save.yaml_directory_prefix", "\nThe YAML file is saved to ")),
                             FormattedTextFragment::inline_code(home_relative_path(&launch_configs_dir())),
-                            FormattedTextFragment::plain_text("."),
+                            FormattedTextFragment::plain_text(tr("layout.sentence_end", ".")),
                         ])
                         .with_padding_bottom(24.)
                         .finish(),
@@ -654,10 +656,13 @@ impl View for LaunchConfigSaveModal {
 
     fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Save Config Modal",
-            "Type the name of the file to which you want to save your
+            tr("layout.save.accessibility_title", "Save Config Modal"),
+            tr(
+                "layout.save.accessibility_description",
+                "Type the name of the file to which you want to save your
             current configuration of windows, tabs, and panes. Use enter to save the
             launch configuration, esc to quit the save configuration modal.",
+            ),
             WarpA11yRole::PopoverRole,
         ))
     }

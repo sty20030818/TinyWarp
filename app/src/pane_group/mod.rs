@@ -27,6 +27,7 @@ use warp_cli::agent::Harness;
 use warp_core::command::ExitCode;
 use warp_core::context_flag::ContextFlag;
 use warp_errors::report_if_error;
+use warp_i18n::tr;
 use warp_terminal::focus_env::add_session_focus_env_vars;
 use warp_terminal::shell::{ShellName, ShellType};
 #[cfg(feature = "local_fs")]
@@ -161,7 +162,7 @@ use crate::terminal::{
 use crate::undo_close::{UndoCloseStack, UndoCloseStackEvent};
 #[cfg(target_family = "wasm")]
 use crate::uri::browser_url_handler::update_browser_url;
-use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
+use crate::util::bindings::{CustomAction, is_binding_pty_compliant, localized_description};
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 use crate::view_components::ToastFlavor;
@@ -348,14 +349,14 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "pane_group:close_current_session",
-            "Close Current Session",
+            localized_description("action.pane.close_current_session", "Close Current Session"),
             PaneGroupAction::RemoveActive,
         )
         .with_custom_action(CustomAction::CloseCurrentSession)
         .with_context_predicate(id!("PaneGroup")),
         EditableBinding::new(
             "pane_group:add_left",
-            "Split pane left",
+            localized_description("action.pane.split_left", "Split pane left"),
             PaneGroupAction::Add(Direction::Left),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
@@ -363,7 +364,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
             "pane_group:add_up",
-            "Split pane up",
+            localized_description("action.pane.split_up", "Split pane up"),
             PaneGroupAction::Add(Direction::Up),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
@@ -371,7 +372,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
             "pane_group:navigate_left",
-            "Switch panes left",
+            localized_description("action.pane.navigate_left", "Switch panes left"),
             PaneGroupAction::NavigateLeft,
         )
         .with_context_predicate(
@@ -380,7 +381,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-alt-left"),
         EditableBinding::new(
             "pane_group:navigate_right",
-            "Switch panes right",
+            localized_description("action.pane.navigate_right", "Switch panes right"),
             PaneGroupAction::NavigateRight,
         )
         .with_context_predicate(
@@ -389,7 +390,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-alt-right"),
         EditableBinding::new(
             "pane_group:navigate_up",
-            "Switch panes up",
+            localized_description("action.pane.navigate_up", "Switch panes up"),
             PaneGroupAction::NavigateUp,
         )
         .with_context_predicate(
@@ -398,7 +399,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-alt-up"),
         EditableBinding::new(
             "pane_group:navigate_down",
-            "Switch panes down",
+            localized_description("action.pane.navigate_down", "Switch panes down"),
             PaneGroupAction::NavigateDown,
         )
         .with_context_predicate(
@@ -413,7 +414,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "pane_group:resize_left",
-            "Resize pane > Move divider left",
+            localized_description("action.pane.resize_left", "Resize pane > Move divider left"),
             PaneGroupAction::ResizeLeft,
         )
         .with_context_predicate(
@@ -422,7 +423,10 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-left"),
         EditableBinding::new(
             "pane_group:resize_right",
-            "Resize pane > Move divider right",
+            localized_description(
+                "action.pane.resize_right",
+                "Resize pane > Move divider right",
+            ),
             PaneGroupAction::ResizeRight,
         )
         .with_context_predicate(
@@ -431,7 +435,7 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-right"),
         EditableBinding::new(
             "pane_group:resize_up",
-            "Resize pane > Move divider up",
+            localized_description("action.pane.resize_up", "Resize pane > Move divider up"),
             PaneGroupAction::ResizeUp,
         )
         .with_context_predicate(
@@ -440,7 +444,7 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-up"),
         EditableBinding::new(
             "pane_group:resize_down",
-            "Resize pane > Move divider down",
+            localized_description("action.pane.resize_down", "Resize pane > Move divider down"),
             PaneGroupAction::ResizeDown,
         )
         .with_context_predicate(
@@ -452,7 +456,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "pane_group:add_down",
-            "Split pane down",
+            localized_description("action.pane.split_down", "Split pane down"),
             PaneGroupAction::Add(Direction::Down),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
@@ -460,7 +464,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
             "pane_group:add_right",
-            "Split pane right",
+            localized_description("action.pane.split_right", "Split pane right"),
             PaneGroupAction::Add(Direction::Right),
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
@@ -468,7 +472,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
             TOGGLE_MAXIMIZE_PANE_BINDING_NAME,
-            "Toggle Maximize Active Pane",
+            localized_description("action.pane.toggle_maximize", "Toggle Maximize Active Pane"),
             PaneGroupAction::ToggleMaximizePane,
         )
         .with_context_predicate(id!("PaneGroup") & !id!("PaneGroup_PaneDragging"))
@@ -3099,10 +3103,14 @@ impl PaneGroup {
         let user_default_shell_changed_banner = ctx.add_typed_action_view(|_| {
             Banner::<PaneGroupAction>::new_permanently_dismissible(
                 BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text(
+                    FormattedTextFragment::plain_text(tr(
+                        "workspace.pane.unsupported_shell",
                         "Warp doesn't currently support your default shell, falling back to zsh.  ",
+                    )),
+                    FormattedTextFragment::hyperlink(
+                        tr("workspace.pane.learn_more", "Learn more"),
+                        WARP_SHELL_COMPATIBILITY_DOCS,
                     ),
-                    FormattedTextFragment::hyperlink("Learn more", WARP_SHELL_COMPATIBILITY_DOCS),
                 ]),
             )
         });

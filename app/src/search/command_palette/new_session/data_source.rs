@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use fuzzy_match::{FuzzyMatchResult, match_indices_case_insensitive};
 use warp_core::features::FeatureFlag;
+use warp_i18n::tr;
+use warpui::keymap::DescriptionContext;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::new_session_option::{
@@ -14,6 +16,7 @@ use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
 use crate::terminal::available_shells::AvailableShells;
+use crate::util::bindings::match_binding_description;
 
 /// Controls which kinds of new sessions the data source should surface.
 #[derive(Copy, Clone, Debug)]
@@ -235,40 +238,11 @@ struct FuzzyNewSessionSearcher {
 
 impl NewSessionSearcher for FuzzyNewSessionSearcher {
     fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
-        let max_match = self.compute_max_match(search_term);
-
-        Ok(self
-            .shell_id_to_options
-            .values()
-            .filter_map(move |new_session_option| {
-                // Binding descriptions are almost always upper case. If a user searches with
-                // lowercase text, the fuzzy matcher will weight this match lower because the case
-                // between the search term and the description differ. As a result, we lowercase
-                // both the search term and the description to ensure that we are matching the two
-                // with the same casing.
-                match_indices_case_insensitive(
-                    new_session_option.description().to_lowercase().as_str(),
-                    search_term.to_lowercase().as_str(),
-                )
-                .map(|result| {
-                    // If for some reason the variant (ex: "Create New Tab: Powershell") ranks higher
-                    // than a match for a base string (ex: "Create New Tab"), we want to cap the score
-                    // to be one less than the base string.
-                    if let Some(max_match) = max_match {
-                        FuzzyMatchResult {
-                            score: std::cmp::min(result.score, max_match.round() as i64 - 1),
-                            matched_indices: result.matched_indices,
-                        }
-                    } else {
-                        result
-                    }
-                })
-                .map(|result| (result, new_session_option))
-            })
-            .map(|(match_result, new_session_config)| {
-                SearchItem::new(new_session_config.clone(), match_result).into()
-            })
-            .collect())
+        Ok(fuzzy_new_session_results(
+            &self.shell_id_to_options,
+            search_term,
+            self.compute_max_match(search_term),
+        ))
     }
 
     /// This method is a no-op for the fuzzy searcher since it does not maintain an index.
@@ -283,18 +257,52 @@ impl NewSessionSearcher for FuzzyNewSessionSearcher {
     }
 
     fn compute_max_match(&self, query_str: &str) -> Option<f64> {
-        SEARCHER_BASE_STRINGS
-            .iter()
-            .filter_map(|base| {
-                match_indices_case_insensitive(
-                    base.to_lowercase().as_str(),
-                    query_str.to_lowercase().as_str(),
-                )
-                .map(|result| result.score)
-            })
-            .min()
-            .map(|score| score as f64)
+        compute_fuzzy_max_match(query_str)
     }
+}
+
+fn fuzzy_new_session_results(
+    options: &HashMap<NewSessionOptionId, Arc<NewSessionOption>>,
+    search_term: &str,
+    max_match: Option<f64>,
+) -> Vec<QueryResult<SearcherAction>> {
+    options
+        .values()
+        .filter_map(|option| {
+            match_binding_description(
+                option.binding_description(),
+                DescriptionContext::Default,
+                search_term,
+            )
+            .map(|mut result| {
+                if let Some(max_match) = max_match {
+                    result.score = result.score.min(max_match.round() as i64 - 1);
+                }
+                SearchItem::new(option.clone(), result).into()
+            })
+        })
+        .collect()
+}
+
+fn searcher_base_strings() -> impl Iterator<Item = &'static str> {
+    SEARCHER_BASE_STRINGS.into_iter().chain([
+        tr("action.new_tab", "Create New Tab"),
+        tr("action.new_window", "Create New Window"),
+        tr("search.new_session.base_split_down", "Split Pane Down"),
+        tr("search.new_session.base_split_right", "Split Pane Right"),
+        tr("search.new_session.base_split_up", "Split Pane Up"),
+        tr("search.new_session.base_split_left", "Split Pane Left"),
+    ])
+}
+
+fn compute_fuzzy_max_match(query: &str) -> Option<f64> {
+    searcher_base_strings()
+        .filter_map(|base| {
+            match_indices_case_insensitive(&base.to_lowercase(), &query.to_lowercase())
+                .map(|result| result.score)
+        })
+        .min()
+        .map(|score| score as f64)
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -307,7 +315,8 @@ mod full_text_searcher {
     use warpui::r#async::executor::Background;
 
     use crate::search::command_palette::new_session::data_source::{
-        NewSessionSearcher, SEARCHER_BASE_STRINGS, SearcherAction,
+        NewSessionSearcher, SearcherAction, compute_fuzzy_max_match, fuzzy_new_session_results,
+        searcher_base_strings,
     };
     use crate::search::command_palette::new_session::search_item::SearchItem;
     use crate::search::command_palette::new_session::{NewSessionOption, NewSessionOptionId};
@@ -321,7 +330,7 @@ mod full_text_searcher {
         config_name: NewSessionConfig,
         search_doc: NewSessionDocument,
         identifying_doc: NewSessionIdDocument,
-        search_fields: [new_session_option: 1.0],
+        search_fields: [new_session_option: 1.0, aliases: 1.0],
         id_fields: [id: String]
     );
     define_search_schema!(
@@ -342,15 +351,34 @@ mod full_text_searcher {
 
     impl NewSessionSearcher for FullTextNewSessionSearcher {
         fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
+            if !search_term.is_ascii() {
+                return Ok(fuzzy_new_session_results(
+                    &self.shell_id_to_options,
+                    search_term,
+                    compute_fuzzy_max_match(search_term),
+                ));
+            }
             let max_match = self.compute_max_match(search_term);
             let search_result = self.searcher.search_id(search_term)?;
             Ok(search_result
                 .into_iter()
                 .filter_map(|result| {
-                    let matched_indices = result.highlights.new_session_option;
                     let new_session_option = self
                         .shell_id_to_options
                         .get(&NewSessionOptionId(result.values.id))?;
+                    let bytes = result.highlights.new_session_option;
+                    let mut offset = 0;
+                    let matched_indices = new_session_option
+                        .description()
+                        .chars()
+                        .enumerate()
+                        .filter_map(|(index, ch)| {
+                            let end = offset + ch.to_lowercase().map(char::len_utf8).sum::<usize>();
+                            let matched = bytes.iter().any(|&byte| (offset..end).contains(&byte));
+                            offset = end;
+                            matched.then_some(index)
+                        })
+                        .collect();
 
                     // If for some reason the variant (ex: "Create New Tab: Powershell") ranks higher
                     // than a match for a base string (ex: "Create New Tab"), we want to cap the score
@@ -404,7 +432,7 @@ mod full_text_searcher {
                 .create_async_searcher(DEFAULT_MEMORY_BUDGET, background_executor.clone());
             let mut max_match_searcher = BASE_TEXT_SEARCH_SCHEMA
                 .create_async_searcher(MIN_MEMORY_BUDGET, background_executor.clone());
-            let max_match_documents = SEARCHER_BASE_STRINGS.iter().map(|base| BaseTextDocument {
+            let max_match_documents = searcher_base_strings().map(|base| BaseTextDocument {
                 base_text: base.to_string(),
             });
             if max_match_searcher
@@ -433,7 +461,12 @@ mod full_text_searcher {
                 let binding_description = option.description().to_lowercase();
 
                 NewSessionDocument {
-                    new_session_option: binding_description.clone(),
+                    new_session_option: binding_description,
+                    aliases: option
+                        .binding_description()
+                        .search_aliases()
+                        .join("\n")
+                        .to_lowercase(),
                     id: id.0.clone(),
                 }
             });
@@ -463,3 +496,7 @@ mod full_text_searcher {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "data_source_tests.rs"]
+mod tests;

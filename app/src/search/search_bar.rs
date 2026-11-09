@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use itertools::{Either, Itertools};
 use warp_editor::editor::NavigationKey;
+use warp_i18n::tr;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
     Clipped, ConstrainedBox, Container, CrossAxisAlignment, Flex, ParentElement, Shrinkable, Text,
@@ -690,7 +691,14 @@ impl<T: Action + Clone> SearchBar<T> {
         if let Some(loading_filters) = self.mixer.as_ref(ctx).loading_query_filters() {
             for loading_filter in loading_filters.into_iter() {
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                    format!("Loading {} suggestions", loading_filter.display_name()),
+                    format!(
+                        "{} {} {}",
+                        tr("search.loading_filter", "Loading"),
+                        crate::search::filter_chip_renderer::query_filter_display_name(
+                            loading_filter
+                        ),
+                        tr("search.suggestions_suffix", "suggestions")
+                    ),
                     WarpA11yRole::MenuItemRole,
                 ));
             }
@@ -700,7 +708,7 @@ impl<T: Action + Clone> SearchBar<T> {
 
         if let Some((.., data_source_err)) = self.mixer.as_ref(ctx).first_data_source_error() {
             ctx.emit_a11y_content(AccessibilityContent::new(
-                "Error finding results",
+                tr("search.error", "Error finding results"),
                 data_source_err.user_facing_error(),
                 WarpA11yRole::MenuItemRole,
             ));
@@ -708,7 +716,11 @@ impl<T: Action + Clone> SearchBar<T> {
         }
 
         if let Some(selected_result) = self.state.as_ref(ctx).selected_result() {
-            let a11y_content_text = format!("Selected {}", selected_result.accessibility_label(),);
+            let a11y_content_text = format!(
+                "{} {}",
+                tr("search.selected", "Selected"),
+                selected_result.accessibility_label()
+            );
             let a11y_content = match selected_result.accessibility_help_message() {
                 None => AccessibilityContent::new_without_help(
                     a11y_content_text,
@@ -774,7 +786,10 @@ impl<T: Action + Clone> SearchBar<T> {
                 // Set the appropriate placeholder text if the editor buffer is empty.
                 match self.state.as_ref(ctx).query_filter {
                     Some(filter) => {
-                        editor.set_placeholder_text(filter.placeholder_text(), ctx);
+                        editor.set_placeholder_text(
+                            crate::search::filter_chip_renderer::query_filter_placeholder(filter),
+                            ctx,
+                        );
                     }
                     None => {
                         editor.set_placeholder_text(self.placeholder_text, ctx);

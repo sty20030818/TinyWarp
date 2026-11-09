@@ -167,20 +167,11 @@ fn searchable_session_string_and_ranges(
     };
 
     let command_info = CommandRenderInfo::from_context(session.command_context());
-    searchable_string.push(' ');
-    searchable_string.push_str(command_info.hint_text.as_str());
-    let hint_text_range = match &command_range {
-        Some(command_range) => {
-            let start = command_range.end + 1;
-            let end = start + command_info.hint_text.chars().count();
-            start..end
-        }
-        None => {
-            let start = prompt_end + 1;
-            let end = start + command_info.hint_text.chars().count();
-            start..end
-        }
-    };
+    let hint_text_range = append_search_hint(
+        &mut searchable_string,
+        &command_info.hint_text,
+        &command_info.search_hint_text,
+    );
 
     (
         searchable_string,
@@ -189,6 +180,23 @@ fn searchable_session_string_and_ranges(
             hint_text_range,
         },
     )
+}
+
+fn append_search_hint(
+    searchable: &mut String,
+    display_hint: &str,
+    english_hint: &str,
+) -> Range<usize> {
+    let start = searchable.chars().count() + 1;
+    searchable.push(' ');
+    searchable.push_str(display_hint);
+    let end = start + display_hint.chars().count();
+    if display_hint != english_hint {
+        // 英语投影仍可搜索，但位于显示范围之外，不能高亮中文提示。
+        searchable.push(' ');
+        searchable.push_str(english_hint);
+    }
+    start..end
 }
 
 struct SearchableSessionStringRanges {
@@ -279,6 +287,12 @@ mod full_text_searcher {
             search_term: &str,
             app: &AppContext,
         ) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
+            if !search_term.is_ascii() {
+                return super::FuzzySessionSearcher {
+                    session_source_handle: self.session_source_handle.clone(),
+                }
+                .search(search_term, app);
+            }
             let searcher = SESSION_SEARCH_SCHEMA.create_searcher(DEFAULT_MEMORY_BUDGET);
 
             let mut sessions = HashMap::new();

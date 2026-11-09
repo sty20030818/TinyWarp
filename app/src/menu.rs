@@ -7,6 +7,7 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_core::ui::color::blend::Blend;
+use warp_i18n::tr;
 use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
 use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{
@@ -171,6 +172,11 @@ pub type PinnedHeaderBuilder = dyn Fn(&AppContext) -> Box<dyn Element>;
 #[derive(Clone)]
 pub enum MenuItemLabel {
     Text(String),
+    /// 显示本地化文本，同时保留选择和定位使用的原标签。
+    LocalizedText {
+        label: String,
+        display: String,
+    },
     // A label that can take up multiple lines. Doesn't support submenus yet.
     MultilineText {
         label: String,
@@ -201,6 +207,11 @@ impl std::fmt::Debug for MenuItemLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Text(arg0) => f.debug_tuple("Text").field(arg0).finish(),
+            Self::LocalizedText { label, display } => f
+                .debug_struct("LocalizedText")
+                .field("label", label)
+                .field("display", display)
+                .finish(),
             Self::MultilineText { label, max_lines } => f
                 .debug_struct("MultilineText")
                 .field("label", label)
@@ -246,7 +257,7 @@ impl Default for MenuItemLabel {
 impl MenuItemLabel {
     fn label(&self) -> Option<&str> {
         match self {
-            Self::Text(label) => Some(label),
+            Self::Text(label) | Self::LocalizedText { label, .. } => Some(label),
             Self::MultilineText { label, .. } => Some(label),
             Self::StackedText { primary_text, .. } => Some(primary_text),
             Self::Custom { label, .. } => label.as_deref(),
@@ -271,7 +282,7 @@ impl MenuItemLabel {
         app: &AppContext,
     ) -> Box<dyn Element> {
         match self {
-            Self::Text(label) => {
+            Self::Text(label) | Self::LocalizedText { display: label, .. } => {
                 let mut text = Text::new_inline(label.clone(), font_family, font_size)
                     .with_color(primary_color.into())
                     .autosize_text(MINIMUM_MENU_ITEM_FONT_SIZE);
@@ -714,11 +725,18 @@ impl<A: Action + Clone> MenuItemFields<A> {
     }
 
     pub fn toggle_pane_action(is_maximized: bool) -> Self {
-        Self::new(if is_maximized {
-            "Minimize pane"
+        let (label, displayed) = if is_maximized {
+            (
+                "Minimize pane",
+                tr("local_menu.restore_pane", "Minimize pane"),
+            )
         } else {
-            "Maximize pane"
-        })
+            (
+                "Maximize pane",
+                tr("local_menu.maximize_pane", "Maximize pane"),
+            )
+        };
+        Self::new(label).with_display_label(displayed)
     }
 
     /// Creates a [`MenuItemFields`] where the `on_select_action` is of a
@@ -927,6 +945,15 @@ impl<A: Action + Clone> MenuItemFields<A> {
         MenuItem::Item(self)
     }
 
+    /// 设置纯文本显示标签，保留按名称选择、相等性和定位使用的原标签。
+    pub fn with_display_label(mut self, label: impl Into<String>) -> Self {
+        self.element = MenuItemLabel::LocalizedText {
+            label: self.label().to_owned(),
+            display: label.into(),
+        };
+        self
+    }
+
     pub fn label(&self) -> &str {
         self.element.label().unwrap_or_default()
     }
@@ -937,7 +964,9 @@ impl<A: Action + Clone> MenuItemFields<A> {
 
     pub fn get_a11y_text(&self) -> &str {
         match &self.element {
-            MenuItemLabel::Text(label) | MenuItemLabel::MultilineText { label, .. } => label,
+            MenuItemLabel::Text(label)
+            | MenuItemLabel::LocalizedText { display: label, .. }
+            | MenuItemLabel::MultilineText { label, .. } => label,
             MenuItemLabel::Icon { alt_text, .. } => alt_text,
             MenuItemLabel::LabeledText { primary_text, .. } => primary_text,
             MenuItemLabel::StackedText { primary_text, .. } => primary_text,
@@ -2061,10 +2090,15 @@ impl<A: Action + Clone> SubMenu<A> {
     {
         let selected_item = selected_item.as_ref();
         if let Some(index) = self.items.iter().position(|item| match item {
-            MenuItem::Item(MenuItemFields {
-                element: MenuItemLabel::Text(label) | MenuItemLabel::MultilineText { label, .. },
-                ..
-            }) => selected_item == label,
+            MenuItem::Item(
+                fields @ MenuItemFields {
+                    element:
+                        MenuItemLabel::Text(_)
+                        | MenuItemLabel::LocalizedText { .. }
+                        | MenuItemLabel::MultilineText { .. },
+                    ..
+                },
+            ) => selected_item == fields.label(),
             _ => false,
         }) {
             self.select(
@@ -2574,9 +2608,15 @@ impl<A: Action + Clone> SubMenu<A> {
 
                 let instructions = if matches!(self.selected_item(), Some(MenuItem::Submenu { .. }))
                 {
-                    "Press the up key or the down key to select a menu item. Press the right key to open the submenu"
+                    tr(
+                        "local_menu.a11y.navigate_submenu",
+                        "Press the up key or the down key to select a menu item. Press the right key to open the submenu",
+                    )
                 } else {
-                    "Press the up key or the down key to select a menu item"
+                    tr(
+                        "local_menu.a11y.navigate",
+                        "Press the up key or the down key to select a menu item",
+                    )
                 };
 
                 Custom(AccessibilityContent::new(
@@ -2586,23 +2626,35 @@ impl<A: Action + Clone> SubMenu<A> {
                 ))
             }
             OpenSubmenu => Custom(AccessibilityContent::new(
-                String::from("Submenu Expanded"),
-                "Press the right key to open the selected submenu",
+                String::from(tr("local_menu.a11y.submenu_open", "Submenu Expanded")),
+                tr(
+                    "local_menu.a11y.open_submenu",
+                    "Press the right key to open the selected submenu",
+                ),
                 WarpA11yRole::TextRole,
             )),
             CloseSubmenu(_) => Custom(AccessibilityContent::new(
-                String::from("Submenu Closed"),
-                "Removing focus from a submenu will close the submenu",
+                String::from(tr("local_menu.a11y.submenu_closed", "Submenu Closed")),
+                tr(
+                    "local_menu.a11y.leave_submenu",
+                    "Removing focus from a submenu will close the submenu",
+                ),
                 WarpA11yRole::TextRole,
             )),
             Close(_) => Custom(AccessibilityContent::new(
-                String::from("Menu Closed"),
-                "Press the escape key to close the menu",
+                String::from(tr("local_menu.a11y.closed", "Menu Closed")),
+                tr(
+                    "local_menu.a11y.close",
+                    "Press the escape key to close the menu",
+                ),
                 WarpA11yRole::TextRole,
             )),
             Enter => Custom(AccessibilityContent::new(
-                String::from("Action Selected"),
-                "Press the enter key to execute the selected menu item action",
+                String::from(tr("local_menu.a11y.action_selected", "Action Selected")),
+                tr(
+                    "local_menu.a11y.execute",
+                    "Press the enter key to execute the selected menu item action",
+                ),
                 WarpA11yRole::TextRole,
             )),
             HoverSubmenuLeafNode { .. }

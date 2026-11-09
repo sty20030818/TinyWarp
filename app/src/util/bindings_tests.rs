@@ -227,3 +227,37 @@ fn localized_description_survives_command_binding_materialization() {
         });
     });
 }
+
+#[test]
+fn shortcut_filter_keeps_english_alias_and_original_binding_after_localization() {
+    use warpui::keymap::{BindingDescription, DescriptionContext};
+
+    use super::{CommandBinding, filter_bindings_including_keystroke};
+
+    let mut binding = CommandBinding::new(
+        "terminal:accept_autosuggestion".into(),
+        String::new(),
+        Some(Keystroke::parse("cmd-right").unwrap()),
+    );
+    binding.description = BindingDescription::new_preserve_case("接受自动建议")
+        .with_search_alias("Accept Autosuggestion");
+    for query in [
+        "接受",
+        "Accept Autosuggestion",
+        "ACCEPT AUTOSUGGESTION",
+        "cmd right",
+    ] {
+        let results = filter_bindings_including_keystroke(
+            std::iter::once(&binding),
+            query,
+            DescriptionContext::Default,
+        )
+        .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1, "查询 {query}");
+        assert_eq!(results[0].1.id, binding.id);
+        assert!(
+            results[0].0.is_none(),
+            "快捷键搜索不使用英文别名下标高亮中文"
+        );
+    }
+}

@@ -785,7 +785,7 @@ fn terminal_primary_line_falls_back_to_new_session() {
         None,
     );
 
-    assert_eq!(line.text(), "New session");
+    assert_eq!(line.text(), "新会话");
     assert!(matches!(
         line,
         TerminalPrimaryLineData::Text {
@@ -1259,8 +1259,22 @@ fn group_display_name_uses_the_group_name_when_set() {
 }
 
 #[test]
+fn group_display_name_preserves_a_user_name_that_matches_the_original_default() {
+    let group = tab_group(Some("New Group"));
+    assert_eq!(group_display_name(&group), "New Group");
+    assert_eq!(group.name.as_deref(), Some("New Group"));
+}
+
+#[test]
+fn group_display_name_does_not_persist_the_localized_fallback() {
+    let group = tab_group(None);
+    assert_eq!(group_display_name(&group), "新分组");
+    assert_eq!(group.name, None);
+}
+
+#[test]
 fn group_display_name_falls_back_to_the_untitled_header_text() {
-    assert_eq!(group_display_name(&tab_group(None)), "New Group");
+    assert_eq!(group_display_name(&tab_group(None)), "新分组");
 }
 
 #[test]
@@ -1389,6 +1403,34 @@ fn matched_group_ids_matches_the_untitled_group_placeholder() {
     let groups = tab_groups_map(vec![group]);
 
     assert_eq!(matched_group_ids(&groups, "new group"), HashSet::from([id]));
+    assert_eq!(matched_group_ids(&groups, "group"), HashSet::from([id]));
+    assert_eq!(matched_group_ids(&groups, "新分组"), HashSet::from([id]));
+    assert_eq!(matched_group_ids(&groups, "分组"), HashSet::from([id]));
+}
+
+#[test]
+fn matched_group_ids_does_not_add_default_aliases_to_user_names() {
+    let english_name = tab_group(Some("New Group"));
+    let chinese_name = tab_group(Some("新分组"));
+    let other_name = tab_group(Some("backend"));
+    let empty_name = tab_group(Some(""));
+    let english_id = english_name.id;
+    let chinese_id = chinese_name.id;
+    let other_id = other_name.id;
+    let groups = tab_groups_map(vec![english_name, chinese_name, other_name, empty_name]);
+
+    assert_eq!(
+        matched_group_ids(&groups, "group"),
+        HashSet::from([english_id])
+    );
+    assert_eq!(
+        matched_group_ids(&groups, "分组"),
+        HashSet::from([chinese_id])
+    );
+    assert_eq!(
+        matched_group_ids(&groups, "backend"),
+        HashSet::from([other_id])
+    );
 }
 
 #[test]
@@ -1474,7 +1516,19 @@ fn group_name_highlights_do_not_use_fuzzy_matching() {
 #[test]
 fn group_name_highlights_match_untitled_fallback() {
     assert_eq!(
-        group_name_highlight_indices(&group_display_name(&tab_group(None)), "group"),
-        vec![4, 5, 6, 7, 8]
+        group_name_highlight_indices(&group_display_name(&tab_group(None)), "分组"),
+        vec![1, 2]
+    );
+}
+
+#[test]
+fn group_name_highlights_do_not_apply_english_alias_indices_to_the_localized_name() {
+    let displayed_name = group_display_name(&tab_group(None));
+
+    assert!(group_name_highlight_indices(&displayed_name, "new group").is_empty());
+    assert!(group_name_highlight_indices(&displayed_name, "group").is_empty());
+    assert_eq!(
+        group_name_highlight_indices(&displayed_name, "分组"),
+        vec![1, 2]
     );
 }

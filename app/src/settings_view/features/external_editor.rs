@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use settings::{Setting, ToggleableSetting};
 use warp_core::features::FeatureFlag;
 use warp_errors::report_if_error;
+use warp_i18n::tr;
 use warpui::elements::{Flex, MouseStateHandle, ParentElement};
 use warpui::ui_components::components::UiComponent;
 use warpui::ui_components::switch::SwitchStateHandle;
@@ -118,7 +119,7 @@ impl ExternalEditorView {
         dropdown: &mut Dropdown<ExternalEditorAction>,
         ctx: &mut ViewContext<Dropdown<ExternalEditorAction>>,
     ) {
-        let default_option_text = "Split Pane";
+        let default_option_text = tr("local_settings.split_pane", "Split Pane");
         let default_app = DropdownItem::new(
             default_option_text,
             ExternalEditorAction::SetLayout(EditorLayout::SplitPane),
@@ -126,14 +127,16 @@ impl ExternalEditorView {
 
         let mut items = vec![default_app];
         items.push(DropdownItem::new(
-            "New Tab",
+            tr("local_settings.new_tab", "New Tab"),
             ExternalEditorAction::SetLayout(EditorLayout::NewTab),
         ));
 
         dropdown.set_items(items, ctx);
         match layout_to_open_files {
             EditorLayout::SplitPane => dropdown.set_selected_by_name(default_option_text, ctx),
-            EditorLayout::NewTab => dropdown.set_selected_by_name("New Tab", ctx),
+            EditorLayout::NewTab => {
+                dropdown.set_selected_by_name(tr("local_settings.new_tab", "New Tab"), ctx)
+            }
         };
     }
 
@@ -143,7 +146,7 @@ impl ExternalEditorView {
         mut make_action: impl FnMut(EditorChoice) -> ExternalEditorAction,
         ctx: &mut ViewContext<Dropdown<ExternalEditorAction>>,
     ) {
-        let default_option_text = "Default App";
+        let default_option_text = tr("local_settings.default_app", "Default App");
         let default_app = DropdownItem::new(
             default_option_text,
             make_action(EditorChoice::SystemDefault),
@@ -279,7 +282,10 @@ impl View for ExternalEditorView {
 
         let default_editor = render_dropdown_item(
             appearance,
-            "Choose an editor to open file links",
+            tr(
+                "local_settings.choose_an_editor_to_open_file_links",
+                "Choose an editor to open file links",
+            ),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -294,7 +300,10 @@ impl View for ExternalEditorView {
 
         let code_panels_editor = render_dropdown_item(
             appearance,
-            "Choose an editor to open files from the code review panel, project explorer, and global search",
+            tr(
+                "local_settings.choose_an_editor_to_open_files_from_the_code_review",
+                "Choose an editor to open files from the code review panel, project explorer, and global search",
+            ),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -309,7 +318,10 @@ impl View for ExternalEditorView {
 
         let default_layout = render_dropdown_item(
             appearance,
-            "Choose a layout to open files in Warp",
+            tr(
+                "local_settings.choose_a_layout_to_open_files_in_warp",
+                "Choose a layout to open files in Warp",
+            ),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -329,7 +341,11 @@ impl View for ExternalEditorView {
 
         if FeatureFlag::TabbedEditorView.is_enabled() {
             column.add_child(render_body_item::<ExternalEditorAction>(
-                TABBED_FILE_VIEWER_TOGGLE_HEADER.into(),
+                tr(
+                    "local_settings.group_files_into_single_editor_pane",
+                    TABBED_FILE_VIEWER_TOGGLE_HEADER,
+                )
+                .into(),
                 None,
                 LocalOnlyIconState::for_setting(
                     PreferTabbedEditorView::storage_key(),
@@ -352,12 +368,22 @@ impl View for ExternalEditorView {
                         ctx.dispatch_typed_action(ExternalEditorAction::ToggleTabbedEditorView);
                     })
                     .finish(),
-                Some(TABBED_FILE_VIEWER_TOGGLE_DESCRIPTION.into()),
+                Some(
+                    tr(
+                        "local_settings.when_this_setting_is_on_any_files_opened_in_the",
+                        TABBED_FILE_VIEWER_TOGGLE_DESCRIPTION,
+                    )
+                    .into(),
+                ),
             ));
         }
 
         column.add_child(render_body_item::<ExternalEditorAction>(
-            "Open Markdown files in Warp's Markdown Viewer by default".to_string(),
+            tr(
+                "local_settings.open_markdown_files_in_warp_s_markdown_viewer_by_default",
+                "Open Markdown files in Warp's Markdown Viewer by default",
+            )
+            .to_string(),
             Some(AdditionalInfo {
                 mouse_state: self.markdown_viewer_mouse_state.clone(),
                 on_click_action: Some(ExternalEditorAction::OpenUrl(

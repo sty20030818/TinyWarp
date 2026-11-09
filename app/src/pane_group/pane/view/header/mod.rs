@@ -6,6 +6,7 @@ use sharing::SharedPaneContent;
 use warp_core::features::FeatureFlag;
 use warp_core::settings::Setting;
 use warp_errors::report_error;
+use warp_i18n::tr;
 use warpui::elements::{
     AcceptedByDropTarget, Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, Dismiss, Draggable, DraggableState, Empty, Flex, Hoverable,
@@ -152,7 +153,11 @@ impl<P: BackingView> PaneHeader<P> {
 
         let toolbelt_feature_popup = ctx.add_view(|_| {
             FeaturePopup::new_feature(NewFeaturePopupLabel::FromString(
-                "Open files and review code diffs".to_string(),
+                tr(
+                    "workspace.pane.open_files_review_diffs",
+                    "Open files and review code diffs",
+                )
+                .to_string(),
             ))
         });
         ctx.subscribe_to_view(&toolbelt_feature_popup, move |me, _, event, ctx| {

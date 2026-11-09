@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use warp_i18n::tr;
 use warpui::elements::ChildView;
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
@@ -123,9 +124,10 @@ impl BranchPicker {
             dropdown.set_disabled(ctx);
             // Show loading text in the dropdown top bar so the modal
             // doesn't shift layout while the fetch is in-flight.
-            let placeholder = DropdownItem::new(LOADING_PLACEHOLDER.to_string(), String::new());
+            let loading_label = tr("layout.branch.loading", LOADING_PLACEHOLDER);
+            let placeholder = DropdownItem::new(loading_label.to_string(), String::new());
             dropdown.set_items(vec![placeholder], ctx);
-            dropdown.set_selected_by_name(LOADING_PLACEHOLDER, ctx);
+            dropdown.set_selected_by_name(loading_label, ctx);
         });
 
         self.fetch_epoch += 1;

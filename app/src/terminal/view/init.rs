@@ -268,7 +268,10 @@ pub fn init(app: &mut AppContext) {
     #[cfg(windows)]
     app.register_editable_bindings([EditableBinding::new(
         "terminal:alternate_terminal_paste",
-        "Alternate terminal paste",
+        crate::util::bindings::localized_description(
+            "terminal.action.alternate_paste",
+            "Alternate terminal paste",
+        ),
         TerminalAction::Paste,
     )
     .with_key_binding("ctrl-v")
@@ -356,9 +359,15 @@ pub fn init(app: &mut AppContext) {
         EditableBinding::new(
             CANCEL_COMMAND_KEYBINDING,
             if cfg!(windows) {
-                "Copy text or cancel active process"
+                crate::util::bindings::localized_description(
+                    "terminal.action.copy_or_cancel",
+                    "Copy text or cancel active process",
+                )
             } else {
-                "Cancel active process"
+                crate::util::bindings::localized_description(
+                    "terminal.action.cancel_process",
+                    "Cancel active process",
+                )
             },
             TerminalAction::CtrlC,
         )
@@ -366,7 +375,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             "terminal:focus_input",
-            "Focus terminal input",
+            crate::util::bindings::localized_description(
+                "terminal.action.focus_input",
+                "Focus terminal input",
+            ),
             TerminalAction::FocusInputAndClearSelection,
         )
         .with_custom_action(CustomAction::FocusInput)
@@ -381,7 +393,10 @@ pub fn init(app: &mut AppContext) {
             .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             "terminal:reinput_commands",
-            "Reinput selected commands",
+            crate::util::bindings::localized_description(
+                "terminal.action.reinput",
+                "Reinput selected commands",
+            ),
             TerminalAction::ReinputCommands,
         )
         .with_context_predicate(
@@ -389,7 +404,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:reinput_commands_with_sudo",
-            "Reinput selected commands as root",
+            crate::util::bindings::localized_description(
+                "terminal.action.reinput_root",
+                "Reinput selected commands as root",
+            ),
             TerminalAction::ReinputCommandsWithSudo,
         )
         .with_context_predicate(
@@ -397,7 +415,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:find",
-            "Find in Terminal",
+            crate::util::bindings::localized_description(
+                "terminal.action.find",
+                "Find in Terminal",
+            ),
             TerminalAction::ShowFindBar,
         )
         .with_key_binding(cmd_or_ctrl_shift("f"))
@@ -405,14 +426,20 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal")),
         EditableBinding::new(
             "terminal:select_bookmark_up",
-            "Select the closest bookmark up",
+            crate::util::bindings::localized_description(
+                "terminal.action.bookmark_up",
+                "Select the closest bookmark up",
+            ),
             TerminalAction::SelectBookmarkUp,
         )
         .with_key_binding("alt-up")
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             "terminal:select_bookmark_down",
-            "Select the closest bookmark down",
+            crate::util::bindings::localized_description(
+                "terminal.action.bookmark_down",
+                "Select the closest bookmark down",
+            ),
             TerminalAction::SelectBookmarkDown,
         )
         .with_key_binding("alt-down")
@@ -434,7 +461,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:open_block_list_context_menu_via_keybinding",
-            "Open block context menu",
+            crate::util::bindings::localized_description(
+                "terminal.action.block_menu",
+                "Open block context menu",
+            ),
             TerminalAction::OpenBlockListContextMenu,
         )
         .with_mac_key_binding("ctrl-m")
@@ -454,7 +484,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:copy_git_branch",
-            "Copy git branch",
+            crate::util::bindings::localized_description(
+                "terminal.action.copy_branch",
+                "Copy git branch",
+            ),
             TerminalAction::CopyGitBranch,
         )
         .with_context_predicate(
@@ -464,7 +497,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:clear_blocks",
-            "Clear Blocks",
+            crate::util::bindings::localized_description(
+                "terminal.action.clear_blocks",
+                "Clear Blocks",
+            ),
             TerminalAction::ClearBuffer,
         )
         .with_custom_action(CustomAction::ClearBlocks)
@@ -473,7 +509,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_word_left",
-            "Move cursor one word to the left within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.cursor_left",
+                "Move cursor one word to the left within an executing command",
+            ),
             TerminalAction::ControlSequence(Vec::from(EscCodes::WORD_LEFT)),
         )
         .with_mac_key_binding("alt-left")
@@ -481,7 +520,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_word_right",
-            "Move cursor one word to the right within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.cursor_right",
+                "Move cursor one word to the right within an executing command",
+            ),
             TerminalAction::ControlSequence(Vec::from(EscCodes::WORD_RIGHT)),
         )
         .with_mac_key_binding("alt-right")
@@ -489,7 +531,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_home",
-            "Move cursor home within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.cursor_home",
+                "Move cursor home within an executing command",
+            ),
             TerminalAction::ControlSequence(vec![escape_sequences::C0::SOH]),
         )
         // We already have bindings for home/end (the keybindings for this on Linux and Mac) that
@@ -498,14 +543,20 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_end",
-            "Move cursor end within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.cursor_end",
+                "Move cursor end within an executing command",
+            ),
             TerminalAction::ControlSequence(vec![escape_sequences::C0::ENQ]),
         )
         .with_mac_key_binding("cmd-right")
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_delete_word_left",
-            "Delete word left within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.delete_word",
+                "Delete word left within an executing command",
+            ),
             TerminalAction::ControlSequence(vec![escape_sequences::C0::ETB]),
         )
         .with_mac_key_binding("alt-backspace")
@@ -513,7 +564,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_delete_line_start",
-            "Delete to line start within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.delete_start",
+                "Delete to line start within an executing command",
+            ),
             TerminalAction::ControlSequence(vec![escape_sequences::C0::NAK]),
         )
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand"))
@@ -522,7 +576,10 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-backspace"),
         EditableBinding::new(
             "terminal:executing_command_delete_line_end",
-            "Delete to line end within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.delete_end",
+                "Delete to line end within an executing command",
+            ),
             TerminalAction::ControlSequence(vec![escape_sequences::C0::VT]),
         )
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand"))
@@ -530,7 +587,10 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-delete"),
         EditableBinding::new(
             "terminal:backward_tabulation",
-            "Backward tabulation within an executing command",
+            crate::util::bindings::localized_description(
+                "terminal.action.back_tab",
+                "Backward tabulation within an executing command",
+            ),
             TerminalAction::ControlSequence(EscCodes::build_escape_sequence_with_c1(
                 escape_sequences::C1::CSI,
                 EscCodes::BACKWARD_TABULATION,
@@ -545,7 +605,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             SELECT_PREVIOUS_BLOCK_ACTION_NAME,
-            "Select previous block",
+            crate::util::bindings::localized_description(
+                "terminal.action.previous_block",
+                "Select previous block",
+            ),
             TerminalAction::SelectPriorBlock,
         )
         .with_custom_action(CustomAction::SelectBlockAbove)
@@ -554,7 +617,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             SELECT_NEXT_BLOCK_ACTION_NAME,
-            "Select next block",
+            crate::util::bindings::localized_description(
+                "terminal.action.next_block",
+                "Select next block",
+            ),
             TerminalAction::SelectNextBlock,
         )
         .with_custom_action(CustomAction::SelectBlockBelow)
@@ -572,7 +638,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:bookmark_selected_block",
-            "Bookmark selected block",
+            crate::util::bindings::localized_description(
+                "terminal.action.bookmark",
+                "Bookmark selected block",
+            ),
             TerminalAction::BookmarkSelectedBlock,
         )
         .with_custom_action(CustomAction::ToggleBookmarkBlock)
@@ -581,7 +650,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:find",
-            "Find within selected block",
+            crate::util::bindings::localized_description(
+                "terminal.action.find_block",
+                "Find within selected block",
+            ),
             TerminalAction::ShowFindBar,
         )
         .with_custom_action(CustomAction::FindWithinBlock)
@@ -590,7 +662,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:copy",
-            "Copy command and output",
+            crate::util::bindings::localized_description(
+                "terminal.action.copy_both",
+                "Copy command and output",
+            ),
             TerminalAction::Copy,
         )
         .with_custom_action(CustomAction::CopyBlock)
@@ -599,7 +674,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:copy_outputs",
-            "Copy command output",
+            crate::util::bindings::localized_description(
+                "terminal.action.copy_output",
+                "Copy command output",
+            ),
             TerminalAction::CopyOutputs,
         )
         .with_custom_action(CustomAction::CopyBlockOutput)
@@ -608,7 +686,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:copy_commands",
-            "Copy command",
+            crate::util::bindings::localized_description(
+                "terminal.action.copy_command",
+                "Copy command",
+            ),
             TerminalAction::CopyCommands,
         )
         .with_custom_action(CustomAction::CopyBlockCommand)
@@ -620,7 +701,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:scroll_up_one_line",
-            "Scroll terminal output up one line",
+            crate::util::bindings::localized_description(
+                "terminal.action.scroll_up_line",
+                "Scroll terminal output up one line",
+            ),
             TerminalAction::Scroll {
                 delta: 1.0.into_lines(),
             },
@@ -628,7 +712,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & id!("TerminalView_NonEmptyBlockList")),
         EditableBinding::new(
             "terminal:scroll_down_one_line",
-            "Scroll terminal output down one line",
+            crate::util::bindings::localized_description(
+                "terminal.action.scroll_down_line",
+                "Scroll terminal output down one line",
+            ),
             TerminalAction::Scroll {
                 delta: -(1.0.into_lines()),
             },
@@ -639,7 +726,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:scroll_up_one_page",
-            "Scroll terminal output up one page",
+            crate::util::bindings::localized_description(
+                "terminal.action.scroll_up_page",
+                "Scroll terminal output up one page",
+            ),
             TerminalAction::PageUp,
         )
         .with_key_binding("pageup")
@@ -651,7 +741,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:scroll_down_one_page",
-            "Scroll terminal output down one page",
+            crate::util::bindings::localized_description(
+                "terminal.action.scroll_down_page",
+                "Scroll terminal output down one page",
+            ),
             TerminalAction::PageDown,
         )
         .with_key_binding("pagedown")
@@ -665,7 +758,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:scroll_to_top_of_selected_block",
-        "Scroll to top of selected block",
+        crate::util::bindings::localized_description(
+            "terminal.action.scroll_top",
+            "Scroll to top of selected block",
+        ),
         TerminalAction::ScrollToTopOfSelectedBlocks,
     )
     .with_custom_action(CustomAction::ScrollToTopOfSelectedBlocks)
@@ -674,7 +770,10 @@ pub fn init(app: &mut AppContext) {
     )]);
     app.register_editable_bindings([EditableBinding::new(
         "terminal:scroll_to_bottom_of_selected_block",
-        "Scroll to bottom of selected block",
+        crate::util::bindings::localized_description(
+            "terminal.action.scroll_bottom",
+            "Scroll to bottom of selected block",
+        ),
         TerminalAction::ScrollToBottomOfSelectedBlocks,
     )
     .with_custom_action(CustomAction::ScrollToBottomOfSelectedBlocks)
@@ -693,7 +792,10 @@ pub fn init(app: &mut AppContext) {
             // from the menus and doesn't conflict with cmd-A in the editor.
             EditableBinding::new(
                 "terminal:select_all_blocks",
-                "Select all blocks",
+                crate::util::bindings::localized_description(
+                    "terminal.action.select_all",
+                    "Select all blocks",
+                ),
                 TerminalAction::SelectAllBlocks,
             )
             .with_context_predicate(
@@ -702,7 +804,10 @@ pub fn init(app: &mut AppContext) {
             .with_custom_action(CustomAction::SelectAll),
             EditableBinding::new(
                 "terminal:select_all_blocks",
-                "Select all blocks",
+                crate::util::bindings::localized_description(
+                    "terminal.action.select_all",
+                    "Select all blocks",
+                ),
                 TerminalAction::SelectAllBlocks,
             )
             .with_context_predicate(
@@ -713,7 +818,10 @@ pub fn init(app: &mut AppContext) {
     } else {
         app.register_editable_bindings([EditableBinding::new(
             "terminal:select_all_blocks",
-            "Select all blocks",
+            crate::util::bindings::localized_description(
+                "terminal.action.select_all",
+                "Select all blocks",
+            ),
             TerminalAction::SelectAllBlocks,
         )
         .with_context_predicate(
@@ -724,7 +832,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:expand_block_selection_above",
-            "Expand selected blocks above",
+            crate::util::bindings::localized_description(
+                "terminal.action.expand_up",
+                "Expand selected blocks above",
+            ),
             TerminalAction::ExpandBlockSelectionAbove,
         )
         .with_key_binding("shift-up")
@@ -736,7 +847,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:expand_block_selection_below",
-            "Expand selected blocks below",
+            crate::util::bindings::localized_description(
+                "terminal.action.expand_down",
+                "Expand selected blocks below",
+            ),
             TerminalAction::ExpandBlockSelectionBelow,
         )
         .with_key_binding("shift-down")
@@ -958,7 +1072,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         TOGGLE_BLOCK_FILTER_KEYBINDING,
-        "Toggle block filter on selected or last block",
+        crate::util::bindings::localized_description(
+            "terminal.action.block_filter",
+            "Toggle block filter on selected or last block",
+        ),
         TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(ToggleBlockFilterSource::Binding),
     )
     .with_mac_key_binding("shift-alt-F")
@@ -966,7 +1083,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_snackbar_in_active_pane",
-        "Toggle Sticky Command Header in Active Pane",
+        crate::util::bindings::localized_description(
+            "terminal.action.sticky_header",
+            "Toggle Sticky Command Header in Active Pane",
+        ),
         TerminalAction::ToggleSnackbarInActivePane,
     )
     .with_context_predicate(id!("Terminal"))]);

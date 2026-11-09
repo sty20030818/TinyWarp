@@ -15,6 +15,7 @@ pub(crate) mod queued_prompts_panel;
 mod queued_prompts_tests;
 use ai::agent::action::InsertReviewComment;
 pub use load_ai_conversation::ConversationRestorationInNewPaneType;
+use warp_i18n::tr;
 // TODO(advait): if we align on prompt suggestions banner in Input, move code out of inline_banner mod.
 pub(crate) mod init_environment;
 mod init_project;
@@ -17602,6 +17603,10 @@ impl TerminalView {
                             .map(|url_content| {
                                 vec![
                                     MenuItemFields::new("Copy URL")
+                                        .with_display_label(tr(
+                                            "terminal.menu.copy_url",
+                                            "Copy URL",
+                                        ))
                                         .with_on_select_action(TerminalAction::ContextMenu(
                                             ContextMenuAction::CopyUrl { url_content },
                                         ))
@@ -17621,6 +17626,7 @@ impl TerminalView {
                         path.map(|path| {
                             let mut items = vec![
                                 MenuItemFields::new("Copy path")
+                                    .with_display_label(tr("terminal.menu.copy_path", "Copy path"))
                                     .with_on_select_action(TerminalAction::ContextMenu(
                                         ContextMenuAction::CopyUrl {
                                             url_content: path.to_string_lossy().into(),
@@ -17628,6 +17634,11 @@ impl TerminalView {
                                     ))
                                     .into_item(),
                                 MenuItemFields::new(show_in_file_explorer_menu_item_label)
+                                    .with_display_label(if cfg!(target_os = "macos") {
+                                        tr("terminal.menu.show_finder", "Show in Finder")
+                                    } else {
+                                        tr("terminal.menu.show_folder", "Show containing folder")
+                                    })
                                     .with_on_select_action(TerminalAction::ShowInFileExplorer(
                                         path.clone(),
                                     ))
@@ -17637,6 +17648,10 @@ impl TerminalView {
                             if renders_in_warp_notebook_viewer(&path) {
                                 items.push(
                                     MenuItemFields::new("Open in Warp")
+                                        .with_display_label(tr(
+                                            "terminal.menu.open_in_app",
+                                            "Open in Warp",
+                                        ))
                                         .with_on_select_action(TerminalAction::OpenFileInWarp(path))
                                         .into_item(),
                                 );
@@ -17644,6 +17659,10 @@ impl TerminalView {
                                 // have an open-in-editor option.
                                 items.push(
                                     MenuItemFields::new("Open in editor")
+                                        .with_display_label(tr(
+                                            "terminal.menu.open_editor",
+                                            "Open in editor",
+                                        ))
                                         .with_on_select_action(TerminalAction::OpenGridLink(
                                             highlighted_link.clone(),
                                         ))
@@ -17661,11 +17680,13 @@ impl TerminalView {
                         // `OpenGridLink`.
                         vec![
                             MenuItemFields::new("Open link")
+                                .with_display_label(tr("terminal.menu.open_link", "Open link"))
                                 .with_on_select_action(TerminalAction::OpenGridLink(
                                     highlighted_link.clone(),
                                 ))
                                 .into_item(),
                             MenuItemFields::new("Copy link")
+                                .with_display_label(tr("terminal.menu.copy_link", "Copy link"))
                                 .with_on_select_action(TerminalAction::ContextMenu(
                                     ContextMenuAction::CopyUrl {
                                         url_content: uri.clone(),
@@ -17691,6 +17712,7 @@ impl TerminalView {
             ) => {
                 let mut fields = vec![
                     MenuItemFields::new("Copy")
+                        .with_display_label(tr("terminal.menu.copy", "Copy"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopySelectedText,
                         ))
@@ -17700,6 +17722,7 @@ impl TerminalView {
                         ))
                         .into_item(),
                     MenuItemFields::new("Insert into input")
+                        .with_display_label(tr("terminal.menu.insert_input", "Insert into input"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::InsertSelectedText,
                         ))
@@ -17806,6 +17829,7 @@ impl TerminalView {
 
                 let mut items = vec![
                     MenuItemFields::new(copy_str)
+                        .with_display_label(tr("terminal.menu.copy", "Copy"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopyBlocks,
                         ))
@@ -17816,6 +17840,11 @@ impl TerminalView {
                         .with_disabled(is_copy_both_disabled)
                         .into_item(),
                     MenuItemFields::new(copy_commands_str)
+                        .with_display_label(if is_single_selection {
+                            tr("terminal.menu.copy_command", "Copy command")
+                        } else {
+                            tr("terminal.menu.copy_commands", "Copy commands")
+                        })
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopyBlockCommands,
                         ))
@@ -17829,6 +17858,7 @@ impl TerminalView {
 
                 if is_single_selection {
                     let mut copy_output_menu_item = MenuItemFields::new("Copy output")
+                        .with_display_label(tr("terminal.menu.copy_output", "Copy output"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopyBlockOutputs,
                         ))
@@ -17840,6 +17870,10 @@ impl TerminalView {
                         items.insert(
                             1,
                             MenuItemFields::new("Copy filtered output")
+                                .with_display_label(tr(
+                                    "terminal.menu.copy_filtered_output",
+                                    "Copy filtered output",
+                                ))
                                 .with_on_select_action(TerminalAction::ContextMenu(
                                     ContextMenuAction::CopyBlockFilteredOutputs,
                                 ))
@@ -17958,6 +17992,11 @@ impl TerminalView {
                 items.append(&mut vec![
                     MenuItem::Separator,
                     MenuItemFields::new(find_str)
+                        .with_display_label(if is_single_selection {
+                            tr("terminal.menu.find_block", "Find within block")
+                        } else {
+                            tr("terminal.menu.find_blocks", "Find within blocks")
+                        })
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::FindWithinBlock,
                         ))
@@ -17969,6 +18008,10 @@ impl TerminalView {
                 ]);
                 items.append(&mut vec![
                     MenuItemFields::new("Toggle block filter")
+                        .with_display_label(tr(
+                            "terminal.menu.toggle_filter",
+                            "Toggle block filter",
+                        ))
                         .with_on_select_action(
                             TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(
                                 ToggleBlockFilterSource::ContextMenu,
@@ -17982,6 +18025,7 @@ impl TerminalView {
                 ]);
                 items.append(&mut vec![
                     MenuItemFields::new("Toggle bookmark")
+                        .with_display_label(tr("terminal.menu.toggle_bookmark", "Toggle bookmark"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::ToggleBookmark,
                         ))
@@ -17995,6 +18039,11 @@ impl TerminalView {
                 items.append(&mut vec![
                     MenuItem::Separator,
                     MenuItemFields::new(scroll_to_top_str)
+                        .with_display_label(if is_single_selection {
+                            tr("terminal.menu.scroll_top", "Scroll to top of block")
+                        } else {
+                            tr("terminal.menu.scroll_tops", "Scroll to top of blocks")
+                        })
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::ScrollToTopOfBlock,
                         ))
@@ -18006,6 +18055,11 @@ impl TerminalView {
                 ]);
                 items.append(&mut vec![
                     MenuItemFields::new(scroll_to_bottom_str)
+                        .with_display_label(if is_single_selection {
+                            tr("terminal.menu.scroll_bottom", "Scroll to bottom of block")
+                        } else {
+                            tr("terminal.menu.scroll_bottoms", "Scroll to bottom of blocks")
+                        })
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::ScrollToBottomOfBlock,
                         ))
@@ -18227,6 +18281,7 @@ impl TerminalView {
     fn paste_menu_item(&self, ctx: &mut ViewContext<Self>) -> MenuItem<TerminalAction> {
         let is_clipboard_empty = ctx.clipboard().read().is_empty();
         MenuItemFields::new("Paste")
+            .with_display_label(tr("terminal.menu.paste", "Paste"))
             .with_on_select_action(TerminalAction::Paste)
             .with_key_shortcut_label(keybinding_name_to_display_string("terminal:paste", ctx))
             .with_disabled(is_clipboard_empty)
@@ -18247,6 +18302,7 @@ impl TerminalView {
         }
         Some(
             MenuItemFields::new("Clear Blocks")
+                .with_display_label(tr("terminal.menu.clear_blocks", "Clear Blocks"))
                 .with_on_select_action(TerminalAction::ClearBuffer)
                 .with_key_shortcut_label(keybinding_name_to_display_string(
                     "terminal:clear_blocks",
@@ -18264,6 +18320,7 @@ impl TerminalView {
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = vec![
             MenuItemFields::new("Copy prompt")
+                .with_display_label(tr("terminal.menu.copy_prompt", "Copy prompt"))
                 .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
                     position,
                     part: PromptPart::EntirePrompt,
@@ -18274,6 +18331,7 @@ impl TerminalView {
         if is_rprompt_shown {
             items.push(
                 MenuItemFields::new("Copy right prompt")
+                    .with_display_label(tr("terminal.menu.copy_right_prompt", "Copy right prompt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopyRprompt,
                     ))
@@ -18283,6 +18341,7 @@ impl TerminalView {
 
         items.push(
             MenuItemFields::new("Copy working directory")
+                .with_display_label(tr("terminal.menu.copy_cwd", "Copy working directory"))
                 .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
                     position,
                     part: PromptPart::Pwd,
@@ -18293,6 +18352,7 @@ impl TerminalView {
         if is_on_git_branch {
             items.push(
                 MenuItemFields::new("Copy git branch")
+                    .with_display_label(tr("terminal.menu.copy_branch", "Copy git branch"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopyPrompt {
                             position,
@@ -18315,6 +18375,7 @@ impl TerminalView {
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend(vec![
                 MenuItemFields::new("Split pane right")
+                    .with_display_label(tr("terminal.menu.split_right", "Split pane right"))
                     .with_on_select_action(TerminalAction::SplitRight(shell.clone()))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_right",
@@ -18322,6 +18383,7 @@ impl TerminalView {
                     ))
                     .into_item(),
                 MenuItemFields::new("Split pane left")
+                    .with_display_label(tr("terminal.menu.split_left", "Split pane left"))
                     .with_on_select_action(TerminalAction::SplitLeft(shell.clone()))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_left",
@@ -18329,6 +18391,7 @@ impl TerminalView {
                     ))
                     .into_item(),
                 MenuItemFields::new("Split pane down")
+                    .with_display_label(tr("terminal.menu.split_down", "Split pane down"))
                     .with_on_select_action(TerminalAction::SplitDown(shell.clone()))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_down",
@@ -18336,6 +18399,7 @@ impl TerminalView {
                     ))
                     .into_item(),
                 MenuItemFields::new("Split pane up")
+                    .with_display_label(tr("terminal.menu.split_up", "Split pane up"))
                     .with_on_select_action(TerminalAction::SplitUp(shell))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_up",
@@ -18360,6 +18424,7 @@ impl TerminalView {
 
             items.push(
                 MenuItemFields::new("Close pane")
+                    .with_display_label(tr("terminal.menu.close_pane", "Close pane"))
                     .with_on_select_action(TerminalAction::Close)
                     .with_key_shortcut_label(
                         custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
@@ -18409,6 +18474,7 @@ impl TerminalView {
 
     fn prompt_context_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<TerminalAction>> {
         let copy_prompt = MenuItemFields::new("Copy prompt")
+            .with_display_label(tr("terminal.menu.copy_prompt", "Copy prompt"))
             .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
                 position: PromptPosition::Input,
                 part: PromptPart::EntirePrompt,
@@ -18442,6 +18508,7 @@ impl TerminalView {
         } else {
             Some(
                 MenuItemFields::new("Edit prompt")
+                    .with_display_label(tr("terminal.menu.edit_prompt", "Edit prompt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::EditPrompt,
                     ))
@@ -18455,6 +18522,10 @@ impl TerminalView {
             if self.is_rprompt_shown(&self.model.lock()) {
                 items.push(
                     MenuItemFields::new("Copy right prompt")
+                        .with_display_label(tr(
+                            "terminal.menu.copy_right_prompt",
+                            "Copy right prompt",
+                        ))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopyRprompt,
                         ))
@@ -18514,11 +18585,13 @@ impl TerminalView {
         if !selected_input_text.is_empty() {
             items.extend([
                 MenuItemFields::new("Cut")
+                    .with_display_label(tr("terminal.menu.cut", "Cut"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::CutSelectedText,
                     ))
                     .into_item(),
                 MenuItemFields::new("Copy")
+                    .with_display_label(tr("terminal.menu.copy", "Copy"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::CopySelectedText,
                     ))
@@ -18533,6 +18606,7 @@ impl TerminalView {
         if !all_current_input_text.is_empty() & selected_input_text.is_empty() {
             items.push(
                 MenuItemFields::new("Select all")
+                    .with_display_label(tr("terminal.menu.select_all", "Select all"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::SelectAll,
                     ))
@@ -18547,6 +18621,7 @@ impl TerminalView {
 
         items.push(
             MenuItemFields::new("Paste")
+                .with_display_label(tr("terminal.menu.paste", "Paste"))
                 .with_on_select_action(TerminalAction::InputContextMenuItem(
                     InputContextMenuAction::Paste,
                 ))
@@ -18567,6 +18642,7 @@ impl TerminalView {
         items.extend([
             MenuItem::Separator,
             MenuItemFields::new("Command search")
+                .with_display_label(tr("terminal.menu.command_search", "Command search"))
                 .with_on_select_action(TerminalAction::InputContextMenuItem(
                     InputContextMenuAction::ShowCommandSearch,
                 ))
@@ -18618,14 +18694,21 @@ impl TerminalView {
         // Section 4: input hint text toggle
         if !is_editor_disabled {
             let input_settings = InputSettings::as_ref(ctx);
-            let inverse_action = if *input_settings.show_hint_text {
-                "Hide"
+            let (hint_label, hint_display_label) = if *input_settings.show_hint_text {
+                (
+                    "Hide input hint text",
+                    tr("terminal.menu.hide_input_hint", "Hide input hint text"),
+                )
             } else {
-                "Show"
+                (
+                    "Show input hint text",
+                    tr("terminal.menu.show_input_hint", "Show input hint text"),
+                )
             };
             items.push(MenuItem::Separator);
             items.push(
-                MenuItemFields::new(format!("{inverse_action} input hint text"))
+                MenuItemFields::new(hint_label)
+                    .with_display_label(hint_display_label)
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::ToggleInputHintText,
                     ))
@@ -25425,9 +25508,13 @@ impl TerminalView {
                             .finish(),
                     )
                     .with_child(
-                        Text::new_inline("Loading session...", appearance.ui_font_family(), 14.)
-                            .with_color(color.into())
-                            .finish(),
+                        Text::new_inline(
+                            tr("terminal.session.loading", "Loading session..."),
+                            appearance.ui_font_family(),
+                            14.,
+                        )
+                        .with_color(color.into())
+                        .finish(),
                     )
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .finish(),

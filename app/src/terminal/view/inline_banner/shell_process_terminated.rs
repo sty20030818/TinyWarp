@@ -1,3 +1,4 @@
+use warp_i18n::tr;
 use warpui::Element;
 use warpui::elements::Text;
 
@@ -15,14 +16,21 @@ pub fn render_shell_process_terminated_banner(
             InlineBannerStyle::CallToAction,
             appearance,
             InlineBannerContent {
-                title: "Shell process exited prematurely!".to_string(),
+                title: tr(
+                    "terminal.shell.premature",
+                    "Shell process exited prematurely!",
+                )
+                .to_string(),
                 header_icon: Some(InlineBannerIcon {
                     asset_path: "bundled/svg/warning.svg",
                     aspect_ratio: 1.,
                     color_override: Some(appearance.theme().foreground().into_solid()),
                 }),
                 content: Some(vec![Text::new(
-                    "The output from Warp's initialization script is visible above to assist with debugging.",
+                    tr(
+                        "terminal.shell.init_output",
+                        "The output from Warp's initialization script is visible above to assist with debugging.",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )]),
@@ -34,7 +42,7 @@ pub fn render_shell_process_terminated_banner(
             InlineBannerStyle::LowPriority,
             appearance,
             InlineBannerContent {
-                title: "Shell process exited".to_string(),
+                title: tr("terminal.shell.exited", "Shell process exited").to_string(),
                 header_icon: Some(InlineBannerIcon {
                     asset_path: "bundled/svg/info.svg",
                     aspect_ratio: 1.,

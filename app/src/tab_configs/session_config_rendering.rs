@@ -4,6 +4,7 @@ use std::sync::Arc;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::{Fill, WarpTheme};
+use warp_i18n::tr;
 use warpui::elements::{
     Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Expanded,
     Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
@@ -87,13 +88,17 @@ where
     let on_accent_bg = bg.is_some();
     let on_select = Arc::new(on_select);
 
-    let label = Text::new_inline("Session type".to_string(), appearance.ui_font_family(), 12.)
-        .with_color(if on_accent_bg {
-            callout_label_color(appearance)
-        } else {
-            blended_colors::text_disabled(theme, bg_fill)
-        })
-        .finish();
+    let label = Text::new_inline(
+        tr("layout.session.type", "Session type").to_string(),
+        appearance.ui_font_family(),
+        12.,
+    )
+    .with_color(if on_accent_bg {
+        callout_label_color(appearance)
+    } else {
+        blended_colors::text_disabled(theme, bg_fill)
+    })
+    .finish();
 
     let mut pills_row = Flex::row().with_spacing(PILL_GAP);
 
@@ -114,7 +119,11 @@ where
         .finish();
 
         let name = Text::new_inline(
-            session_type.pill_label().to_string(),
+            match session_type {
+                SessionType::Terminal => tr("layout.session.terminal", "Terminal"),
+                _ => session_type.pill_label(),
+            }
+            .to_string(),
             appearance.ui_font_family(),
             14.,
         )
@@ -224,7 +233,7 @@ where
     let on_accent_bg = bg.is_some();
 
     let label = Text::new_inline(
-        "Select directory".to_string(),
+        tr("layout.session.select_directory", "Select directory").to_string(),
         appearance.ui_font_family(),
         12.,
     )
@@ -356,7 +365,11 @@ where
             if state.is_hovered() {
                 let tooltip = Container::new(
                     Text::new_inline(
-                        "Select a git repository to enable worktree support".to_string(),
+                        tr(
+                            "layout.worktree.repository_required",
+                            "Select a git repository to enable worktree support",
+                        )
+                        .to_string(),
                         font_family,
                         12.,
                     )
@@ -400,7 +413,10 @@ where
         blended_colors::text_sub(theme, theme.background())
     };
     let label = Text::new(
-        "Automatically create a worktree when opening a new tab",
+        tr(
+            "layout.worktree.create_on_new_tab",
+            "Automatically create a worktree when opening a new tab",
+        ),
         appearance.ui_font_family(),
         12.,
     )
@@ -487,9 +503,12 @@ where
             if state.is_hovered() {
                 let tooltip = Container::new(
                     Text::new_inline(
-                        "You must select that you want to automatically create a \
-                         worktree in order to select this"
-                            .to_string(),
+                        tr(
+                            "layout.worktree.enable_required",
+                            "You must select that you want to automatically create a \
+                         worktree in order to select this",
+                        )
+                        .to_string(),
                         font_family,
                         12.,
                     )
@@ -534,7 +553,10 @@ where
     };
 
     let label = Text::new(
-        "Auto-generate worktree branch name",
+        tr(
+            "layout.worktree.autogenerate_branch",
+            "Auto-generate worktree branch name",
+        ),
         appearance.ui_font_family(),
         12.,
     )

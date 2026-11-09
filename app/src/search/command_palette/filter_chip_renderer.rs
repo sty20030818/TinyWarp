@@ -42,7 +42,7 @@ impl FilterChipRenderer for QueryFilter {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
                         Text::new_inline(
-                            self.display_name(),
+                            crate::search::filter_chip_renderer::query_filter_display_name(*self),
                             appearance.ui_font_family(),
                             font_size,
                         )

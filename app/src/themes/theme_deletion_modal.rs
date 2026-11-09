@@ -1,5 +1,6 @@
 use std::default::Default;
 
+use warp_i18n::tr;
 use warpui::fonts::Weight;
 use warpui::keymap::FixedBinding;
 use warpui::presenter::ChildView;
@@ -50,7 +51,7 @@ impl ThemeDeletionModal {
 
         let theme_deletion_modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(THEME_DELETION_MODAL_HEADER.to_string()),
+                Some(tr("theme_ui.delete_confirmation", THEME_DELETION_MODAL_HEADER).to_string()),
                 theme_deletion_body,
                 ctx,
             )

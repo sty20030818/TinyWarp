@@ -14,6 +14,7 @@ use warp_completer::completer::{
 };
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
+use warp_i18n::tr;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
     Align, AnchorPair, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius,
@@ -727,7 +728,7 @@ impl InputSuggestions {
                     Align::new(
                         Container::new(
                             Text::new_inline(
-                                String::from("No suggestions"),
+                                String::from(tr("terminal.suggestion.none", "No suggestions")),
                                 appearance.monospace_font_family(),
                                 appearance.monospace_font_size(),
                             )
@@ -911,7 +912,13 @@ impl InputSuggestions {
 
                                             let tooltip_element = appearance
                                                 .ui_builder()
-                                                .tool_tip("Ignore this suggestion".to_string())
+                                                .tool_tip(
+                                                    tr(
+                                                        "terminal.suggestion.ignore",
+                                                        "Ignore this suggestion",
+                                                    )
+                                                    .to_string(),
+                                                )
                                                 .build()
                                                 .finish();
 

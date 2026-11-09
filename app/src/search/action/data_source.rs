@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use fuzzy_match::{FuzzyMatchResult, match_indices_case_insensitive};
+use fuzzy_match::FuzzyMatchResult;
 use warpui::keymap::{BindingId, DescriptionContext};
 use warpui::{AppContext, Entity, ModelContext, ModelHandle};
 
@@ -10,7 +10,7 @@ use crate::search::binding_source::BindingSource;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
-use crate::util::bindings::CommandBinding;
+use crate::util::bindings::{CommandBinding, match_binding_description};
 
 /// Data source for [`CommandBinding`]s. Produces a list of in-app actions a user can currently
 /// perform.
@@ -170,32 +170,12 @@ fn fuzzy_search_bindings(
         .values()
         .filter(|binding| !is_excluded_binding(binding))
         .filter_map(|binding| {
-            let label = binding.description.in_context(DescriptionContext::Default);
-            let mut best = match_indices_case_insensitive(&label.to_lowercase(), &search_term);
-            if let Some(result) = &mut best {
-                let original_indices = label
-                    .chars()
-                    .enumerate()
-                    .flat_map(|(index, ch)| ch.to_lowercase().map(move |_| index))
-                    .collect::<Vec<_>>();
-                result.matched_indices = result
-                    .matched_indices
-                    .iter()
-                    .filter_map(|&index| original_indices.get(index).copied())
-                    .collect();
-                result.matched_indices.dedup();
-            }
-            for alias in binding.description.search_aliases() {
-                if let Some(mut result) =
-                    match_indices_case_insensitive(&alias.to_lowercase(), &search_term)
-                    && best.as_ref().is_none_or(|best| result.score > best.score)
-                {
-                    // 别名下标对应另一段文字，不能用于高亮当前显示标签。
-                    result.matched_indices.clear();
-                    best = Some(result);
-                }
-            }
-            best.map(|result| (result, binding.clone()))
+            match_binding_description(
+                &binding.description,
+                DescriptionContext::Default,
+                &search_term,
+            )
+            .map(|result| (result, binding.clone()))
         })
         .collect()
 }

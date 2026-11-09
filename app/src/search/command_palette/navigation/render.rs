@@ -1,4 +1,5 @@
 use pathfinder_geometry::vector::vec2f;
+use warp_i18n::tr;
 use warpui::elements::{
     Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Highlight,
     ParentElement, Radius, Shrinkable, Wrap,
@@ -105,7 +106,7 @@ fn render_current_session_pill(
 ) -> Box<dyn Element> {
     let current_session_pill = appearance
         .ui_builder()
-        .span("Current".to_string())
+        .span(tr("search.session.current", "Current").to_string())
         .with_style(UiComponentStyles {
             font_family_id: Some(appearance.monospace_font_family()),
             // The font size is scaled down to make sure the pill fits in the row with its padding.
@@ -328,58 +329,102 @@ fn render_command_context(
 pub(super) struct CommandRenderInfo {
     pub command_text: Option<String>,
     pub hint_text: String,
+    pub search_hint_text: String,
     row_spacing: f32,
     hint_margin: f32,
 }
 
 impl CommandRenderInfo {
     pub fn from_context(command_context: CommandContext) -> CommandRenderInfo {
+        let (hint_text, search_hint_text) = session_hint_text(&command_context);
         match command_context {
             CommandContext::RunningCommand { running_command } => CommandRenderInfo {
                 command_text: Some(running_command),
-                hint_text: "Running...".to_string(),
+                hint_text,
+                search_hint_text,
                 row_spacing: styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
                 hint_margin: styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
             },
             CommandContext::LastRunCommand {
-                last_run_command,
-                mins_since_completion,
+                last_run_command, ..
             } => CommandRenderInfo {
-                row_spacing: match last_run_command.is_empty() {
-                    true => 0., // Don't include any spacing if the command is empty.
-                    false => styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
+                row_spacing: if last_run_command.is_empty() {
+                    0.
+                } else {
+                    styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING
                 },
-                hint_margin: match last_run_command.is_empty() {
-                    true => 0., // Don't include any margin if the command is empty.
-                    false => styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
+                hint_margin: if last_run_command.is_empty() {
+                    0.
+                } else {
+                    styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN
                 },
                 command_text: Some(last_run_command),
-                hint_text: match mins_since_completion {
-                    Some(mins) if mins >= 60 => "Completed over 1 hour ago".to_string(),
-                    Some(mins) if mins == 1 => format!("Completed {mins} minute ago"),
-                    Some(mins) => format!("Completed {mins} minutes ago"),
-                    None => "No timestamp found".to_string(),
-                },
+                hint_text,
+                search_hint_text,
             },
-            CommandContext::RunningAIBlock { prompt } => CommandRenderInfo {
+            CommandContext::RunningAIBlock { prompt }
+            | CommandContext::LastRunAIBlock { prompt } => CommandRenderInfo {
                 command_text: Some(prompt),
-                hint_text: "Running...".to_string(),
-                row_spacing: styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
-                hint_margin: styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
-            },
-            CommandContext::LastRunAIBlock { prompt } => CommandRenderInfo {
-                command_text: Some(prompt),
-                hint_text: "Completed".to_string(),
+                hint_text,
+                search_hint_text,
                 row_spacing: styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
                 hint_margin: styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
             },
             CommandContext::None => CommandRenderInfo {
                 command_text: Some(String::new()),
-                hint_text: "Empty Session".to_string(),
+                hint_text,
+                search_hint_text,
                 row_spacing: 0.,
                 hint_margin: 0.,
             },
         }
+    }
+}
+
+fn session_hint_text(context: &CommandContext) -> (String, String) {
+    match context {
+        CommandContext::RunningCommand { .. } | CommandContext::RunningAIBlock { .. } => (
+            tr("search.session.running", "Running...").into(),
+            "Running...".into(),
+        ),
+        CommandContext::LastRunCommand {
+            mins_since_completion,
+            ..
+        } => match mins_since_completion {
+            Some(mins) if *mins >= 60 => (
+                tr("search.session.over_hour", "Completed over 1 hour ago").into(),
+                "Completed over 1 hour ago".into(),
+            ),
+            Some(mins) => {
+                let (suffix, english_suffix) = if *mins == 1 {
+                    (tr("search.session.minute_ago", "minute ago"), "minute ago")
+                } else {
+                    (
+                        tr("search.session.minutes_ago", "minutes ago"),
+                        "minutes ago",
+                    )
+                };
+                (
+                    format!(
+                        "{} {mins} {suffix}",
+                        tr("search.session.completed_at", "Completed")
+                    ),
+                    format!("Completed {mins} {english_suffix}"),
+                )
+            }
+            None => (
+                tr("search.session.no_timestamp", "No timestamp found").into(),
+                "No timestamp found".into(),
+            ),
+        },
+        CommandContext::LastRunAIBlock { .. } => (
+            tr("search.session.completed", "Completed").into(),
+            "Completed".into(),
+        ),
+        CommandContext::None => (
+            tr("search.session.empty", "Empty Session").into(),
+            "Empty Session".into(),
+        ),
     }
 }
 

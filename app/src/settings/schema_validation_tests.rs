@@ -73,3 +73,18 @@ fn file_defaults_validate_against_schema() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn localized_settings_errors_keep_raw_keys_and_english_diagnostics() {
+    use super::SettingsFileError;
+
+    let key = "terminal.font_name";
+    let error = SettingsFileError::InvalidSettings(vec![key.into()]);
+    let (heading, details) = error.heading_and_description();
+    assert_eq!(error.to_string(), format!("Invalid value for '{key}'"));
+    assert!(heading.contains("错误"));
+    assert!(details.contains(key) && details.contains("默认值"));
+    let syntax = SettingsFileError::FileParseFailed("原始解析细节".into());
+    assert_eq!(syntax.to_string(), "Couldn't parse due to invalid syntax");
+    assert!(!syntax.heading_and_description().1.contains("原始解析细节"));
+}

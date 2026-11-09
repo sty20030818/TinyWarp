@@ -4,6 +4,7 @@ use serde::Serialize;
 use settings::Setting as _;
 use warp_core::ui::theme::Fill;
 use warp_errors::report_if_error;
+use warp_i18n::tr;
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Empty, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
@@ -500,7 +501,7 @@ impl EditorModal {
     fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .span(MODAL_TITLE.to_string())
+            .span(tr("terminal.prompt.edit", MODAL_TITLE).to_string())
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_TITLE_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Bold),
@@ -591,7 +592,7 @@ impl EditorModal {
             |_state| {
                 appearance
                     .ui_builder()
-                    .span(RESTORE_DEFAULT_BUTTON.to_string())
+                    .span(tr("terminal.prompt.restore", RESTORE_DEFAULT_BUTTON).to_string())
                     .with_style(UiComponentStyles {
                         font_size: Some(MODAL_CONTENT_FONT_SIZE),
                         ..Default::default()
@@ -615,7 +616,7 @@ impl EditorModal {
     fn render_same_line_prompt_section(&self, appearance: &Appearance) -> Box<dyn Element> {
         let label = appearance
             .ui_builder()
-            .span("Same line prompt".to_string())
+            .span(tr("terminal.prompt.same_line", "Same line prompt").to_string())
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 ..Default::default()
@@ -653,7 +654,7 @@ impl EditorModal {
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span("Separator".to_string())
+                        .span(tr("terminal.prompt.separator", "Separator").to_string())
                         .with_style(UiComponentStyles {
                             font_size: Some(MODAL_CONTENT_FONT_SIZE),
                             ..Default::default()
@@ -691,7 +692,7 @@ impl EditorModal {
             .with_child(
                 appearance
                     .ui_builder()
-                    .span(WARP_PROMPT_SECTION_HEADER.to_string())
+                    .span(tr("terminal.prompt.app", WARP_PROMPT_SECTION_HEADER).to_string())
                     .with_style(UiComponentStyles {
                         font_size: Some(MODAL_CONTENT_FONT_SIZE),
                         font_weight: Some(warpui::fonts::Weight::Semibold),
@@ -740,7 +741,7 @@ impl EditorModal {
 
         let header = appearance
             .ui_builder()
-            .span(SHELL_PROMPT_SECTION_HEADER.to_string())
+            .span(tr("terminal.prompt.shell", SHELL_PROMPT_SECTION_HEADER).to_string())
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Semibold),
@@ -800,7 +801,7 @@ impl EditorModal {
 
     fn render_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
         let cancel_button = self.render_primary_button(
-            "Cancel".to_string(),
+            tr("terminal.prompt.cancel", "Cancel").to_string(),
             ButtonVariant::Outlined,
             false,
             self.mouse_state_handles.cancel_button_handle.clone(),
@@ -815,7 +816,7 @@ impl EditorModal {
             || (matches!(self.prompt_type, PromptType::Warp)
                 && self.chip_configurator.used_chips.is_empty());
         let save_button = self.render_primary_button(
-            "Save changes".to_string(),
+            tr("terminal.prompt.save", "Save changes").to_string(),
             ButtonVariant::Accent,
             save_disabled,
             self.mouse_state_handles.save_button_handle.clone(),

@@ -234,3 +234,52 @@ fn test_right_is_a_noop_for_leaf_items() {
         });
     })
 }
+
+#[test]
+fn localized_caption_preserves_selection_identity_and_accessibility() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let (_, menu) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+            let mut menu = Menu::<TestAction>::new();
+            menu.set_items(
+                vec![
+                    MenuItemFields::new("New tab config")
+                        .with_display_label("新建标签配置")
+                        .with_on_select_action(TestAction::Root)
+                        .into_item(),
+                    MenuItemFields::new("Terminal").into_item(),
+                ],
+                ctx,
+            );
+            menu
+        });
+        menu.update(&mut app, |menu, ctx| {
+            assert!(menu.set_selected_by_name("New tab config", ctx));
+            let selected = menu.selected_item().unwrap();
+            let fields = selected.fields().unwrap();
+            assert_eq!(fields.label(), "New tab config");
+            assert_eq!(fields.get_a11y_text(), "新建标签配置");
+            assert!(menu.set_selected_by_name("Terminal", ctx));
+            assert_eq!(
+                menu.selected_item()
+                    .unwrap()
+                    .fields()
+                    .unwrap()
+                    .get_a11y_text(),
+                "Terminal"
+            );
+        });
+    });
+}
+
+#[test]
+fn localized_caption_identity_survives_action_type_projection() {
+    let item = MenuItemFields::<()>::new_submenu("Move to group")
+        .with_display_label("移到分组")
+        .with_different_on_select_action_type(Some(TestAction::ChildOne));
+    assert_eq!(item.label(), "Move to group");
+    assert_eq!(item.get_a11y_text(), "移到分组");
+    assert!(item.into_item().is_approximately_same_item_as(
+        &MenuItemFields::<TestAction>::new("Move to group").into_item(),
+    ));
+}

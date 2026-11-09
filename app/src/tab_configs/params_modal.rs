@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use warp_core::ui::Icon;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::editor::NavigationKey;
+use warp_i18n::tr;
 use warpui::elements::{
     Border, ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
@@ -148,12 +149,12 @@ pub enum TabConfigParamsModalAction {
 impl TabConfigParamsModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let cancel_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Cancel", NakedTheme).on_click(|ctx| {
+            ActionButton::new(tr("layout.cancel", "Cancel"), NakedTheme).on_click(|ctx| {
                 ctx.dispatch_typed_action(TabConfigParamsModalAction::Cancel);
             })
         });
         let submit_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Open Tab", PrimaryTheme)
+            ActionButton::new(tr("layout.config.open_tab", "Open Tab"), PrimaryTheme)
                 .with_keybinding(
                     KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
                     ctx,
@@ -162,8 +163,9 @@ impl TabConfigParamsModal {
                     ctx.dispatch_typed_action(TabConfigParamsModalAction::Submit);
                 })
         });
-        let submit_button_disabled =
-            ctx.add_typed_action_view(|_| ActionButton::new("Open Tab", DisabledTheme));
+        let submit_button_disabled = ctx.add_typed_action_view(|_| {
+            ActionButton::new(tr("layout.config.open_tab", "Open Tab"), DisabledTheme)
+        });
         Self {
             param_fields: Vec::new(),
             pending_config: None,
@@ -281,7 +283,7 @@ impl TabConfigParamsModal {
                 TabConfigParamType::Text => {
                     let default_text = param.default.clone().unwrap_or_default();
                     let placeholder = if default_text.is_empty() {
-                        format!("Enter {name}")
+                        tr("layout.config.enter_parameter", "Enter {name}").replace("{name}", name)
                     } else {
                         default_text.clone()
                     };
@@ -596,7 +598,8 @@ impl View for TabConfigParamsModal {
                 form.add_child(
                     Container::new(
                         Text::new_inline(
-                            format!("Default: {default_value}"),
+                            tr("layout.config.default_value", "Default: {value}")
+                                .replace("{value}", default_value),
                             appearance.ui_font_family(),
                             appearance.ui_font_size() - 1.,
                         )

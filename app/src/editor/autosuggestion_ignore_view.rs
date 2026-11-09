@@ -2,6 +2,7 @@
 
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
+use warp_i18n::tr;
 use warpui::elements::{
     ChildAnchor, ConstrainedBox, Container, CornerRadius, Element, Hoverable, MouseStateHandle,
     OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Stack,
@@ -138,7 +139,9 @@ impl View for AutosuggestionIgnore {
             if state.is_hovered() {
                 let tool_tip = appearance
                     .ui_builder()
-                    .autosuggestion_tool_tip("Ignore this suggestion".into())
+                    .autosuggestion_tool_tip(
+                        tr("terminal.suggestion.ignore", "Ignore this suggestion").into(),
+                    )
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(

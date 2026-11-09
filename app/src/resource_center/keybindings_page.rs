@@ -1,5 +1,6 @@
 use enum_iterator::{Sequence, all};
 use itertools::{Either, Itertools};
+use warp_i18n::tr;
 use warpui::elements::{
     Align, Border, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, Element, Fill, Flex, MainAxisSize, MouseStateHandle,
@@ -90,7 +91,13 @@ impl KeybindingsView {
 
         search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(settings_view::keybindings::SEARCH_PLACEHOLDER, ctx);
+            editor.set_placeholder_text(
+                tr(
+                    "local_settings.search_by_name_or_by_keys_ex_cmd_d",
+                    settings_view::keybindings::SEARCH_PLACEHOLDER,
+                ),
+                ctx,
+            );
         });
 
         let search_bar = {
@@ -346,7 +353,11 @@ impl KeybindingsView {
                         .build()
                         .finish(),
                 )
-                .with_child(self.render_text("To toggle this panel".into(), None, appearance))
+                .with_child(self.render_text(
+                    tr("local_keys.toggle_help", "To toggle this panel").into(),
+                    None,
+                    appearance,
+                ))
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .finish();
 
@@ -383,11 +394,17 @@ impl KeybindingsView {
 
         Container::new(
             column
-                .with_child(self.render_text(
-                    "Go to settings > keyboard shortcuts to configure custom keybindings".into(),
-                    None,
-                    appearance,
-                ))
+                .with_child(
+                    self.render_text(
+                        tr(
+                            "local_keys.configure_help",
+                            "Go to settings > keyboard shortcuts to configure custom keybindings",
+                        )
+                        .into(),
+                        None,
+                        appearance,
+                    ),
+                )
                 .with_child(settings_link)
                 .finish(),
         )
@@ -412,11 +429,11 @@ impl KeybindingsView {
             Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
         let title = match section {
-            KeybindingSection::Essentials => "Essentials",
-            KeybindingSection::Blocks => "Blocks",
-            KeybindingSection::InputEditor => "Input Editor",
-            KeybindingSection::Terminal => "Terminal",
-            KeybindingSection::Fundamentals => "Fundamentals",
+            KeybindingSection::Essentials => tr("local_keys.essentials", "Essentials"),
+            KeybindingSection::Blocks => tr("local_keys.blocks", "Blocks"),
+            KeybindingSection::InputEditor => tr("local_keys.input_editor", "Input Editor"),
+            KeybindingSection::Terminal => tr("local_keys.terminal", "Terminal"),
+            KeybindingSection::Fundamentals => tr("local_keys.fundamentals", "Fundamentals"),
         };
 
         let mut section_header = self.render_text(

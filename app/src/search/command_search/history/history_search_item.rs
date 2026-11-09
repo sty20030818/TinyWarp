@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use ordered_float::OrderedFloat;
 use warp_core::ui::builder;
+use warp_i18n::tr;
 use warpui::elements::{
     Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, Icon, MainAxisAlignment,
     MainAxisSize, ParentElement, Shrinkable, Text,
@@ -157,7 +158,11 @@ impl SearchItem for HistorySearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("History item: {}", self.entry.command)
+        format!(
+            "{} {}",
+            tr("terminal.history.item_prefix", "History item:"),
+            self.entry.command
+        )
     }
 }
 

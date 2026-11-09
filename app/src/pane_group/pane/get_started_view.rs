@@ -2,6 +2,7 @@ use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend as _;
 use warp_core::ui::{self};
+use warp_i18n::tr;
 use warpui::elements::{
     Align, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Icon,
     MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement as _, Radius,
@@ -272,13 +273,20 @@ impl GetStartedView {
                     })
                     .with_text_and_icon_label(TextAndIcon::new(
                         TextAndIconAlignment::IconFirst,
-                        format!(
-                            " New session in {}  {}",
-                            dirs::home_dir()
+                        tr(
+                            "layout.session.new_in_directory",
+                            " New session in {directory}  {shortcut}",
+                        )
+                        .replace(
+                            "{shortcut}",
+                            &keybinding_name_to_display_string("workspace:new_tab", app)
+                                .unwrap_or_default(),
+                        )
+                        .replace(
+                            "{directory}",
+                            &dirs::home_dir()
                                 .map(|dir| dir.display().to_string())
                                 .unwrap_or("~".to_string()),
-                            keybinding_name_to_display_string("workspace:new_tab", app)
-                                .unwrap_or_default()
                         ),
                         ui::Icon::Terminal.to_warpui_icon(theme.foreground()),
                         MainAxisSize::Min,

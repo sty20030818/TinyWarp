@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
+use warp_i18n::tr;
 use warpui::{AppContext, Element, SingletonEntity};
 
 use super::new_session_option::NewSessionOption;
@@ -74,10 +75,20 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected {}.", self.option.description())
+        format!(
+            "{} {}.",
+            tr("search.selected", "Selected"),
+            self.option.description()
+        )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to launch this session.".into())
+        Some(
+            tr(
+                "search.session.launch_hint",
+                "Press enter to launch this session.",
+            )
+            .into(),
+        )
     }
 }

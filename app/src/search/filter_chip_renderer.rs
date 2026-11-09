@@ -1,4 +1,5 @@
 use warp_core::ui::theme::color::internal_colors;
+use warp_i18n::tr;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable, Icon,
     MouseStateHandle, ParentElement, Radius, Text,
@@ -80,14 +81,18 @@ impl FilterChipRenderer for QueryFilter {
             }
 
             flex.add_child(
-                Text::new_inline(self.display_name(), appearance.ui_font_family(), font_size)
-                    .with_color(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().surface_2())
-                            .into_solid(),
-                    )
-                    .finish(),
+                Text::new_inline(
+                    query_filter_display_name(*self),
+                    appearance.ui_font_family(),
+                    font_size,
+                )
+                .with_color(
+                    appearance
+                        .theme()
+                        .main_text_color(appearance.theme().surface_2())
+                        .into_solid(),
+                )
+                .finish(),
             );
 
             Container::new(flex.finish())
@@ -108,3 +113,44 @@ impl FilterChipRenderer for QueryFilter {
         .finish()
     }
 }
+
+// 筛选语法和序列化仍由核心 enum 管理，这里只提供应用显示文字。
+pub(crate) fn query_filter_display_name(filter: QueryFilter) -> &'static str {
+    match filter {
+        QueryFilter::History => tr("search.filter.history", "history"),
+        QueryFilter::Actions => tr("search.filter.actions", "actions"),
+        QueryFilter::Sessions => tr("search.filter.sessions", "sessions"),
+        QueryFilter::Tabs => tr("search.filter.tabs", "tabs"),
+        QueryFilter::Files => tr("search.filter.files", "files"),
+        QueryFilter::Commands => tr("search.filter.commands", "commands"),
+        QueryFilter::Blocks => tr("search.filter.blocks", "blocks"),
+        QueryFilter::Repos => tr("search.filter.repos", "repos"),
+        QueryFilter::LaunchConfigurations => tr(
+            "search.filter.launch_configurations",
+            "launch configurations",
+        ),
+        _ => filter.display_name(),
+    }
+}
+
+pub(crate) fn query_filter_placeholder(filter: QueryFilter) -> &'static str {
+    match filter {
+        QueryFilter::History => tr("search.placeholder.history", "Search history"),
+        QueryFilter::Actions => tr("search.placeholder.actions", "Search actions"),
+        QueryFilter::Sessions => tr("search.placeholder.sessions", "Search sessions"),
+        QueryFilter::Tabs => tr("search.placeholder.tabs", "Search tabs"),
+        QueryFilter::Files => tr("search.placeholder.files", "Search files"),
+        QueryFilter::Commands => tr("search.placeholder.commands", "Search commands"),
+        QueryFilter::Blocks => tr("search.placeholder.blocks", "Search blocks"),
+        QueryFilter::Repos => tr("search.placeholder.repos", "Search repos"),
+        QueryFilter::LaunchConfigurations => tr(
+            "search.placeholder.launch_configurations",
+            "Search launch configurations",
+        ),
+        _ => filter.placeholder_text(),
+    }
+}
+
+#[cfg(test)]
+#[path = "filter_chip_renderer_tests.rs"]
+mod tests;

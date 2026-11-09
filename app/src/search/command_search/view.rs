@@ -10,6 +10,7 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
+use warp_i18n::tr;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
     Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -146,7 +147,7 @@ impl CommandSearchView {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                tr("search.command.placeholder", DEFAULT_PLACEHOLDER_TEXT),
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -485,13 +486,21 @@ impl CommandSearchView {
 
             let (a11y_content, a11y_help_content) = if was_immediately_executed {
                 (
-                    "Result executed".to_owned(),
-                    "Press Cmd-Up to navigate to the command's output.".to_owned(),
+                    tr("search.command.executed", "Result executed").to_owned(),
+                    tr(
+                        "search.command.output_hint",
+                        "Press Cmd-Up to navigate to the command's output.",
+                    )
+                    .to_owned(),
                 )
             } else {
                 (
-                    "Result accepted.".to_owned(),
-                    "You can edit the command here before pressing Enter to execute it.".to_owned(),
+                    tr("search.command.accepted", "Result accepted.").to_owned(),
+                    tr(
+                        "search.command.edit_hint",
+                        "You can edit the command here before pressing Enter to execute it.",
+                    )
+                    .to_owned(),
                 )
             };
             ctx.emit_a11y_content(AccessibilityContent::new(
@@ -545,7 +554,7 @@ impl CommandSearchView {
         let muted_color: ColorU = appearance.theme().nonactive_ui_text_color().into();
         let text = appearance
             .ui_builder()
-            .span("Loading...")
+            .span(tr("search.loading", "Loading..."))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.monospace_font_size()),
                 font_family_id: Some(appearance.ui_font_family()),
@@ -728,7 +737,7 @@ impl CommandSearchView {
                 // There are no results to display, so notify the user of that fact.
                 let text = appearance
                     .ui_builder()
-                    .span("No results found.")
+                    .span(tr("search.no_results", "No results found."))
                     .with_style(UiComponentStyles {
                         font_size: Some(appearance.monospace_font_size()),
                         font_family_id: Some(appearance.ui_font_family()),
@@ -971,8 +980,8 @@ impl View for CommandSearchView {
 
     fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Command Search".to_owned(),
-            "Search your history, workflows, and more.  Use the Up and Down arrows to browse search results after typing.  Press Enter to accept a selected result, inserting it into the terminal input.  Press Escape to close.".to_owned(),
+            tr("search.command.title", "Command Search").to_owned(),
+            tr("search.command.accessibility", "Search your history, workflows, and more.  Use the Up and Down arrows to browse search results after typing.  Press Enter to accept a selected result, inserting it into the terminal input.  Press Escape to close.").to_owned(),
             WarpA11yRole::MenuRole,
         ))
     }

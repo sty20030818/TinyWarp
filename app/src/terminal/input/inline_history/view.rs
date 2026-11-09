@@ -5,6 +5,7 @@ use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
+use warp_i18n::tr;
 use warpui::elements::ChildView;
 use warpui::{AppContext, Element, Entity, EntityId, ModelHandle, View, ViewContext, ViewHandle};
 
@@ -131,7 +132,7 @@ fn build_tab_configs(is_agent_view: bool) -> Vec<InlineMenuTabConfig<HistoryTab>
     if !is_agent_view {
         return vec![InlineMenuTabConfig {
             id: HistoryTab::All,
-            label: "All".to_string(),
+            label: tr("terminal.history.all", "All").to_string(),
             filters: HashSet::new(),
         }];
     }
@@ -139,17 +140,17 @@ fn build_tab_configs(is_agent_view: bool) -> Vec<InlineMenuTabConfig<HistoryTab>
     vec![
         InlineMenuTabConfig {
             id: HistoryTab::All,
-            label: "All".to_string(),
+            label: tr("terminal.history.all", "All").to_string(),
             filters: HashSet::new(),
         },
         InlineMenuTabConfig {
             id: HistoryTab::Commands,
-            label: "Commands".to_string(),
+            label: tr("terminal.history.commands", "Commands").to_string(),
             filters: HashSet::from([QueryFilter::Commands]),
         },
         InlineMenuTabConfig {
             id: HistoryTab::Prompts,
-            label: "Prompts".to_string(),
+            label: tr("terminal.history.prompts", "Prompts").to_string(),
             filters: HashSet::from([QueryFilter::PromptHistory]),
         },
     ]
@@ -262,18 +263,21 @@ impl InlineHistoryMenuView {
 
         let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
             let configure_button = ctx.add_view(|_| {
-                ActionButton::new("Configure", ConfigureButtonTheme)
-                    .with_icon(Icon::Settings)
-                    .with_size(ButtonSize::Small)
-                    .on_click(|ctx| {
-                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                            search_query: "commands history".into(),
-                            section: Some(SettingsSection::WarpAgent),
-                        });
-                    })
+                ActionButton::new(
+                    tr("terminal.history.configure", "Configure"),
+                    ConfigureButtonTheme,
+                )
+                .with_icon(Icon::Settings)
+                .with_size(ButtonSize::Small)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
+                        search_query: "commands history".into(),
+                        section: Some(SettingsSection::WarpAgent),
+                    });
+                })
             });
             let header_config = InlineMenuHeaderConfig {
-                label: "History".to_string(),
+                label: tr("terminal.history.title", "History").to_string(),
                 trailing_element: Some(Box::new(move |_app: &AppContext| {
                     ChildView::new(&configure_button).finish()
                 })),

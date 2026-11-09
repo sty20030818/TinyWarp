@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use itertools::{Either, Itertools};
 use warp_core::features::FeatureFlag;
+use warp_i18n::tr;
 use warpui::{EntityId, UpdateView, ViewContext};
 
 use super::{Workspace, group_member_indices};
@@ -526,6 +527,7 @@ impl Workspace {
         let shared_group = self.selection_shared_group();
         let mut menu_items = vec![
             MenuItemFields::new("Create group from tabs")
+                .with_display_label(tr("workspace.group.from_tabs", "Create group from tabs"))
                 .with_on_select_action(WorkspaceAction::NewTabGroupFromSelectedTabs)
                 .into_item(),
         ];
@@ -534,6 +536,7 @@ impl Workspace {
         if shared_group.is_some() {
             menu_items.push(
                 MenuItemFields::new("Remove from group")
+                    .with_display_label(tr("workspace.tab.remove_from_group", "Remove from group"))
                     .with_on_select_action(WorkspaceAction::RemoveSelectedTabsFromGroup)
                     .into_item(),
             );
@@ -545,7 +548,11 @@ impl Workspace {
             .keys()
             .any(|group_id| Some(*group_id) != shared_group);
         if has_destination_group {
-            menu_items.push(MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL).into_item());
+            menu_items.push(
+                MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL)
+                    .with_display_label(tr("menu.move_to_group", "Move to group"))
+                    .into_item(),
+            );
         }
         menu_items
     }
@@ -762,7 +769,7 @@ impl Workspace {
                     .tab_groups
                     .get(&group_id)
                     .and_then(|g| g.name.clone())
-                    .unwrap_or_else(|| "Untitled group".to_string());
+                    .unwrap_or_else(|| tr("workspace.group.unnamed", "Untitled group").to_string());
                 let action = match tab_index {
                     Some(tab_index) => WorkspaceAction::MoveTabToGroup {
                         tab_index,

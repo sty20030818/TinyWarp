@@ -5,6 +5,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use warp_core::send_telemetry_from_app_ctx;
+use warp_i18n::tr;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
     Align, Border, ChildView, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
@@ -285,7 +286,7 @@ impl View {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                "Search for a command",
+                tr("search.palette.placeholder", "Search for a command"),
                 Self::create_query_result_renderer,
                 ctx,
             )
@@ -297,7 +298,8 @@ impl View {
         });
 
         let placeholder_element = QueryResultRenderer::new(
-            MatchedBinding::placeholder("No results found".into()).into(),
+            MatchedBinding::placeholder(tr("search.no_results_short", "No results found").into())
+                .into(),
             "command_palette:no_results".into(),
             |_, _, _| {},
             *styles::QUERY_RESULT_RENDERER_STYLES,

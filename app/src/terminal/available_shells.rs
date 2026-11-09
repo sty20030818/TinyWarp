@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "local_tty")]
 use settings::Setting as _;
+use warp_i18n::tr;
 #[cfg(feature = "local_tty")]
 use warpui::{AppContext, ModelContext};
 use warpui::{Entity, SingletonEntity};
@@ -136,7 +137,9 @@ impl AvailableShell {
 
     pub fn details(&self) -> Cow<'_, str> {
         match self.state.as_ref() {
-            Config::SystemDefault => Cow::from("System default shell"),
+            Config::SystemDefault => {
+                Cow::from(tr("terminal.shell.system_default", "System default shell"))
+            }
             Config::KnownLocal(LocalConfig {
                 executable_path, ..
             })
@@ -146,7 +149,11 @@ impl AvailableShell {
             Config::Wsl { .. } => Cow::from("Windows Subsystem for Linux"),
             Config::Custom(LocalConfig {
                 executable_path, ..
-            }) => Cow::from(format!("Custom: {}", executable_path.display())),
+            }) => Cow::from(format!(
+                "{} {}",
+                tr("terminal.shell.custom_prefix", "Custom:"),
+                executable_path.display()
+            )),
             Config::DockerSandbox { .. } => Cow::from("Docker Sandbox"),
         }
     }

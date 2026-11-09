@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use warp_errors::report_if_error;
+use warp_i18n::tr;
 use warpui::elements::{Container, CrossAxisAlignment, Flex, ParentElement, Shrinkable};
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -143,21 +144,30 @@ impl View for WorkingDirectoryView {
             let items = Flex::column()
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                 .with_children([
-                    ui_builder.label("New window").build().finish(),
+                    ui_builder
+                        .label(tr("local_settings.new_window", "New window"))
+                        .build()
+                        .finish(),
                     render_row(
                         &self.new_window_working_directory_dropdown,
                         &self.new_window_working_directory_editor,
                         config.new_window.mode == WorkingDirectoryMode::CustomDir,
                         appearance,
                     ),
-                    ui_builder.label("New tab").build().finish(),
+                    ui_builder
+                        .label(tr("local_settings.new_tab", "New tab"))
+                        .build()
+                        .finish(),
                     render_row(
                         &self.new_tab_working_directory_dropdown,
                         &self.new_tab_working_directory_editor,
                         config.new_tab.mode == WorkingDirectoryMode::CustomDir,
                         appearance,
                     ),
-                    ui_builder.label("Split pane").build().finish(),
+                    ui_builder
+                        .label(tr("local_settings.split_pane", "Split pane"))
+                        .build()
+                        .finish(),
                     render_row(
                         &self.split_pane_working_directory_dropdown,
                         &self.split_pane_working_directory_editor,
@@ -303,13 +313,13 @@ fn init_top_level_dropdown(
     .into_iter()
     .map(|mode| {
         DropdownItem::new(
-            mode.dropdown_item_label(),
+            directory_mode_label(&mode),
             WorkingDirectoryAction::SetGlobalWorkingDirectoryMode(Some(mode)),
         )
     })
     .collect_vec();
     items.push(DropdownItem::new(
-        "Advanced".to_string(),
+        tr("local_settings.advanced", "Advanced").to_string(),
         WorkingDirectoryAction::SetGlobalWorkingDirectoryMode(None),
     ));
     let advanced_item_index = items.len() - 1;
@@ -320,7 +330,7 @@ fn init_top_level_dropdown(
     if config.advanced_mode {
         dropdown.set_selected_by_index(advanced_item_index, ctx);
     } else {
-        dropdown.set_selected_by_name(config.global.mode.dropdown_item_label(), ctx);
+        dropdown.set_selected_by_name(directory_mode_label(&config.global.mode), ctx);
     }
 }
 
@@ -338,7 +348,7 @@ fn init_per_source_dropdown(
     .into_iter()
     .map(|mode| {
         DropdownItem::new(
-            mode.dropdown_item_label(),
+            directory_mode_label(&mode),
             WorkingDirectoryAction::SetPerSourceWorkingDirectoryMode(source, mode),
         )
     })
@@ -352,7 +362,7 @@ fn init_per_source_dropdown(
         NewSessionSource::Tab => &config.new_tab,
         NewSessionSource::Window => &config.new_window,
     };
-    dropdown.set_selected_by_name(source_config.mode.dropdown_item_label(), ctx);
+    dropdown.set_selected_by_name(directory_mode_label(&source_config.mode), ctx);
 }
 
 /// Creates a new editor view for entering a custom initial directory path.
@@ -368,7 +378,7 @@ fn create_editor(
         };
         ctx.add_typed_action_view(|ctx| {
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Directory path", ctx);
+            editor.set_placeholder_text(tr("local_settings.directory_path", "Directory path"), ctx);
             editor
         })
     };
@@ -398,4 +408,19 @@ fn create_editor(
         _ => {}
     });
     editor
+}
+
+fn directory_mode_label(value: &WorkingDirectoryMode) -> &'static str {
+    match value {
+        WorkingDirectoryMode::HomeDir => {
+            tr("local_settings.option.home_directory", "Home directory")
+        }
+        WorkingDirectoryMode::PreviousDir => tr(
+            "local_settings.option.previous_session_s_directory",
+            "Previous session's directory",
+        ),
+        WorkingDirectoryMode::CustomDir => {
+            tr("local_settings.option.custom_directory", "Custom directory")
+        }
+    }
 }

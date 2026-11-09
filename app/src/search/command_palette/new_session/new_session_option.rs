@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use warp_i18n::tr;
 use warpui::Action;
+use warpui::keymap::{BindingDescription, DescriptionContext};
 
 use crate::WorkspaceAction;
 use crate::server::telemetry::AddTabWithShellSource;
@@ -65,7 +67,7 @@ impl NewSessionConfig {
 /// - how to display the option in the command palette
 pub struct NewSessionOption {
     id: NewSessionOptionId,
-    description: String,
+    description: BindingDescription,
     config: NewSessionConfig,
 }
 
@@ -76,21 +78,47 @@ impl NewSessionOption {
 
     /// Returns the description (a.k.a. the top line in the command palette entry)
     pub fn description(&self) -> &str {
-        self.description.as_str()
+        self.description.in_context(DescriptionContext::Default)
+    }
+
+    pub(super) fn binding_description(&self) -> &BindingDescription {
+        &self.description
     }
 }
 
 impl NewSessionOption {
     pub(super) fn new(id: NewSessionOptionId, config: NewSessionConfig) -> Self {
-        let description = match &config {
-            NewSessionConfig::NewTab(shell) => format!("Create New Tab: {}", shell.short_name()),
-            NewSessionConfig::NewWindow(shell) => {
-                format!("Create New Window: {}", shell.short_name())
-            }
+        let (display, english) = match &config {
+            NewSessionConfig::NewTab(shell) => (
+                format!(
+                    "{} {}",
+                    tr("search.new_session.tab", "Create New Tab:"),
+                    shell.short_name()
+                ),
+                format!("Create New Tab: {}", shell.short_name()),
+            ),
+            NewSessionConfig::NewWindow(shell) => (
+                format!(
+                    "{} {}",
+                    tr("search.new_session.window", "Create New Window:"),
+                    shell.short_name()
+                ),
+                format!("Create New Window: {}", shell.short_name()),
+            ),
             NewSessionConfig::Split(direction, shell) => {
-                format!("Split Pane {direction}: {}", shell.short_name())
+                let label = match direction {
+                    Direction::Down => tr("search.new_session.split_down", "Split Pane Down:"),
+                    Direction::Right => tr("search.new_session.split_right", "Split Pane Right:"),
+                    Direction::Up => tr("search.new_session.split_up", "Split Pane Up:"),
+                    Direction::Left => tr("search.new_session.split_left", "Split Pane Left:"),
+                };
+                (
+                    format!("{label} {}", shell.short_name()),
+                    format!("Split Pane {direction}: {}", shell.short_name()),
+                )
             }
         };
+        let description = BindingDescription::new_preserve_case(display).with_search_alias(english);
         Self {
             id,
             description,

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::NaiveDateTime;
+use warp_i18n::tr;
 use warpui::{AppContext, Entity, EntityId, WindowId};
 
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
@@ -78,11 +79,15 @@ impl CommandContext {
             Self::None => None,
             Self::LastRunCommand {
                 last_run_command, ..
-            } => Some(format!("Last run command {}", last_run_command.clone())),
+            } => Some(format!(
+                "{} {last_run_command}",
+                tr("sessions.last_command", "Last run command:")
+            )),
             Self::LastRunAIBlock { prompt } => Some(format!("Last AI interaction: {prompt}")),
-            Self::RunningCommand { running_command } => {
-                Some(format!("Currently running {running_command}"))
-            }
+            Self::RunningCommand { running_command } => Some(format!(
+                "{} {running_command}",
+                tr("sessions.running_command", "Currently running:")
+            )),
             Self::RunningAIBlock { prompt } => {
                 Some(format!("Currently running AI interaction: {prompt}"))
             }

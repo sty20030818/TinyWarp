@@ -1,6 +1,7 @@
 use std::default::Default;
 use std::path::PathBuf;
 
+use warp_i18n::tr;
 use warpui::fonts::Weight;
 use warpui::keymap::FixedBinding;
 use warpui::platform::{FilePickerConfiguration, FileType};
@@ -59,7 +60,7 @@ impl ThemeCreatorModal {
 
         let theme_creator_modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(THEME_CREATOR_MODAL_HEADER.to_string()),
+                Some(tr("theme_ui.create_from_image", THEME_CREATOR_MODAL_HEADER).to_string()),
                 theme_creator_body,
                 ctx,
             )
@@ -138,7 +139,13 @@ impl ThemeCreatorModal {
                 Err(err) => {
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(format!("{err}")),
+                            DismissibleToast::error(
+                                tr(
+                                    "theme_ui.failed_to_select_image",
+                                    "Failed to select an image: {error}",
+                                )
+                                .replace("{error}", &err.to_string()),
+                            ),
                             window_id,
                             ctx,
                         );

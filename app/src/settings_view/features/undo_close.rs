@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use settings::{Setting, ToggleableSetting};
 use warp_errors::report_if_error;
+use warp_i18n::tr;
 use warpui::elements::{
     Container, CrossAxisAlignment, Flex, MainAxisAlignment, MouseStateHandle, ParentElement, Text,
 };
@@ -133,7 +134,10 @@ impl UndoCloseView {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        "Grace period (seconds)",
+                        tr(
+                            "local_settings.grace_period_seconds",
+                            "Grace period (seconds)",
+                        ),
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
@@ -174,7 +178,11 @@ impl View for UndoCloseView {
         let mut column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(render_body_item::<Action>(
-                "Enable reopening of closed sessions".into(),
+                tr(
+                    "local_settings.enable_reopening_of_closed_sessions",
+                    "Enable reopening of closed sessions",
+                )
+                .into(),
                 None,
                 LocalOnlyIconState::for_setting(
                     UndoCloseEnabled::storage_key(),

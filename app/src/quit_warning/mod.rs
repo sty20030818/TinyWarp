@@ -3,6 +3,7 @@ use std::fmt::Write;
 use itertools::Itertools;
 use settings::ToggleableSetting as _;
 use warp_errors::report_if_error;
+use warp_i18n::tr;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback, ModalButton};
 use warpui::{
     AppContext, EntityId, SingletonEntity, ViewContext, ViewHandle, WeakViewHandle, WindowId,
@@ -399,29 +400,31 @@ impl<'a> UnsavedStateSummary<'a> {
         let mut info_text_lines = Vec::<String>::new();
 
         let scope_suffix = match self.scope {
-            QuitScope::Tabs(ref tabs) if tabs.len() == 1 => " in this tab.",
-            QuitScope::Window(_) => " in this window.",
-            QuitScope::Pane { .. } => " in this pane.",
+            QuitScope::Tabs(ref tabs) if tabs.len() == 1 => tr("quit.in_tab", " in this tab."),
+            QuitScope::Window(_) => tr("quit.in_window", " in this window."),
+            QuitScope::Pane { .. } => tr("quit.in_pane", " in this pane."),
             QuitScope::App | QuitScope::Tabs(_) | QuitScope::EditorTab { .. } => ".",
         };
 
         if self.total_long_running_commands > 0 {
             let mut process_info_text = format!(
-                "You have {} {} running",
+                "{} {}",
+                tr("quit.running_processes", "Running processes:"),
                 self.total_long_running_commands,
-                pluralize(self.total_long_running_commands, "process", "processes")
             );
             if self.windows_with_long_running_commands > 1 {
                 let _ = write!(
                     &mut process_info_text,
-                    " in {} windows",
-                    self.windows_with_long_running_commands
+                    ", {} {}",
+                    tr("quit.windows", "Windows:"),
+                    self.windows_with_long_running_commands,
                 );
             } else if self.tabs_with_long_running_commands > 1 {
                 let _ = write!(
                     &mut process_info_text,
-                    " in {} tabs",
-                    self.tabs_with_long_running_commands
+                    ", {} {}",
+                    tr("quit.tabs", "Tabs:"),
+                    self.tabs_with_long_running_commands,
                 );
             }
             process_info_text.push_str(scope_suffix);
@@ -430,17 +433,30 @@ impl<'a> UnsavedStateSummary<'a> {
 
         if self.shared_sessions > 0 {
             info_text_lines.push(format!(
-                "You are sharing {} {}{scope_suffix}",
+                "{} {}{scope_suffix}",
+                tr("quit.shared_sessions", "Shared sessions:"),
                 self.shared_sessions,
-                pluralize(self.shared_sessions, "session", "sessions")
             ));
         }
 
         if self.unsaved_code_changes {
             if let QuitScope::EditorTab { ref file_name, .. } = self.scope {
-                info_text_lines.push(format!("Do you want to save the changes you made to {}? Your changes will be discarded if you don't save them.", file_name.clone().unwrap_or("this file".to_string())));
+                info_text_lines.push(format!(
+                    "{} {}? {}",
+                    tr("quit.save_file", "Save changes to"),
+                    file_name
+                        .as_deref()
+                        .unwrap_or(tr("quit.this_file", "this file")),
+                    tr(
+                        "quit.unsaved_discard",
+                        "Your changes will be discarded if you don't save them."
+                    ),
+                ));
             } else {
-                info_text_lines.push(format!("You have unsaved file changes{scope_suffix}"));
+                info_text_lines.push(format!(
+                    "{}{scope_suffix}",
+                    tr("quit.unsaved_changes", "You have unsaved file changes")
+                ));
             }
         }
 
@@ -506,26 +522,34 @@ impl<'a> QuitWarningDialog<'a> {
 
         if let Some(callback) = on_confirm {
             let confirm_title = match state.scope {
-                QuitScope::Window(_) | QuitScope::Tabs(_) | QuitScope::Pane { .. } => "Yes, close",
-                QuitScope::App => "Yes, quit",
+                QuitScope::Window(_) | QuitScope::Tabs(_) | QuitScope::Pane { .. } => {
+                    tr("quit.close", "Yes, close")
+                }
+                QuitScope::App => tr("quit.confirm", "Yes, quit"),
                 _ => "",
             };
             buttons.push(ModalButton::for_app(confirm_title.to_string(), callback));
         }
 
         if let Some(callback) = on_save_changes {
-            buttons.push(ModalButton::for_app("Save".to_string(), callback));
+            buttons.push(ModalButton::for_app(
+                tr("quit.save", "Save").to_string(),
+                callback,
+            ));
         }
 
         if let Some(callback) = on_discard_changes {
-            buttons.push(ModalButton::for_app("Don't Save".to_string(), callback));
+            buttons.push(ModalButton::for_app(
+                tr("quit.dont_save", "Don't Save").to_string(),
+                callback,
+            ));
         }
 
         if let Some(callback) = on_show_processes
             && state.total_long_running_commands > 0
         {
             buttons.push(ModalButton::for_app(
-                "Show running processes".to_string(),
+                tr("quit.show_processes", "Show running processes").to_string(),
                 move |app| {
                     callback(app);
                 },
@@ -533,16 +557,19 @@ impl<'a> QuitWarningDialog<'a> {
         }
 
         if let Some(callback) = on_cancel {
-            buttons.push(ModalButton::for_app("Cancel".to_string(), callback));
+            buttons.push(ModalButton::for_app(
+                tr("quit.cancel", "Cancel").to_string(),
+                callback,
+            ));
         }
 
         let title = match &state.scope {
-            QuitScope::Pane { .. } => "Close pane?",
-            QuitScope::Tabs(tabs) if tabs.len() == 1 => "Close tab?",
-            QuitScope::Tabs(_) => "Close tabs?",
-            QuitScope::Window(_) => "Close window?",
-            QuitScope::App => "Quit Warp?",
-            QuitScope::EditorTab { .. } => "Save changes?",
+            QuitScope::Pane { .. } => tr("quit.close_pane", "Close pane?"),
+            QuitScope::Tabs(tabs) if tabs.len() == 1 => tr("quit.close_tab", "Close tab?"),
+            QuitScope::Tabs(_) => tr("quit.close_tabs", "Close tabs?"),
+            QuitScope::Window(_) => tr("quit.close_window", "Close window?"),
+            QuitScope::App => tr("quit.app", "Quit Warp?"),
+            QuitScope::EditorTab { .. } => tr("quit.save_changes", "Save changes?"),
         };
 
         AlertDialogWithCallbacks::for_app(
@@ -599,10 +626,6 @@ impl<'a> QuitWarningDialog<'a> {
     }
 }
 
-fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
-    if count > 1 { plural } else { singular }
-}
-
 /// Callback to disable the quit warning modal.
 fn on_disable_warning_modal(ctx: &mut AppContext) {
     GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
@@ -614,3 +637,7 @@ fn on_disable_warning_modal(ctx: &mut AppContext) {
     });
     send_telemetry_from_app_ctx!(TelemetryEvent::QuitModalDisabled, ctx);
 }
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;

@@ -8,6 +8,7 @@ use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::Fill;
+use warp_i18n::tr;
 use warp_search_core::inline_menu::{InlineMenuResultsUpdate, InlineMenuSelection};
 use warpui::color::ColorU;
 use warpui::elements::drag_resize::drag_resize_handle;
@@ -1011,9 +1012,12 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> View for InlineMenuView<A, T
         let content: Box<dyn Element>;
         if self.result_renderers.is_empty() {
             content = if self.mixer.as_ref(app).is_loading() {
-                self.render_no_results_state("Loading...".into(), app)
+                self.render_no_results_state(tr("search.loading", "Loading...").into(), app)
             } else {
-                self.render_no_results_state("No results".into(), app)
+                self.render_no_results_state(
+                    tr("search.no_results_short", "No results").into(),
+                    app,
+                )
             };
         } else {
             let results_list = self.render_results_list(app);

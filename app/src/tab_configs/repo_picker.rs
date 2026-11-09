@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use warp_i18n::tr;
 use warp_util::path::user_friendly_path;
 use warpui::elements::{Border, ChildView, Container, Hoverable, MouseStateHandle, Text};
 use warpui::platform::Cursor;
@@ -112,9 +113,13 @@ impl RepoPicker {
                     let mouse_state_clone = mouse_state.clone();
                     Hoverable::new(mouse_state_clone, move |_| {
                         Container::new(
-                            Text::new_inline(ADD_NEW_REPO_LABEL, font_family, font_size)
-                                .with_color(text_color.into())
-                                .finish(),
+                            Text::new_inline(
+                                tr("layout.repository.add", ADD_NEW_REPO_LABEL),
+                                font_family,
+                                font_size,
+                            )
+                            .with_color(text_color.into())
+                            .finish(),
                         )
                         .with_horizontal_padding(8.)
                         .with_vertical_padding(6.)

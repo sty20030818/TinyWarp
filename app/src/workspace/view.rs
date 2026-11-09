@@ -32,7 +32,6 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 #[cfg(target_os = "macos")]
 use std::env;
-use std::fmt::Write;
 #[cfg(all(target_os = "macos", feature = "crash_reporting"))]
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -84,6 +83,7 @@ use warp_core::ui::theme::{AnsiColors, Fill};
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_editor::editor::NavigationKey;
 use warp_errors::{report_error, report_if_error};
+use warp_i18n::tr;
 use warp_server_client::auth::AuthEvent;
 use warp_util::path::{LineAndColumnArg, user_friendly_path};
 use warpui::accessibility::{
@@ -1397,7 +1397,7 @@ impl Workspace {
                 },
                 ctx,
             );
-            editor.set_placeholder_text("Search repos", ctx);
+            editor.set_placeholder_text(tr("workspace.tabs.search_repos", "Search repos"), ctx);
             editor
         });
         ctx.subscribe_to_view(&editor, |me, editor_view, event, ctx| match event {
@@ -1433,7 +1433,7 @@ impl Workspace {
             EditorView::single_line(options, ctx)
         });
         editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text("Search tabs...", ctx);
+            editor.set_placeholder_text(tr("workspace.tabs.search", "Search tabs..."), ctx);
         });
         ctx.subscribe_to_view(&editor, |me, editor_view, event, ctx| match event {
             EditorEvent::Edited(_) => {
@@ -6468,6 +6468,10 @@ impl Workspace {
         }
         let items = vec![
             MenuItemFields::new("Re-arrange toolbar items")
+                .with_display_label(tr(
+                    "workspace.toolbar.rearrange",
+                    "Re-arrange toolbar items",
+                ))
                 .with_on_select_action(WorkspaceAction::OpenHeaderToolbarEditor)
                 .into_item(),
         ];
@@ -6991,6 +6995,7 @@ impl Workspace {
             {
                 let is_terminal_default = effective_default == DefaultSessionMode::Terminal;
                 let mut terminal_item = MenuItemFields::new("Terminal")
+                    .with_display_label(tr("menu.terminal", "Terminal"))
                     .with_on_select_action(WorkspaceAction::AddTerminalTab {
                         hide_homepage: false,
                     })
@@ -7028,6 +7033,7 @@ impl Workspace {
             #[cfg(not(target_os = "windows"))]
             {
                 let mut terminal_item = MenuItemFields::new("Terminal")
+                    .with_display_label(tr("menu.terminal", "Terminal"))
                     .with_on_select_action(WorkspaceAction::AddTerminalTab {
                         hide_homepage: false,
                     })
@@ -7056,6 +7062,10 @@ impl Workspace {
         // 3b. Local Docker Sandbox
         if FeatureFlag::LocalDockerSandbox.is_enabled() {
             let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
+                .with_display_label(tr(
+                    "workspace.session.docker_sandbox",
+                    "Local Docker Sandbox",
+                ))
                 .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
                 .with_icon(icons::Icon::Docker);
             if effective_default == DefaultSessionMode::DockerSandbox {
@@ -7116,6 +7126,7 @@ impl Workspace {
             menu_items.push(MenuItem::Separator);
             menu_items.push(
                 MenuItemFields::new_submenu("New worktree config")
+                    .with_display_label(tr("menu.new_worktree_config", "New worktree config"))
                     .with_icon(icons::Icon::Dataflow02)
                     .into_item(),
             );
@@ -7123,6 +7134,7 @@ impl Workspace {
             // 6. New tab config — V0: opens the TOML template.
             menu_items.push(
                 MenuItemFields::new("New tab config")
+                    .with_display_label(tr("menu.new_tab_config", "New tab config"))
                     .with_on_select_action(WorkspaceAction::SelectNewSessionMenuItem(
                         NewSessionMenuItem::CreateNewTabConfig,
                     ))
@@ -7137,6 +7149,7 @@ impl Workspace {
             menu_items.push(MenuItem::Separator);
             menu_items.push(
                 MenuItemFields::new("New tab group")
+                    .with_display_label(tr("workspace.group.new", "New tab group"))
                     .with_on_select_action(WorkspaceAction::SelectNewSessionMenuItem(
                         NewSessionMenuItem::CreateNewTabGroup,
                     ))
@@ -7148,6 +7161,7 @@ impl Workspace {
         menu_items.push(MenuItem::Separator);
         menu_items.push(
             MenuItemFields::new("Reopen closed session")
+                .with_display_label(tr("workspace.session.reopen", "Reopen closed session"))
                 .with_on_select_action(WorkspaceAction::ReopenClosedSession)
                 .with_key_shortcut_label(reopen_closed_session_shortcut_label)
                 .with_disabled(UndoCloseStack::handle(ctx).as_ref(ctx).is_empty())
@@ -10059,19 +10073,27 @@ impl Workspace {
 
         items.extend([
             MenuItemFields::new("What's new")
+                .with_display_label(tr("workspace.app_menu.whats_new", "What's new"))
                 .with_on_select_action(WorkspaceAction::ViewLatestChangelog)
                 .into_item(),
             MenuItemFields::new("Settings")
+                .with_display_label(tr("workspace.app_menu.settings", "Settings"))
                 .with_on_select_action(WorkspaceAction::ShowSettings)
                 .into_item(),
             MenuItemFields::new("Keyboard shortcuts")
+                .with_display_label(tr(
+                    "workspace.app_menu.keyboard_shortcuts",
+                    "Keyboard shortcuts",
+                ))
                 .with_on_select_action(WorkspaceAction::ToggleKeybindingsPage)
                 .into_item(),
             MenuItem::Separator,
             MenuItemFields::new("Documentation")
+                .with_display_label(tr("workspace.app_menu.documentation", "Documentation"))
                 .with_on_select_action(WorkspaceAction::ViewUserDocs)
                 .into_item(),
             MenuItemFields::new("Feedback")
+                .with_display_label(tr("workspace.app_menu.feedback", "Feedback"))
                 .with_on_select_action(WorkspaceAction::SendFeedback)
                 .into_item(),
         ]);
@@ -10079,6 +10101,7 @@ impl Workspace {
         #[cfg(not(target_family = "wasm"))]
         items.push(
             MenuItemFields::new("View Warp logs")
+                .with_display_label(tr("workspace.app_menu.view_logs", "View Warp logs"))
                 .with_on_select_action(WorkspaceAction::ViewLogs)
                 .into_item(),
         );
@@ -10269,25 +10292,39 @@ impl Workspace {
         let move_section = {
             let mut items = vec![];
             if can_move_up {
-                let label = if is_vertical {
-                    "Move group up"
+                let (label, display_label) = if is_vertical {
+                    (
+                        "Move group up",
+                        tr("workspace.group.move_up", "Move group up"),
+                    )
                 } else {
-                    "Move group left"
+                    (
+                        "Move group left",
+                        tr("workspace.group.move_left", "Move group left"),
+                    )
                 };
                 items.push(
                     MenuItemFields::new(label)
+                        .with_display_label(display_label)
                         .with_on_select_action(WorkspaceAction::MoveTabGroupUp(group_id))
                         .into_item(),
                 );
             }
             if can_move_down {
-                let label = if is_vertical {
-                    "Move group down"
+                let (label, display_label) = if is_vertical {
+                    (
+                        "Move group down",
+                        tr("workspace.group.move_down", "Move group down"),
+                    )
                 } else {
-                    "Move group right"
+                    (
+                        "Move group right",
+                        tr("workspace.group.move_right", "Move group right"),
+                    )
                 };
                 items.push(
                     MenuItemFields::new(label)
+                        .with_display_label(display_label)
                         .with_on_select_action(WorkspaceAction::MoveTabGroupDown(group_id))
                         .into_item(),
                 );
@@ -10298,36 +10335,55 @@ impl Workspace {
         let close_section = {
             let mut items = vec![
                 MenuItemFields::new("Close all tabs in group")
+                    .with_display_label(tr(
+                        "workspace.group.close_all_tabs",
+                        "Close all tabs in group",
+                    ))
                     .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
                     .into_item(),
             ];
             if has_tabs_outside {
                 items.push(
                     MenuItemFields::new("Close other tabs")
+                        .with_display_label(tr("workspace.tab.close_others", "Close other tabs"))
                         .with_on_select_action(WorkspaceAction::CloseTabsOutsideGroup(group_id))
                         .into_item(),
                 );
             }
             if has_tabs_above {
-                let label = if is_vertical {
-                    "Close tabs above"
+                let (label, display_label) = if is_vertical {
+                    (
+                        "Close tabs above",
+                        tr("workspace.group.close_above", "Close tabs above"),
+                    )
                 } else {
-                    "Close tabs to the left"
+                    (
+                        "Close tabs to the left",
+                        tr("workspace.group.close_left", "Close tabs to the left"),
+                    )
                 };
                 items.push(
                     MenuItemFields::new(label)
+                        .with_display_label(display_label)
                         .with_on_select_action(WorkspaceAction::CloseTabsAboveGroup(group_id))
                         .into_item(),
                 );
             }
             if has_tabs_below {
-                let label = if is_vertical {
-                    "Close tabs below"
+                let (label, display_label) = if is_vertical {
+                    (
+                        "Close tabs below",
+                        tr("workspace.tab.close_below", "Close tabs below"),
+                    )
                 } else {
-                    "Close tabs to the right"
+                    (
+                        "Close tabs to the right",
+                        tr("workspace.tab.close_right", "Close tabs to the right"),
+                    )
                 };
                 items.push(
                     MenuItemFields::new(label)
+                        .with_display_label(display_label)
                         .with_on_select_action(WorkspaceAction::CloseTabsBelowGroup(group_id))
                         .into_item(),
                 );
@@ -10336,13 +10392,23 @@ impl Workspace {
         };
 
         let pin_section = if FeatureFlag::PinnedTabs.is_enabled() {
-            let (label, action) = if self.tab_groups.get(&group_id).is_some_and(|g| g.pinned) {
-                ("Unpin group", WorkspaceAction::UnpinTabGroup(group_id))
-            } else {
-                ("Pin group", WorkspaceAction::PinTabGroup(group_id))
-            };
+            let (label, display_label, action) =
+                if self.tab_groups.get(&group_id).is_some_and(|g| g.pinned) {
+                    (
+                        "Unpin group",
+                        tr("workspace.group.unpin", "Unpin group"),
+                        WorkspaceAction::UnpinTabGroup(group_id),
+                    )
+                } else {
+                    (
+                        "Pin group",
+                        tr("workspace.group.pin", "Pin group"),
+                        WorkspaceAction::PinTabGroup(group_id),
+                    )
+                };
             vec![
                 MenuItemFields::new(label)
+                    .with_display_label(display_label)
                     .with_on_select_action(action)
                     .into_item(),
             ]
@@ -10369,15 +10435,18 @@ impl Workspace {
             pin_section,
             vec![
                 MenuItemFields::new("Ungroup tabs")
+                    .with_display_label(tr("workspace.group.ungroup", "Ungroup tabs"))
                     .with_on_select_action(WorkspaceAction::UngroupTabs(group_id))
                     .into_item(),
                 MenuItemFields::new("New tab in group")
+                    .with_display_label(tr("workspace.group.new_tab", "New tab in group"))
                     .with_on_select_action(WorkspaceAction::NewTabInGroup(group_id))
                     .into_item(),
             ],
             move_section,
             vec![
                 MenuItemFields::new("Rename")
+                    .with_display_label(tr("workspace.group.rename", "Rename"))
                     .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
                     .into_item(),
             ],
@@ -10725,9 +10794,13 @@ impl Workspace {
                                 .with_main_axis_size(MainAxisSize::Max)
                                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                                 .with_child(
-                                    Text::new_inline(" + Add new repo", font_family, font_size)
-                                        .with_color(text_color.into())
-                                        .finish(),
+                                    Text::new_inline(
+                                        tr("workspace.tabs.add_repo", " + Add new repo"),
+                                        font_family,
+                                        font_size,
+                                    )
+                                    .with_color(text_color.into())
+                                    .finish(),
                                 )
                                 .finish(),
                         )
@@ -19175,16 +19248,28 @@ impl Workspace {
                 prev_mouse_reporting_enabled
             });
 
-        let verb = if prev_mouse_reporting_enabled {
-            "disabled"
+        let mut message = if prev_mouse_reporting_enabled {
+            tr(
+                "workspace.mouse_reporting.disabled",
+                "You disabled mouse reporting.",
+            )
         } else {
-            "enabled"
-        };
-        let mut message = format!("You {verb} mouse reporting.");
+            tr(
+                "workspace.mouse_reporting.enabled",
+                "You enabled mouse reporting.",
+            )
+        }
+        .to_string();
         if let Some(keystroke) =
             keybinding_name_to_keystroke("workspace:toggle_mouse_reporting", ctx)
         {
-            let _ = write!(message, " Press {} to undo.", keystroke.displayed());
+            message.push_str(
+                &tr(
+                    "workspace.toast.undo_shortcut",
+                    " Press {shortcut} to undo.",
+                )
+                .replace("{shortcut}", &keystroke.displayed().to_string()),
+            );
         }
 
         self.toast_stack.update(ctx, |view, ctx| {
@@ -20482,7 +20567,7 @@ impl Workspace {
         let title = group
             .name
             .clone()
-            .unwrap_or_else(|| "New Group".to_string());
+            .unwrap_or_else(|| tr("workspace.group.untitled", "New Group").to_string());
         let show_header_pin = FeatureFlag::PinnedTabs.is_enabled() && group.pinned;
         let normal_right_pad = if is_collapsed { 8. } else { 9. };
 
@@ -20804,7 +20889,7 @@ impl Workspace {
             if vertical_tabs_active {
                 (
                     self.vertical_tabs_panel_open,
-                    "Tabs panel",
+                    tr("workspace.toolbar.tabs_panel", "Tabs panel"),
                     WorkspaceAction::ToggleVerticalTabsPanel,
                     "workspace:toggle_vertical_tabs_panel",
                     "workspace:toggle_vertical_tabs_panel",
@@ -20817,13 +20902,17 @@ impl Workspace {
                         .copied()
                         .unwrap_or(ToolPanelView::WarpDrive)
                     {
-                        ToolPanelView::ProjectExplorer => "Project explorer",
-                        ToolPanelView::GlobalSearch { .. } => "Global search",
+                        ToolPanelView::ProjectExplorer => {
+                            tr("workspace.toolbar.project_explorer", "Project explorer")
+                        }
+                        ToolPanelView::GlobalSearch { .. } => {
+                            tr("workspace.toolbar.global_search", "Global search")
+                        }
                         ToolPanelView::WarpDrive => "Warp Drive",
                         ToolPanelView::ConversationListView => "Agent conversations",
                     }
                 } else {
-                    "Tools panel"
+                    tr("workspace.toolbar.tools_panel", "Tools panel")
                 };
                 (
                     self.active_tab_pane_group().as_ref(ctx).left_panel_open,
@@ -20871,13 +20960,17 @@ impl Workspace {
                 .copied()
                 .unwrap_or(ToolPanelView::WarpDrive)
             {
-                ToolPanelView::ProjectExplorer => "Project explorer",
-                ToolPanelView::GlobalSearch { .. } => "Global search",
+                ToolPanelView::ProjectExplorer => {
+                    tr("workspace.toolbar.project_explorer", "Project explorer")
+                }
+                ToolPanelView::GlobalSearch { .. } => {
+                    tr("workspace.toolbar.global_search", "Global search")
+                }
                 ToolPanelView::WarpDrive => "Warp Drive",
                 ToolPanelView::ConversationListView => "Agent conversations",
             }
         } else {
-            "Tools panel"
+            tr("workspace.toolbar.tools_panel", "Tools panel")
         };
 
         SavePosition::new(
@@ -21034,7 +21127,7 @@ impl Workspace {
             button
                 .with_tooltip(self.render_tab_bar_icon_button_tooltip(
                     appearance,
-                    "Code review panel".to_string(),
+                    tr("workspace.toolbar.code_review_panel", "Code review panel").to_string(),
                     keybinding_name_to_display_string("workspace:toggle_right_panel", ctx),
                 ))
                 .build()
@@ -21127,7 +21220,10 @@ impl Workspace {
                         Shrinkable::new(
                             1.,
                             Text::new_inline(
-                                "Search sessions, agents, files...",
+                                tr(
+                                    "workspace.toolbar.search",
+                                    "Search sessions, agents, files...",
+                                ),
                                 appearance.ui_font_family(),
                                 14.,
                             )
@@ -21817,10 +21913,11 @@ impl Workspace {
         const BUTTON_WIDTH: f32 = 24. + SIDE_MENU_WIDTH;
         const BUTTON_LEFT_MARGIN: f32 = 4.;
 
-        let new_tab_tool_tip_label_text = "New Tab".to_string();
+        let new_tab_tool_tip_label_text = tr("workspace.toolbar.new_tab", "New Tab").to_string();
         let new_tab_tool_tip_sublabel_text =
             keybinding_name_to_display_string(NEW_TAB_BINDING_NAME, ctx);
-        let tab_configs_tool_tip_label_text = "Tab configs".to_string();
+        let tab_configs_tool_tip_label_text =
+            tr("workspace.tabs.configs", "Tab configs").to_string();
         let tab_configs_tool_tip_sublabel_text =
             keybinding_name_to_display_string(TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME, ctx);
         let appearance = Appearance::as_ref(ctx);
@@ -25429,13 +25526,29 @@ impl TypedActionView for Workspace {
 
                     status.is_syncing_all_inputs(window_id)
                 });
-                let verb = if enabled { "enabled" } else { "disabled" };
-                let mut message = format!("You {verb} synchronized inputs in all tabs.");
+                let mut message = if enabled {
+                    tr(
+                        "workspace.sync.all_tabs.enabled",
+                        "You enabled synchronized inputs in all tabs.",
+                    )
+                } else {
+                    tr(
+                        "workspace.sync.all_tabs.disabled",
+                        "You disabled synchronized inputs in all tabs.",
+                    )
+                }
+                .to_string();
                 if let Some(keystroke) = keybinding_name_to_keystroke(
                     "workspace:toggle_sync_all_terminal_inputs_in_all_tabs",
                     ctx,
                 ) {
-                    let _ = write!(message, " Press {} to undo.", keystroke.displayed());
+                    message.push_str(
+                        &tr(
+                            "workspace.toast.undo_shortcut",
+                            " Press {shortcut} to undo.",
+                        )
+                        .replace("{shortcut}", &keystroke.displayed().to_string()),
+                    );
                 }
                 self.toast_stack.update(ctx, |view, ctx| {
                     let new_toast = DismissibleToast::default(message);
@@ -25462,13 +25575,29 @@ impl TypedActionView for Workspace {
 
                     status.should_sync_this_pane_group(current_pane_group_id, window_id)
                 });
-                let verb = if enabled { "enabled" } else { "disabled" };
-                let mut message = format!("You {verb} synchronized inputs in this tab.");
+                let mut message = if enabled {
+                    tr(
+                        "workspace.sync.this_tab.enabled",
+                        "You enabled synchronized inputs in this tab.",
+                    )
+                } else {
+                    tr(
+                        "workspace.sync.this_tab.disabled",
+                        "You disabled synchronized inputs in this tab.",
+                    )
+                }
+                .to_string();
                 if let Some(keystroke) = keybinding_name_to_keystroke(
                     "workspace:toggle_sync_terminal_inputs_in_tab",
                     ctx,
                 ) {
-                    let _ = write!(message, " Press {} to undo.", keystroke.displayed());
+                    message.push_str(
+                        &tr(
+                            "workspace.toast.undo_shortcut",
+                            " Press {shortcut} to undo.",
+                        )
+                        .replace("{shortcut}", &keystroke.displayed().to_string()),
+                    );
                 }
                 self.toast_stack.update(ctx, |view, ctx| {
                     let new_toast = DismissibleToast::default(message);
@@ -25487,8 +25616,13 @@ impl TypedActionView for Workspace {
                 self.process_updated_sync_state(ctx);
 
                 self.toast_stack.update(ctx, |view, ctx| {
-                    let new_toast =
-                        DismissibleToast::success("Disabled all synchronized inputs.".to_string());
+                    let new_toast = DismissibleToast::success(
+                        tr(
+                            "workspace.sync.disabled_all",
+                            "Disabled all synchronized inputs.",
+                        )
+                        .to_string(),
+                    );
                     view.add_ephemeral_toast(new_toast, ctx);
                 });
                 send_telemetry_from_ctx!(TelemetryEvent::DisableInputSync, ctx);

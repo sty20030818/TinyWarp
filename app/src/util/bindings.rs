@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use enum_iterator::{Sequence, all};
-use fuzzy_match::match_indices_case_insensitive;
+use fuzzy_match::{FuzzyMatchResult, match_indices_case_insensitive};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -24,6 +24,44 @@ pub const MAC_MENUS_CONTEXT: DescriptionContext = DescriptionContext::Custom("ma
 /// 中文显示文字保留源码英文标签作为搜索别名。
 pub fn localized_description(key: &str, en: &'static str) -> BindingDescription {
     BindingDescription::new_preserve_case(warp_i18n::tr(key, en)).with_search_alias(en)
+}
+
+/// 匹配显示文案与英文别名；高亮下标始终对应显示文字的字符。
+pub(crate) fn match_binding_description(
+    description: &BindingDescription,
+    description_for: DescriptionContext,
+    search_term: &str,
+) -> Option<FuzzyMatchResult> {
+    let search_term = if search_term.chars().any(char::is_uppercase) {
+        Cow::Owned(search_term.to_lowercase())
+    } else {
+        Cow::Borrowed(search_term)
+    };
+    let label = description.in_context(description_for);
+    let mut best = match_indices_case_insensitive(&label.to_lowercase(), &search_term);
+    if let Some(result) = &mut best {
+        let original_indices = label
+            .chars()
+            .enumerate()
+            .flat_map(|(index, ch)| ch.to_lowercase().map(move |_| index))
+            .collect::<Vec<_>>();
+        result.matched_indices = result
+            .matched_indices
+            .iter()
+            .filter_map(|&index| original_indices.get(index).copied())
+            .collect();
+        result.matched_indices.dedup();
+    }
+    for alias in description.search_aliases() {
+        if let Some(mut result) =
+            match_indices_case_insensitive(&alias.to_lowercase(), &search_term)
+            && best.as_ref().is_none_or(|best| result.score > best.score)
+        {
+            result.matched_indices.clear();
+            best = Some(result);
+        }
+    }
+    best
 }
 
 // CustomActions are attached to menu items, and may be attached to Bindings.
@@ -653,10 +691,8 @@ pub fn filter_bindings_including_keystroke<'a>(
                     None
                 };
 
-                let fuzzy_search_result = match_indices_case_insensitive(
-                    binding.description.in_context(description_for),
-                    search_term,
-                );
+                let fuzzy_search_result =
+                    match_binding_description(&binding.description, description_for, search_term);
 
                 match (keystroke_search_score, fuzzy_search_result) {
                     // If keystroke matched, don't include fuzzy search highlights.

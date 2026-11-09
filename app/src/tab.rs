@@ -10,6 +10,7 @@ use warp_core::context_flag::ContextFlag;
 use warp_core::ui::builder::UiBuilder;
 use warp_core::ui::theme::AnsiColors;
 use warp_core::ui::theme::color::internal_colors;
+use warp_i18n::tr;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::elements::{
     Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
@@ -504,6 +505,7 @@ impl TabData {
                 {
                     menu_items.push(
                         MenuItemFields::new("Stop sharing")
+                            .with_display_label(tr("workspace.tab.stop_sharing", "Stop sharing"))
                             .with_on_select_action(WorkspaceAction::StopSharingSessionFromTabMenu {
                                 terminal_view_id: focused_session_view.id(),
                             })
@@ -512,6 +514,7 @@ impl TabData {
                 } else {
                     menu_items.push(
                         MenuItemFields::new("Share session")
+                            .with_display_label(tr("workspace.tab.share_session", "Share session"))
                             .with_on_select_action(WorkspaceAction::OpenShareSessionModal(index))
                             .into_item(),
                     );
@@ -522,6 +525,10 @@ impl TabData {
             if !shared_session_view_ids.is_empty() {
                 menu_items.push(
                     MenuItemFields::new("Stop sharing all")
+                        .with_display_label(tr(
+                            "workspace.tab.stop_sharing_all",
+                            "Stop sharing all",
+                        ))
                         .with_on_select_action(WorkspaceAction::StopSharingAllSessionsInTab {
                             pane_group: self.pane_group.downgrade(),
                         })
@@ -554,6 +561,7 @@ impl TabData {
                 });
             menu_items.push(
                 MenuItemFields::new("Copy link")
+                    .with_display_label(tr("workspace.tab.copy_link", "Copy link"))
                     .with_on_select_action(WorkspaceAction::CopySharedSessionLinkFromTab {
                         tab_index: index,
                     })
@@ -658,8 +666,21 @@ impl TabData {
         value: Option<String>,
     ) {
         if let Some(value) = value {
+            let display_label = match label {
+                "Copy tab title" => tr("workspace.tab.copy_title", "Copy tab title"),
+                "Copy pane title" => tr("workspace.pane.copy_title", "Copy pane title"),
+                "Copy branch" => tr("workspace.tab.copy_branch", "Copy branch"),
+                "Copy working directory" => {
+                    tr("workspace.tab.copy_directory", "Copy working directory")
+                }
+                "Copy pull request link" => {
+                    tr("workspace.tab.copy_pull_request", "Copy pull request link")
+                }
+                _ => label,
+            };
             menu_items.push(
                 MenuItemFields::new(label)
+                    .with_display_label(display_label)
                     .with_on_select_action(WorkspaceAction::CopyTextToClipboard(value))
                     .into_item(),
             );
@@ -689,6 +710,7 @@ impl TabData {
             // the actual keybinding (based on the user's preferences etc.)
             menu_items.append(&mut vec![
                 MenuItemFields::new("Rename tab")
+                    .with_display_label(tr("workspace.tab.rename", "Rename tab"))
                     .with_on_select_action(WorkspaceAction::RenameTab(index))
                     .into_item(),
             ]);
@@ -698,6 +720,7 @@ impl TabData {
             if title.is_some() {
                 menu_items.push(
                     MenuItemFields::new("Reset tab name")
+                        .with_display_label(tr("workspace.tab.reset_name", "Reset tab name"))
                         .with_on_select_action(WorkspaceAction::ResetTabName(index))
                         .into_item(),
                 );
@@ -716,6 +739,11 @@ impl TabData {
                 } else {
                     "Move Tab Right"
                 })
+                .with_display_label(if uses_vertical_tabs {
+                    tr("workspace.tab.move_down", "Move Tab Down")
+                } else {
+                    tr("workspace.tab.move_right", "Move Tab Right")
+                })
                 .with_on_select_action(WorkspaceAction::MoveTabRight(index))
                 .into_item(),
             );
@@ -726,6 +754,11 @@ impl TabData {
                     "Move Tab Up"
                 } else {
                     "Move Tab Left"
+                })
+                .with_display_label(if uses_vertical_tabs {
+                    tr("workspace.tab.move_up", "Move Tab Up")
+                } else {
+                    tr("workspace.tab.move_left", "Move Tab Left")
                 })
                 .with_on_select_action(WorkspaceAction::MoveTabLeft(index))
                 .into_item(),
@@ -752,14 +785,28 @@ impl TabData {
             .custom_vertical_tabs_title()
             .is_some();
 
+        let rename_display_label = match target.rename_label {
+            "Rename pane" => tr("workspace.pane.rename", "Rename pane"),
+            "Rename active pane" => tr("workspace.pane.rename_active", "Rename active pane"),
+            label => label,
+        };
+        let reset_display_label = match target.reset_label {
+            "Reset pane name" => tr("workspace.pane.reset_name", "Reset pane name"),
+            "Reset active pane name" => {
+                tr("workspace.pane.reset_active_name", "Reset active pane name")
+            }
+            label => label,
+        };
         let mut menu_items = vec![
             MenuItemFields::new(target.rename_label)
+                .with_display_label(rename_display_label)
                 .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
                 .into_item(),
         ];
         if has_custom_name {
             menu_items.push(
                 MenuItemFields::new(target.reset_label)
+                    .with_display_label(reset_display_label)
                     .with_on_select_action(WorkspaceAction::ResetPaneName(target.locator))
                     .into_item(),
             );
@@ -779,6 +826,7 @@ impl TabData {
         if ContextFlag::CloseWindow.is_enabled() || tabs_len != 1 {
             menu_items.push(
                 MenuItemFields::new("Close tab")
+                    .with_display_label(tr("workspace.tab.close", "Close tab"))
                     .with_on_select_action(WorkspaceAction::CloseTab(index))
                     .into_item(),
             );
@@ -786,6 +834,7 @@ impl TabData {
         if tabs_len > 1 {
             menu_items.push(
                 MenuItemFields::new("Close other tabs")
+                    .with_display_label(tr("workspace.tab.close_others", "Close other tabs"))
                     .with_on_select_action(WorkspaceAction::CloseOtherTabs(index))
                     .into_item(),
             );
@@ -797,6 +846,11 @@ impl TabData {
                     "Close Tabs Below"
                 } else {
                     "Close Tabs to the Right"
+                })
+                .with_display_label(if uses_vertical_tabs {
+                    tr("workspace.tab.close_below", "Close Tabs Below")
+                } else {
+                    tr("workspace.tab.close_right", "Close Tabs to the Right")
                 })
                 .with_on_select_action(WorkspaceAction::CloseTabsRight(index))
                 .into_item(),
@@ -811,6 +865,7 @@ impl TabData {
         }
         vec![
             MenuItemFields::new("Save as new config")
+                .with_display_label(tr("workspace.tab.save_config", "Save as new config"))
                 .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
                 .into_item(),
         ]
@@ -822,13 +877,22 @@ impl TabData {
             return vec![];
         }
 
-        let (label, action) = if self.pinned {
-            ("Unpin tab", WorkspaceAction::UnpinTab(index))
+        let (label, display_label, action) = if self.pinned {
+            (
+                "Unpin tab",
+                tr("workspace.tab.unpin", "Unpin tab"),
+                WorkspaceAction::UnpinTab(index),
+            )
         } else {
-            ("Pin tab", WorkspaceAction::PinTab(index))
+            (
+                "Pin tab",
+                tr("workspace.tab.pin", "Pin tab"),
+                WorkspaceAction::PinTab(index),
+            )
         };
         vec![
             MenuItemFields::new(label)
+                .with_display_label(display_label)
                 .with_on_select_action(action)
                 .into_item(),
         ]
@@ -857,16 +921,22 @@ impl TabData {
         if show_new_group {
             menu_items.push(
                 MenuItemFields::new("New group with tab")
+                    .with_display_label(tr("workspace.tab.new_group", "New group with tab"))
                     .with_on_select_action(WorkspaceAction::NewTabGroupFromTab(index))
                     .into_item(),
             );
         }
         if show_move_to_group {
-            menu_items.push(MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL).into_item());
+            menu_items.push(
+                MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL)
+                    .with_display_label(tr("menu.move_to_group", "Move to group"))
+                    .into_item(),
+            );
         }
         if show_remove_from_group {
             menu_items.push(
                 MenuItemFields::new("Remove from group")
+                    .with_display_label(tr("workspace.tab.remove_from_group", "Remove from group"))
                     .with_on_select_action(WorkspaceAction::RemoveTabFromGroup(index))
                     .into_item(),
             );
@@ -908,7 +978,7 @@ impl TabData {
                             TAB_COLOR_ICON_PATH
                         },
                         color.into(),
-                        color_option.to_string(),
+                        tab_color_label(*color_option),
                     )
                     .no_highlight_on_hover()
                     .with_on_select_action(WorkspaceAction::ToggleTabColor {
@@ -941,6 +1011,20 @@ impl ColorPickerTarget {
             }
         }
     }
+}
+
+// 只映射颜色选择器的显示名称，保留枚举的序列化和 Display 契约。
+fn tab_color_label(color: AnsiColorIdentifier) -> String {
+    match color {
+        AnsiColorIdentifier::Red => tr("workspace.color.red", "Red"),
+        AnsiColorIdentifier::Green => tr("workspace.color.green", "Green"),
+        AnsiColorIdentifier::Yellow => tr("workspace.color.yellow", "Yellow"),
+        AnsiColorIdentifier::Blue => tr("workspace.color.blue", "Blue"),
+        AnsiColorIdentifier::Magenta => tr("workspace.color.magenta", "Magenta"),
+        AnsiColorIdentifier::Cyan => tr("workspace.color.cyan", "Cyan"),
+        _ => return color.to_string(),
+    }
+    .to_string()
 }
 
 /// Builds the shared dot-based color picker menu section (a single custom row)
@@ -981,8 +1065,8 @@ pub(crate) fn color_picker_menu_items(
                         Some(id) => id.to_ansi_color(&terminal_colors).into(),
                     };
                     let tooltip = match ansi_id {
-                        None => "Default (no color)".to_string(),
-                        Some(id) => id.to_string(),
+                        None => tr("workspace.color.default", "Default (no color)").to_string(),
+                        Some(id) => tab_color_label(id),
                     };
 
                     let dot = render_color_dot(

@@ -421,7 +421,10 @@ pub fn init(app: &mut AppContext) {
         app.register_fixed_bindings([FixedBinding::custom(
             CustomAction::SaveCurrentConfig,
             WorkspaceAction::OpenLaunchConfigSaveModal,
-            "Save new launch configuration",
+            localized_description(
+                "local_action.save_launch_configuration",
+                "Save new launch configuration",
+            ),
             id!("Workspace"),
         )]);
     }
@@ -541,7 +544,7 @@ pub fn init(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::Settings.as_str()),
         EditableBinding::new(
             TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME,
-            "Open tab configs menu",
+            localized_description("local_action.tab_configs", "Open tab configs menu"),
             WorkspaceAction::ToggleTabConfigsMenu,
         )
         .with_context_predicate(id!("Workspace"))
@@ -642,7 +645,7 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-pagedown"),
         EditableBinding::new(
             "pane_group:navigate_prev",
-            "Activate previous pane",
+            localized_description("local_action.previous_pane", "Activate previous pane"),
             WorkspaceAction::NavigatePrevPaneOrPanel,
         )
         .with_context_predicate(id!("Workspace"))
@@ -650,7 +653,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::ActivatePreviousPane),
         EditableBinding::new(
             "pane_group:navigate_next",
-            "Activate next pane",
+            localized_description("local_action.next_pane", "Activate next pane"),
             WorkspaceAction::NavigateNextPaneOrPanel,
         )
         .with_context_predicate(id!("Workspace"))
@@ -765,7 +768,7 @@ pub fn init(app: &mut AppContext) {
         }),
         EditableBinding::new(
             "workspace:toggle_left_panel",
-            BindingDescription::new("Open Left Panel"),
+            localized_description("local_action.left_panel", "Open Left Panel"),
             WorkspaceAction::ToggleLeftPanel,
         )
         .with_context_predicate(id!("Workspace"))
@@ -962,7 +965,7 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-k"),
         EditableBinding::new(
             "workspace:toggle_block_snackbar",
-            "Toggle sticky command header",
+            localized_description("local_action.sticky_header", "Toggle sticky command header"),
             WorkspaceAction::ToggleBlockSnackbar,
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -974,14 +977,20 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:set_a11y_concise_verbosity_level",
-                "[a11y] Set concise accessibility announcements",
+                localized_description(
+                    "local_action.a11y_concise",
+                    "[a11y] Set concise accessibility announcements",
+                ),
                 WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Concise),
             )
             .with_context_predicate(id!("Workspace"))
             .with_key_binding("cmdorctrl-alt-c"),
             EditableBinding::new(
                 "workspace:set_a11y_verbose_verbosity_level",
-                "[a11y] Set verbose accessibility announcements",
+                localized_description(
+                    "local_action.a11y_verbose",
+                    "[a11y] Set verbose accessibility announcements",
+                ),
                 WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Verbose),
             )
             .with_context_predicate(id!("Workspace"))
@@ -1013,7 +1022,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:cycle_active_tab_color",
-        "Cycle current tab color",
+        localized_description("local_action.cycle_tab_color", "Cycle current tab color"),
         WorkspaceAction::CycleActiveTabColor,
     )
     .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1023,7 +1032,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:new_tab_group",
-            "Create new tab group",
+            localized_description("local_action.new_tab_group", "Create new tab group"),
             // Reuse the new-session dropdown's action, not a dedicated variant.
             WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
         )
@@ -1032,7 +1041,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace") & !id!("Workspace_PaneDragging")),
         EditableBinding::new(
             "workspace:new_tab_group_from_active_or_selected_tabs",
-            "Create tab group from active or selected tab(s)",
+            localized_description(
+                "local_action.group_selected_tabs",
+                "Create tab group from active or selected tab(s)",
+            ),
             WorkspaceAction::NewTabGroupFromActiveOrSelectedTabs,
         )
         .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
@@ -1044,7 +1056,10 @@ pub fn init(app: &mut AppContext) {
         // offered, matching the multi-tab right-click menu.
         EditableBinding::new(
             "workspace:remove_active_or_selected_tabs_from_group",
-            "Remove active or selected tab(s) from group",
+            localized_description(
+                "local_action.ungroup_selected_tabs",
+                "Remove active or selected tab(s) from group",
+            ),
             WorkspaceAction::RemoveActiveOrSelectedTabsFromGroup,
         )
         .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
@@ -1062,7 +1077,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:pin_active_tab",
-            "Pin current tab",
+            localized_description("local_action.pin_tab", "Pin current tab"),
             WorkspaceAction::PinActiveTab,
         )
         .with_enabled(|| FeatureFlag::PinnedTabs.is_enabled())
@@ -1072,7 +1087,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:unpin_active_tab",
-            "Unpin current tab",
+            localized_description("local_action.unpin_tab", "Unpin current tab"),
             WorkspaceAction::UnpinActiveTab,
         )
         .with_enabled(|| FeatureFlag::PinnedTabs.is_enabled())
@@ -1082,7 +1097,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:pin_active_tab_group",
-            "Pin current tab group",
+            localized_description("local_action.pin_group", "Pin current tab group"),
             WorkspaceAction::PinActiveTabGroup,
         )
         .with_enabled(|| {
@@ -1097,7 +1112,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:unpin_active_tab_group",
-            "Unpin current tab group",
+            localized_description("local_action.unpin_group", "Unpin current tab group"),
             WorkspaceAction::UnpinActiveTabGroup,
         )
         .with_enabled(|| {
@@ -1170,14 +1185,14 @@ pub fn init(app: &mut AppContext) {
         // (i.e. whether notifications are already on or off).
         EditableBinding::new(
             "workspace:toggle_notifications_on",
-            "Turn notifications on",
+            localized_description("local_action.notifications_on", "Turn notifications on"),
             WorkspaceAction::ToggleNotifications,
         )
         .with_group(bindings::BindingGroup::Notifications.as_str())
         .with_context_predicate(id!("Workspace") & !id!("Notifications_Enabled")),
         EditableBinding::new(
             "workspace:toggle_notifications_off",
-            "Turn notifications off",
+            localized_description("local_action.notifications_off", "Turn notifications off"),
             WorkspaceAction::ToggleNotifications,
         )
         .with_group(bindings::BindingGroup::Notifications.as_str())
@@ -1199,7 +1214,10 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::NavigationPalette),
         EditableBinding::new(
             "workspace:toggle_launch_config_palette",
-            "Launch configuration palette",
+            localized_description(
+                "local_action.launch_palette",
+                "Launch configuration palette",
+            ),
             WorkspaceAction::TogglePalette {
                 mode: PaletteMode::LaunchConfig,
                 source: PaletteSource::Keybinding,
@@ -1220,7 +1238,10 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::FilesPalette),
         EditableBinding::new(
             "workspace:open_launch_config_save_modal",
-            "Save new launch configuration",
+            localized_description(
+                "local_action.save_launch_configuration",
+                "Save new launch configuration",
+            ),
             WorkspaceAction::OpenLaunchConfigSaveModal,
         )
         .with_context_predicate(id!("Workspace"))
@@ -1244,7 +1265,7 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:update_and_relaunch",
-                "Install update and relaunch",
+                localized_description("local_action.install_update", "Install update and relaunch"),
                 // TODO(vorporeal): I wonder if we should change wording here?
                 WorkspaceAction::ApplyUpdate,
             )
@@ -1253,7 +1274,7 @@ pub fn init(app: &mut AppContext) {
             .with_enabled(|| ContextFlag::PromptForVersionUpdates.is_enabled()),
             EditableBinding::new(
                 "workspace:check_for_updates",
-                "Check for updates",
+                localized_description("local_action.check_updates", "Check for updates"),
                 WorkspaceAction::CheckForUpdate,
             )
             .with_group(bindings::BindingGroup::AutoUpdate.as_str())
@@ -1314,14 +1335,14 @@ pub fn init(app: &mut AppContext) {
             app.register_editable_bindings([
                 EditableBinding::new(
                     "workspace:install_warpctrl",
-                    "Install Warp Control CLI globally for use outside of Warp",
+                    localized_description("local_action.install_warpctrl", "Install Warp Control CLI globally for use outside of Warp"),
                     WorkspaceAction::InstallWarpctrl,
                 )
                 .with_group(bindings::BindingGroup::Settings.as_str())
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:uninstall_warpctrl",
-                    "Undo global Warp Control CLI installation (warpctrl will still work within Warp)",
+                    localized_description("local_action.uninstall_warpctrl", "Undo global Warp Control CLI installation (warpctrl will still work within Warp)"),
                     WorkspaceAction::UninstallWarpctrl,
                 )
                 .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1447,14 +1468,20 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:shift_focus_left",
-            "Switch Focus to Left Panel",
+            localized_description(
+                "local_action.focus_left_panel",
+                "Switch Focus to Left Panel",
+            ),
             WorkspaceAction::FocusLeftPanel,
         )
         .with_context_predicate(id!("Workspace"))
         .with_key_binding("cmdorctrl-shift-("),
         EditableBinding::new(
             "workspace:shift_focus_right",
-            "Switch Focus to Right Panel",
+            localized_description(
+                "local_action.focus_right_panel",
+                "Switch Focus to Right Panel",
+            ),
             WorkspaceAction::FocusRightPanel,
         )
         .with_context_predicate(id!("Workspace"))
@@ -1675,8 +1702,11 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:show_settings_warpify_page",
-            BindingDescription::new("Open Settings: Warpify")
-                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Configure Warpify..."),
+            localized_description("local_action.open_warpify", "Open Settings: Warpify")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    warp_i18n::tr("local_action.menu_warpify", "Configure Warpify..."),
+                ),
             WorkspaceAction::ShowSettingsPage(SettingsSection::Warpify),
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1726,7 +1756,7 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:open_settings_file",
-            "Open settings file",
+            localized_description("local_action.open_settings_file", "Open settings file"),
             WorkspaceAction::OpenSettingsFile,
         )
         .with_enabled(|| FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs"))
@@ -1755,7 +1785,10 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:link_to_user_docs",
-            "View user docs (opens external link)",
+            localized_description(
+                "local_action.user_docs",
+                "View user docs (opens external link)",
+            ),
             WorkspaceAction::ViewUserDocs,
         )
         .with_context_predicate(id!("Workspace")),
@@ -1768,13 +1801,16 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
         #[cfg(not(target_family = "wasm"))]
         EditableBinding::new(
             "workspace:view_logs",
-            "View Warp logs",
+            localized_description("local_action.view_logs", "View Warp logs"),
             WorkspaceAction::ViewLogs,
         )
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:link_to_privacy_policy",
-            "View privacy policy (opens external link)",
+            localized_description(
+                "local_action.privacy_policy",
+                "View privacy policy (opens external link)",
+            ),
             WorkspaceAction::ViewPrivacyPolicy,
         )
         .with_context_predicate(id!("Workspace")),

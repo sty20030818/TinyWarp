@@ -3,6 +3,7 @@
 use lazy_static::lazy_static;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
+use warp_i18n::tr;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     DEFAULT_UI_LINE_HEIGHT_RATIO, Element, Flex, Hoverable, MouseStateHandle, OffsetPositioning,
@@ -94,6 +95,7 @@ impl AcceptAutosuggestionKeybinding {
                 )
                 .into_item(),
             MenuItemFields::new("Custom...")
+                .with_display_label(tr("terminal.suggestion.custom_key", "Custom..."))
                 .with_on_select_action(
                     AcceptAutosuggestionKeybindingAction::OpenSettingsForCustomKeybinding,
                 )
@@ -338,7 +340,9 @@ impl View for AcceptAutosuggestionKeybinding {
             if !is_menu_open && state.is_hovered() {
                 let tool_tip = appearance
                     .ui_builder()
-                    .autosuggestion_tool_tip("Change keybinding".into())
+                    .autosuggestion_tool_tip(
+                        tr("terminal.suggestion.change_key", "Change keybinding").into(),
+                    )
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(

@@ -1,4 +1,5 @@
 use ordered_float::OrderedFloat;
+use warp_i18n::tr;
 use warpui::elements::Container;
 use warpui::{AppContext, Element, SingletonEntity};
 
@@ -103,7 +104,8 @@ impl crate::search::item::SearchItem for SearchItem {
 
     fn accessibility_label(&self) -> String {
         format!(
-            "Selected {}. {}.",
+            "{} {}. {}.",
+            tr("search.selected", "Selected"),
             self.navigation_data().prompt(),
             self.navigation_data()
                 .command_context()
@@ -113,6 +115,12 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to navigate to this session.".into())
+        Some(
+            tr(
+                "search.session.navigate_hint",
+                "Press enter to navigate to this session.",
+            )
+            .into(),
+        )
     }
 }
