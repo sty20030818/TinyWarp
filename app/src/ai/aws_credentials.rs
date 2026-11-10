@@ -3,12 +3,16 @@ use std::time::{Duration, SystemTime};
 
 pub use ai::api_keys::AwsCredentials;
 use ai::api_keys::{ApiKeyManager, AwsCredentialsRefreshStrategy, AwsCredentialsState};
+#[cfg(feature = "aws_llm_credentials")]
 use anyhow::Context;
+#[cfg(feature = "aws_llm_credentials")]
 use aws_credential_types::provider::ProvideCredentials;
+#[cfg(feature = "aws_llm_credentials")]
 use aws_credential_types::provider::error::CredentialsError;
 use futures::channel::oneshot::channel;
 use futures::future::BoxFuture;
 use parking_lot::FairMutex;
+#[cfg(feature = "aws_llm_credentials")]
 use tokio::sync::Mutex;
 use vec1::vec1;
 use warp_errors::report_error;
@@ -31,6 +35,7 @@ pub enum LoadAwsCredentialsError {
     /// No AWS credentials are configured on this machine.
     /// The user needs to configure credentials via environment variables,
     /// shared credentials file (~/.aws/credentials), or other AWS credential sources.
+    #[cfg(feature = "aws_llm_credentials")]
     NotConfigured,
     /// AWS credentials are configured but could not be loaded.
     /// This can happen when credentials are expired, invalid, or the
@@ -41,6 +46,7 @@ pub enum LoadAwsCredentialsError {
 impl std::fmt::Display for LoadAwsCredentialsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "aws_llm_credentials")]
             Self::NotConfigured => write!(f, "No AWS credentials configured"),
             Self::CredentialsLoadFailed(msg) => {
                 write!(f, "Failed to load AWS credentials: {msg}")
@@ -63,6 +69,7 @@ fn aws_profile_reference_for_message(profile: &str, capitalize_first_word: bool)
     }
 }
 
+#[cfg(feature = "aws_llm_credentials")]
 fn user_facing_aws_credentials_error_message(err: &CredentialsError, profile: &str) -> String {
     match err {
         CredentialsError::CredentialsNotLoaded(_) => format!(
@@ -120,8 +127,10 @@ pub(crate) fn aws_role_session_name(run_id: &str) -> String {
 /// `AssumeRoleWithWebIdentity` is unauthenticated (the web identity token is the
 /// credential), so we skip the default credentials chain via `no_credentials()`
 /// and reuse a single client across refreshes.
+#[cfg(feature = "aws_llm_credentials")]
 static STS_CLIENT_CACHE: Mutex<Option<(String, aws_sdk_sts::Client)>> = Mutex::const_new(None);
 
+#[cfg(feature = "aws_llm_credentials")]
 pub(crate) async fn sts_client(region: &str) -> aws_sdk_sts::Client {
     let mut cache = STS_CLIENT_CACHE.lock().await;
     if let Some((cached_region, client)) = cache.as_ref()
@@ -140,8 +149,58 @@ pub(crate) async fn sts_client(region: &str) -> aws_sdk_sts::Client {
     client
 }
 
+pub(crate) const AWS_CREDENTIALS_UNAVAILABLE: &str =
+    "Built-in AWS model credentials are not included in this build";
+
+pub(crate) fn ensure_aws_credentials_available() -> anyhow::Result<()> {
+    anyhow::ensure!(
+        cfg!(feature = "aws_llm_credentials"),
+        AWS_CREDENTIALS_UNAVAILABLE
+    );
+    Ok(())
+}
+
+// SDK 类型留在此边界内，调用者只接收既有凭据数据类型。
+pub(crate) async fn exchange_aws_web_identity_credentials(
+    region: &str,
+    role_arn: &str,
+    session_name: &str,
+    token: &str,
+) -> anyhow::Result<AwsCredentials> {
+    ensure_aws_credentials_available()?;
+    for (name, value) in [
+        ("region", region),
+        ("role ARN", role_arn),
+        ("session name", session_name),
+        ("identity token", token),
+    ] {
+        anyhow::ensure!(!value.is_empty(), "Missing AWS STS request field: {name}");
+    }
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "aws_llm_credentials")] {
+            let client = sts_client(region).await;
+            let credentials = client.assume_role_with_web_identity()
+                .role_arn(role_arn).role_session_name(session_name).web_identity_token(token)
+                .send().await.map_err(|err| {
+                    let detail = err.as_service_error().map(|e| e.to_string())
+                        .unwrap_or_else(|| err.to_string());
+                    report_error!(anyhow::Error::new(err)
+                        .context("Bedrock OIDC: STS AssumeRoleWithWebIdentity SDK error"));
+                    anyhow::anyhow!("STS AssumeRoleWithWebIdentity failed: {detail}")
+                })?.credentials.context("STS response did not include credentials")?;
+            Ok(AwsCredentials::new(credentials.access_key_id().to_string(),
+                credentials.secret_access_key().to_string(),
+                Some(credentials.session_token().to_string()),
+                SystemTime::try_from(*credentials.expiration()).ok()))
+        } else {
+            anyhow::bail!(AWS_CREDENTIALS_UNAVAILABLE)
+        }
+    }
+}
+
 fn aws_credentials_state_for_error(err: LoadAwsCredentialsError) -> AwsCredentialsState {
     match err {
+        #[cfg(feature = "aws_llm_credentials")]
         LoadAwsCredentialsError::NotConfigured => AwsCredentialsState::Missing,
         LoadAwsCredentialsError::CredentialsLoadFailed(message) => {
             AwsCredentialsState::Failed { message }
@@ -157,6 +216,8 @@ fn aws_credentials_state_for_error(err: LoadAwsCredentialsError) -> AwsCredentia
 pub async fn load_aws_credentials_from_sdk(
     profile: &str,
 ) -> Result<AwsCredentials, LoadAwsCredentialsError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "aws_llm_credentials")] {
     let region_provider = aws_config::meta::region::RegionProviderChain::default_provider();
     let loader =
         aws_config::defaults(aws_config::BehaviorVersion::latest()).region(region_provider);
@@ -188,6 +249,13 @@ pub async fn load_aws_credentials_from_sdk(
         creds.session_token().map(|s| s.to_string()),
         creds.expiry(),
     ))
+        } else {
+            Err(LoadAwsCredentialsError::CredentialsLoadFailed(format!(
+                "{}: {AWS_CREDENTIALS_UNAVAILABLE}",
+                aws_profile_reference_for_message(profile, false),
+            )))
+        }
+    }
 }
 
 /// Extension trait for `ApiKeyManager` to handle AWS credential refresh.
@@ -217,6 +285,10 @@ impl AwsCredentialRefresher for ApiKeyManager {
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if !cfg!(feature = "aws_llm_credentials") {
+            return;
+        }
+
         // we cannot simply capture the strong references, or we risk having a reference cycle.
         let terminal_model_weak = Arc::downgrade(&terminal_model);
         ctx.subscribe_to_model(model_events, move |manager, _, event, ctx| {
@@ -243,6 +315,9 @@ impl AwsCredentialRefresher for ApiKeyManager {
     }
 
     fn subscribe_to_settings_changes(&mut self, ctx: &mut ModelContext<Self>) {
+        if !cfg!(feature = "aws_llm_credentials") {
+            return;
+        }
         // Subscribe to UserWorkspaces events to refresh AWS credentials when workspace settings change
         // (this also initializes AWS credentials on app startup via TeamsChanged)
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |manager, _, event, ctx| {
@@ -279,7 +354,7 @@ pub(crate) fn refresh_local_chain_aws_credentials(
     manager: &mut ApiKeyManager,
     ctx: &mut ModelContext<ApiKeyManager>,
 ) {
-    if crate::local_terminal::is_enabled(ctx) {
+    if !cfg!(feature = "aws_llm_credentials") || crate::local_terminal::is_enabled(ctx) {
         return;
     }
 
@@ -337,6 +412,10 @@ pub(crate) fn refresh_aws_credentials_oidc(
         });
     }
 
+    if let Err(error) = ensure_aws_credentials_available() {
+        return Box::pin(async move { Err(error.to_string()) });
+    }
+
     // Skip if credentials are already loaded and have not yet expired.
     if let AwsCredentialsState::Loaded { credentials, .. } = manager.aws_credentials_state() {
         let still_valid = credentials
@@ -370,36 +449,13 @@ pub(crate) fn refresh_aws_credentials_oidc(
         async move {
             let token = token_future.await.map_err(bedrock_identity_token_error)?;
 
-            let client = sts_client(&config.region).await;
-            let session_name = aws_role_session_name(&config.task_id);
-            let credentials = client
-                .assume_role_with_web_identity()
-                .role_arn(&config.role_arn)
-                .role_session_name(session_name)
-                .web_identity_token(token.token)
-                .send()
-                .await
-                .map_err(|err| {
-                    // Surface the AWS service error message for a user-friendly error.
-                    let detail = err
-                        .as_service_error()
-                        .map(|e| e.to_string())
-                        .unwrap_or_else(|| err.to_string());
-                    report_error!(
-                        anyhow::Error::new(err)
-                            .context("Bedrock OIDC: STS AssumeRoleWithWebIdentity SDK error")
-                    );
-                    anyhow::anyhow!("STS AssumeRoleWithWebIdentity failed: {detail}")
-                })?
-                .credentials
-                .context("STS response did not include credentials")?;
-
-            anyhow::Ok(AwsCredentials::new(
-                credentials.access_key_id().to_string(),
-                credentials.secret_access_key().to_string(),
-                Some(credentials.session_token().to_string()),
-                SystemTime::try_from(*credentials.expiration()).ok(),
-            ))
+            exchange_aws_web_identity_credentials(
+                &config.region,
+                &config.role_arn,
+                &aws_role_session_name(&config.task_id),
+                &token.token,
+            )
+            .await
         },
         move |manager, result, ctx| {
             let loaded_successfully = result.is_ok();

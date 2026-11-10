@@ -162,10 +162,10 @@ where
 
     let bedrock_refresh = async move {
         match bedrock_oidc_credentials {
-            Some((config, request_scope)) => {
+            Some((config, request_scope)) if cfg!(feature = "aws_llm_credentials") => {
                 bedrock_credentials::refresh_loop(config, request_scope, foreground).await
             }
-            None => future::pending::<()>().await,
+            Some(_) | None => future::pending::<()>().await,
         }
     }
     .fuse();

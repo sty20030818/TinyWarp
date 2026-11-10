@@ -1,8 +1,12 @@
+#[cfg(feature = "aws_llm_credentials")]
 use std::time::Duration;
 
+#[cfg(feature = "aws_llm_credentials")]
 use aws_credential_types::provider::error::CredentialsError;
 
-use super::{bedrock_identity_token_error, user_facing_aws_credentials_error_message};
+use super::bedrock_identity_token_error;
+#[cfg(feature = "aws_llm_credentials")]
+use super::user_facing_aws_credentials_error_message;
 use crate::ai::agent_sdk::driver::AgentDriverError;
 use crate::server::server_api::managed_secrets::IdentityTokenUserFacingError;
 
@@ -31,6 +35,7 @@ fn bedrock_mint_error_does_not_surface_untrusted_error_details() {
 }
 
 #[test]
+#[cfg(feature = "aws_llm_credentials")]
 fn maps_credentials_not_loaded_to_user_message() {
     let message = user_facing_aws_credentials_error_message(
         &CredentialsError::not_loaded_no_source(),
@@ -44,6 +49,7 @@ fn maps_credentials_not_loaded_to_user_message() {
 }
 
 #[test]
+#[cfg(feature = "aws_llm_credentials")]
 fn maps_invalid_configuration_to_user_message() {
     let message = user_facing_aws_credentials_error_message(
         &CredentialsError::invalid_configuration(std::io::Error::other("bad config")),
@@ -57,6 +63,7 @@ fn maps_invalid_configuration_to_user_message() {
 }
 
 #[test]
+#[cfg(feature = "aws_llm_credentials")]
 fn maps_provider_timeout_to_user_message() {
     let message = user_facing_aws_credentials_error_message(
         &CredentialsError::provider_timed_out(Duration::from_secs(5)),
@@ -70,6 +77,7 @@ fn maps_provider_timeout_to_user_message() {
 }
 
 #[test]
+#[cfg(feature = "aws_llm_credentials")]
 fn maps_provider_error_to_user_message() {
     let message = user_facing_aws_credentials_error_message(
         &CredentialsError::provider_error(std::io::Error::other("provider error")),
@@ -83,6 +91,7 @@ fn maps_provider_error_to_user_message() {
 }
 
 #[test]
+#[cfg(feature = "aws_llm_credentials")]
 fn maps_unhandled_error_to_user_message() {
     let message = user_facing_aws_credentials_error_message(
         &CredentialsError::unhandled(std::io::Error::other("unexpected")),
@@ -92,5 +101,51 @@ fn maps_unhandled_error_to_user_message() {
     assert_eq!(
         message,
         "Unexpected error while loading AWS credentials. Refresh your AWS login and try again."
+    );
+}
+
+#[test]
+#[cfg(not(feature = "aws_llm_credentials"))]
+fn unavailable_local_chain_returns_error_without_loading_credentials() {
+    let Err(error) =
+        futures_lite::future::block_on(super::load_aws_credentials_from_sdk("fixture"))
+    else {
+        panic!("Unavailable AWS loader returned credentials");
+    };
+    assert!(
+        error
+            .to_string()
+            .contains(super::AWS_CREDENTIALS_UNAVAILABLE)
+    );
+}
+
+#[test]
+#[cfg(not(feature = "aws_llm_credentials"))]
+fn unavailable_sts_exchange_returns_error_without_requesting_credentials() {
+    let Err(error) = futures_lite::future::block_on(super::exchange_aws_web_identity_credentials(
+        "fixture-region",
+        "fixture-role",
+        "fixture-session",
+        "fixture-token",
+    )) else {
+        panic!("Unavailable STS adapter returned credentials");
+    };
+    assert_eq!(error.to_string(), super::AWS_CREDENTIALS_UNAVAILABLE);
+}
+
+#[test]
+#[cfg(feature = "aws_llm_credentials")]
+fn empty_identity_token_is_rejected_before_sts_request() {
+    let Err(error) = futures_lite::future::block_on(super::exchange_aws_web_identity_credentials(
+        "fixture-region",
+        "fixture-role",
+        "fixture-session",
+        "",
+    )) else {
+        panic!("An empty identity token was accepted");
+    };
+    assert_eq!(
+        error.to_string(),
+        "Missing AWS STS request field: identity token"
     );
 }

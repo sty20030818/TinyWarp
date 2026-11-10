@@ -41,6 +41,9 @@ fi
 # silently ignored on other platforms.
 MAC_ARGS=()
 CARGO_PARAMS=()
+if [[ "$WARP_CHANNEL" == "oss" ]]; then
+  CARGO_PARAMS+=(--no-default-features)
+fi
 WARP_ARGS=()
 
 while (( "$#" )); do

@@ -111,9 +111,22 @@ cargo build --locked --release -p warp --bin warp-oss --features gui -j 2 \
 继续沿用本文 SDK／Metal 环境；构建正式优化候选时：
 
 ```bash
-cargo build --locked --release -p warp --bin warp-oss --features tinywarp_gui -j 2
+cargo build --locked --release -p warp --bin warp-oss --no-default-features --features tinywarp_gui -j 2
 ```
 
 普通开发可继续附加上一节列出的应用 opt0 覆盖，避免默认重做正式优化构建。组包时也必须传 `FEATURES=tinywarp_gui`，并选择从未使用的候选目录，复制对应二进制后用 `CARGO_BUNDLE_SKIP_BUILD=1`、`--dont-open --generate-schema --format osx` 组包。不要覆盖运行中的应用或直接打开同一 OSS 身份的第二实例。
 
 依赖裁剪、开发包与验收边界见 [L3C1 交付记录](l3c1-delivery.md)。
+
+
+## L3C2 的默认能力拆分
+
+从 C2 起，直接调用 Cargo 必须同时使用 `--no-default-features --features tinywarp_gui`；只加 `tinywarp_gui` 会与完整默认叠加，重新引入 AWS SDK。`script/run` 的 OSS 分支、`script/macos/run` 的 TinyWarp 选择和 macOS 分发脚本的 OSS app 分支已自动传递该参数；其他通道及独立 CLI／TUI 仍使用完整默认。
+
+构建前可快速检查依赖边界：
+
+```bash
+python3 script/check_tinywarp_features
+```
+
+这里检查当前主机的 normal／build 依赖图，不运行应用或读取终端数据。SDK 缺席时，TinyWarp 内置 Bedrock 凭据请求明确返回不可用；正常外部 CLI 不变。完整范围与验证见 [L3C2 交付记录](l3c2-delivery.md)。

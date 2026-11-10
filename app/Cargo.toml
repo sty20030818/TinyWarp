@@ -332,10 +332,10 @@ tracing-subscriber.workspace = true
 warp_errors = { workspace = true, features = ["tokio-errors", "websocket-errors"] }
 
 # AWS SDK (loading credentials for BYO LLM)
-aws-config = { version = "1.8.16", features = ["credentials-login"] }
-aws-credential-types = "1"
-aws-sdk-sts = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
-aws-types = "1"
+aws-config = { version = "1.8.16", optional = true, features = ["credentials-login"] }
+aws-credential-types = { version = "1", optional = true }
+aws-sdk-sts = { version = "1", optional = true, default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-types = { version = "1", optional = true }
 
 notify-debouncer-full.workspace = true
 rustls.workspace = true
@@ -504,7 +504,9 @@ codebase_index_persistence = ["full_source_code_embedding"]
 well_known_mcp_ids = []
 factory_mcp = []
 preview_urls_mcp = []
-default = [
+default = ["app_defaults", "aws_llm_credentials"]
+# 共用能力只维护一份，TinyWarp 可排除云模型 SDK 而保留终端所需功能。
+app_defaults = [
     "agent_mode",
     "osc_hyperlinks",
     "viewing_shared_sessions",
@@ -739,8 +741,9 @@ grep_tool = []
 # For the most part, including GUI code in headless builds is fine; the main use case is
 # for things that pull in external dependencies.
 gui = ["voice_input"]
-# TinyWarp 的 GUI 本体无需额外 feature；此入口不引入已停用的内置语音。
-tinywarp_gui = []
+# TinyWarp 复用共享能力，不引入内置语音与云模型凭据 SDK。
+tinywarp_gui = ["app_defaults"]
+aws_llm_credentials = ["dep:aws-config", "dep:aws-credential-types", "dep:aws-sdk-sts", "dep:aws-types"]
 nld_classifier_v1 = ["input_classifier/nld_classifier_v1"]
 nld_classifier_v2 = ["input_classifier/nld_classifier_v2"]
 nld_classifier_v3 = ["input_classifier/nld_classifier_v3"]

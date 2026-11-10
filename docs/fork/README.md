@@ -128,3 +128,8 @@ SSH 暂时保留。用户认为也可以移除，但如果对性能影响不大�
 2026-11-10，用户调整为以功能精简推进，不再把专项性能定位作为前置任务。新增 `tinywarp_gui` 构建标记，OSS 开发与 macOS 打包入口默认使用；内置语音及独有音频链的 16 个 package 退出当前 macOS 构建图，原 `gui` 构建保留。
 
 开发候选已在 Warp Preview 编译、签名并做隔离 shell／CLI／设置检查，日常包未替换。不报告内存或速度收益。完整范围、失败自动化与验证边界见 [L3C1 交付记录](l3c1-delivery.md)，当前构建方法见 [macOS 构建说明](build-macos.md#l3c1-之后的-tinywarp-构建选择)。
+
+
+## TinyWarp L3C2：AWS 模型凭据 SDK 裁剪
+
+继续以独立模块裁剪为主线，本批将 AWS／Bedrock 凭据 SDK 从 TinyWarp 产品依赖图移出，959 → 921 项，保留共用 TLS 和数据类型。开发及组包入口同步无默认 feature 参数；其他通道保持完整默认，新增依赖边界检查防止 SDK 回流。范围与最新验证状态见 [L3C2 交付记录](l3c2-delivery.md)。

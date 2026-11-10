@@ -70,7 +70,7 @@ unicode-segmentation.workspace = true
 unicode-width.workspace = true
 vec1.workspace = true
 vim.workspace = true
-warp = { workspace = true, features = [
+warp = { workspace = true, default-features = true, features = [
   "image_as_context",
   "nld_classifier_v3",
   "nld_heuristic_v2",
@@ -122,7 +122,7 @@ warp_editor = { workspace = true, features = ["test-util"] }
 # Process-level worker-dispatch regression test.
 command.workspace = true
 pathfinder_color.workspace = true
-warp = { workspace = true, features = ["tui", "test-util"] }
+warp = { workspace = true, default-features = true, features = ["tui", "test-util"] }
 [[bench]]
 name = "transcript_bench"
 harness = false

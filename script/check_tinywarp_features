@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""检查 TinyWarp 构建图的专用依赖边界。"""
+
+import json
+from pathlib import Path
+import subprocess
+
+root = Path(__file__).resolve().parents[1]
+version = subprocess.check_output(['rustc', '-vV'], cwd=root, text=True)
+host = next(line.split(': ', 1)[1] for line in version.splitlines() if line.startswith('host: '))
+# 测试和其他通道允许完整 SDK，这里只检查本地终端的产品依赖。
+graph = subprocess.check_output([
+    'cargo', 'tree', '--locked', '-p', 'warp', '--target', host,
+    '--no-default-features', '--features', 'tinywarp_gui',
+    '-e', 'normal,build', '--prefix', 'none', '--format', '{p}',
+], cwd=root, text=True)
+packages = {line.split()[0] for line in graph.splitlines() if line.strip()}
+# aws-lc 属于共用 TLS，不能按 aws- 前缀整组排除。
+forbidden = {'voice_input', 'aws-config', 'aws-credential-types', 'aws-sdk-sts', 'aws-types',
+             'candle-core', 'candle-onnx', 'tokenizers'}
+required = {'warp_terminal', 'warpui', 'persistence'}
+unexpected = sorted(packages & forbidden)
+missing = sorted(required - packages)
+if unexpected or missing:
+    raise SystemExit(f'TinyWarp 构建边界不符：专用依赖残留={unexpected}，共用依赖缺失={missing}')
+print(json.dumps({'target': host, 'dependency_boundary_ok': True,
+                  'normal_build_package_names': len(packages)}, ensure_ascii=False))

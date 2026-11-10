@@ -516,12 +516,17 @@ elif [[ "$ARTIFACT" == tui ]]; then
     WARP_TUI_FEATURES="$WARP_TUI_FEATURES,crash_reporting"
   fi
 elif [[ "$ARTIFACT" == app ]]; then
-  # All channels ship the v3 classifier and v2 heuristic.
+  # TinyWarp 不打包 AI 分类模型，其他通道沿用原选择。
   if [[ "$RELEASE_CHANNEL" == "oss" ]]; then
-    FEATURES="$FEATURES,tinywarp_gui,nld_classifier_v3,nld_heuristic_v2"
+    FEATURES="$FEATURES,tinywarp_gui"
   else
     FEATURES="$FEATURES,gui,nld_classifier_v3,nld_heuristic_v2"
   fi
+fi
+
+CARGO_DEFAULT_FEATURE_ARGS=()
+if [[ "$RELEASE_CHANNEL" == "oss" && "$ARTIFACT" == "app" ]]; then
+  CARGO_DEFAULT_FEATURE_ARGS+=(--no-default-features)
 fi
 
 # A universal binary always has a native slice, so it is unaffected by the
@@ -545,9 +550,9 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
   if [[ "$ARTIFACT" == "tui" ]]; then
     cargo check -p warp_tui --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$WARP_TUI_FEATURES"
   else
-    cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
+    cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES" "${CARGO_DEFAULT_FEATURE_ARGS[@]}"
     if [[ $UNIVERSAL_BINARY = true && "$ARTIFACT" != "cli" && "$ARTIFACT" != "warpctrl" ]]; then
-      cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
+      cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES" "${CARGO_DEFAULT_FEATURE_ARGS[@]}"
     fi
   fi
   exit 0
@@ -578,7 +583,7 @@ if [[ "$ARTIFACT" == "app" ]]; then
 
   pushd app > /dev/null
   echo "Building and bundling $DEFAULT_TARGET for channel $RELEASE_CHANNEL and bundle id $BUNDLE_ID with profile $CARGO_PROFILE"
-  cargo bundle --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
+  cargo bundle --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES" "${CARGO_DEFAULT_FEATURE_ARGS[@]}"
   popd > /dev/null
 
   "$WORKSPACE_ROOT_DIR/script/macos/add_framework_rpath" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/MacOS/$WARP_BIN"
@@ -646,7 +651,7 @@ if [[ "$ARTIFACT" == "app" ]]; then
           echo "Building $ADDITIONAL_TARGET to include in universal binary"
 
           pushd app > /dev/null
-          cargo build --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
+          cargo build --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES" "${CARGO_DEFAULT_FEATURE_ARGS[@]}"
           popd > /dev/null
       else
           echo "Skipping build of $ADDITIONAL_TARGET due to --skip-build flag"
@@ -783,7 +788,7 @@ elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
     export "INFO_PLIST_PATH=$(realpath "$WARP_PLIST_PATH")"
     pushd app > /dev/null
     echo "Building $DEFAULT_TARGET for channel $RELEASE_CHANNEL with profile $CARGO_PROFILE"
-    cargo build --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
+    cargo build --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES" "${CARGO_DEFAULT_FEATURE_ARGS[@]}"
     popd > /dev/null
   else
     echo "Skipping binary build due to --skip-build flag"

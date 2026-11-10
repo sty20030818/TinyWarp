@@ -11,17 +11,17 @@
 /// future via `futures::select!` and dropped automatically when the run completes.
 use std::time::{Duration, SystemTime};
 
-use ai::api_keys::{ApiKeyManager, AwsCredentials, AwsCredentialsState};
+use ai::api_keys::{ApiKeyManager, AwsCredentialsState};
 use anyhow::{Context as _, Result};
 use vec1::vec1;
-use warp_errors::report_error;
 use warp_managed_secrets::client::IdentityTokenOptions;
 use warpui::{ModelSpawner, SingletonEntity};
 
 use super::agent_sdk::driver::AgentDriver;
 use super::aws_credentials::{
     AWS_BEDROCK_STS_AUDIENCE, BEDROCK_IDENTITY_TOKEN_DURATION, BedrockOidcCredentialsConfig,
-    aws_role_session_name, bedrock_identity_token_error, sts_client,
+    aws_role_session_name, bedrock_identity_token_error, ensure_aws_credentials_available,
+    exchange_aws_web_identity_credentials,
 };
 use crate::server::server_api::managed_secrets::AppManagedSecretManager as ManagedSecretManager;
 use crate::server::team_scope::RequestTeamScope;
@@ -45,6 +45,7 @@ async fn try_refresh(
     request_scope: Option<RequestTeamScope>,
     foreground: &ModelSpawner<AgentDriver>,
 ) -> Result<()> {
+    ensure_aws_credentials_available()?;
     // Step 1: Mint a new OIDC identity token via the model context.
     let token_future = foreground
         .spawn(move |_, ctx| {
@@ -65,35 +66,13 @@ async fn try_refresh(
     let token = token_future.await.map_err(bedrock_identity_token_error)?;
 
     // Step 2: Exchange the OIDC token for fresh STS temporary credentials.
-    let client = sts_client(&config.region).await;
-    let session_name = aws_role_session_name(&config.task_id);
-    let sts_creds = client
-        .assume_role_with_web_identity()
-        .role_arn(&config.role_arn)
-        .role_session_name(&session_name)
-        .web_identity_token(&token.token)
-        .send()
-        .await
-        .map_err(|err| {
-            let detail = err
-                .as_service_error()
-                .map(|e| e.to_string())
-                .unwrap_or_else(|| err.to_string());
-            report_error!(
-                anyhow::Error::new(err)
-                    .context("Bedrock OIDC refresh: STS AssumeRoleWithWebIdentity error")
-            );
-            anyhow::anyhow!("STS AssumeRoleWithWebIdentity failed: {detail}")
-        })?
-        .credentials
-        .context("STS response did not include credentials")?;
-
-    let aws_creds = AwsCredentials::new(
-        sts_creds.access_key_id().to_string(),
-        sts_creds.secret_access_key().to_string(),
-        Some(sts_creds.session_token().to_string()),
-        SystemTime::try_from(*sts_creds.expiration()).ok(),
-    );
+    let aws_creds = exchange_aws_web_identity_credentials(
+        &config.region,
+        &config.role_arn,
+        &aws_role_session_name(&config.task_id),
+        &token.token,
+    )
+    .await?;
 
     // Step 3: Update ApiKeyManager with the fresh credentials.
     foreground
