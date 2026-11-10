@@ -130,3 +130,9 @@ python3 script/check_tinywarp_features
 ```
 
 这里检查当前主机的 normal／build 依赖图，不运行应用或读取终端数据。SDK 缺席时，TinyWarp 内置 Bedrock 凭据请求明确返回不可用；正常外部 CLI 不变。完整范围与验证见 [L3C2 交付记录](l3c2-delivery.md)。
+
+## L3C3 的图表渲染边界
+
+TinyWarp 的 Cargo 参数继续使用 `--no-default-features --features tinywarp_gui`。`app_defaults` 只保留共享默认能力；完整默认另行启用 `markdown_mermaid`，该 feature 同时启用应用剪贴板 SVG 导出和 `warp_editor/mermaid`。TinyWarp 不生成 Mermaid SVG，源码和代码块格式继续保留。
+
+`warp_editor` 独立构建默认仍启用 `mermaid`；workspace 引用关闭其默认 feature，由实际应用的渲染能力显式选择。`languages` 与 `syntax_tree` 使用编辑数据／语法类型，不需要渲染器；原版 GUI、TUI 通过完整应用默认继续启用渲染。依赖边界脚本同时防止 Mermaid、图布局专用库回流。详见 [L3C3 交付记录](l3c3-delivery.md)。

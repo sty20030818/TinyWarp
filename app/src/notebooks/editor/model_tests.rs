@@ -2650,11 +2650,12 @@ fn test_cut_mermaid_code_block_uses_fenced_markdown_plain_text() {
                     .as_deref()
                     .is_some_and(|html| html.contains("language-mermaid"))
             );
-            assert!(
+            assert_eq!(
                 clipboard
                     .html
                     .as_deref()
-                    .is_some_and(|html| html.contains("data:image/svg+xml;base64,"))
+                    .is_some_and(|html| html.contains("data:image/svg+xml;base64,")),
+                cfg!(feature = "markdown_mermaid")
             );
             assert!(clipboard.images.is_none());
         });
@@ -2688,11 +2689,12 @@ fn test_copy_mermaid_code_block_adds_html_without_image_clipboard_data() {
                     .as_deref()
                     .is_some_and(|html| html.contains("language-mermaid"))
             );
-            assert!(
+            assert_eq!(
                 clipboard
                     .html
                     .as_deref()
-                    .is_some_and(|html| html.contains("data:image/svg+xml;base64,"))
+                    .is_some_and(|html| html.contains("data:image/svg+xml;base64,")),
+                cfg!(feature = "markdown_mermaid")
             );
             assert!(clipboard.images.is_none());
         })

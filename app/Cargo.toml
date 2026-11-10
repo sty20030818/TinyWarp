@@ -150,7 +150,7 @@ markdown_parser.workspace = true
 mcp.workspace = true
 memchr.workspace = true
 memo-map.workspace = true
-mermaid_to_svg.workspace = true
+mermaid_to_svg = { workspace = true, optional = true }
 num-traits.workspace = true
 num_cpus = "1.13.0"
 oauth2.workspace = true
@@ -504,8 +504,8 @@ codebase_index_persistence = ["full_source_code_embedding"]
 well_known_mcp_ids = []
 factory_mcp = []
 preview_urls_mcp = []
-default = ["app_defaults", "aws_llm_credentials"]
-# 共用能力只维护一份，TinyWarp 可排除云模型 SDK 而保留终端所需功能。
+default = ["app_defaults", "aws_llm_credentials", "markdown_mermaid"]
+# 共用能力只维护一份，TinyWarp 可排除专用依赖而保留终端所需功能。
 app_defaults = [
     "agent_mode",
     "osc_hyperlinks",
@@ -655,7 +655,6 @@ app_defaults = [
     "conversations_as_context",
     "markdown_tables",
     "blocklist_markdown_table_rendering",
-    "markdown_mermaid",
     "blocklist_markdown_images",
     "pr_comments_v2",
     "pr_comments_skill",
@@ -741,7 +740,7 @@ grep_tool = []
 # For the most part, including GUI code in headless builds is fine; the main use case is
 # for things that pull in external dependencies.
 gui = ["voice_input"]
-# TinyWarp 复用共享能力，不引入内置语音与云模型凭据 SDK。
+# TinyWarp 复用共享能力，不引入内置语音、云模型凭据 SDK 与图表渲染器。
 tinywarp_gui = ["app_defaults"]
 aws_llm_credentials = ["dep:aws-config", "dep:aws-credential-types", "dep:aws-sdk-sts", "dep:aws-types"]
 nld_classifier_v1 = ["input_classifier/nld_classifier_v1"]
@@ -814,7 +813,7 @@ local_fs = [
 log_expensive_frames_in_sentry = []
 jupyter_notebook_rendering = []
 markdown_tables = []
-markdown_mermaid = []
+markdown_mermaid = ["dep:mermaid_to_svg", "warp_editor/mermaid"]
 mcp_server = []
 mcp_oauth = []
 mcp_debugging_ids = []

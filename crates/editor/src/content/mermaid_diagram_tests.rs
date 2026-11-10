@@ -31,6 +31,7 @@ fn loading_mermaid_layout_uses_default_height() {
     })
 }
 
+#[cfg(feature = "mermaid")]
 #[test]
 fn mermaid_asset_source_renders_frontmatter_formatting_directives() {
     let source = r##"---
@@ -88,4 +89,38 @@ fn failed_mermaid_layout_uses_compact_height() {
             assert!((config.height.as_f32() - expected_height.as_f32()).abs() < 0.5);
         });
     })
+}
+
+#[test]
+fn mermaid_language_marker_preserves_existing_syntax() {
+    for language in [
+        "mermaid",
+        "Mermaid",
+        "MERMAID",
+        "mermaid title",
+        "Mermaid {#id}",
+    ] {
+        assert!(is_mermaid_diagram(language), "{language}");
+    }
+    for language in [
+        "",
+        "rust",
+        " mermaid",
+        "mermaidjs",
+        "mermaid\ttitle",
+        "mermaid\n",
+    ] {
+        assert!(!is_mermaid_diagram(language), "{language}");
+    }
+}
+
+#[cfg(not(feature = "mermaid"))]
+#[test]
+fn mermaid_asset_without_renderer_reports_unavailable() {
+    let AssetSource::Async { fetch, .. } = mermaid_asset_source("graph TD\nA --> B\n") else {
+        panic!("expected an async asset");
+    };
+    let error =
+        futures_lite::future::block_on(fetch()).expect_err("未编译渲染器时不能返回成功图像");
+    assert!(error.to_string().contains("未包含 Mermaid 图表渲染器"));
 }

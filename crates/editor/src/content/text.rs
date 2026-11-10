@@ -727,7 +727,7 @@ impl From<&CodeBlockText> for CodeBlockType {
         if MARKDOWN_SHELL_LANGUAGES.contains(lang.as_str()) {
             CodeBlockType::Shell
         } else if FeatureFlag::MarkdownMermaid.is_enabled()
-            && mermaid_to_svg::is_mermaid_diagram(code_block_text.lang.as_str())
+            && super::mermaid_diagram::is_mermaid_diagram(code_block_text.lang.as_str())
         {
             CodeBlockType::Mermaid
         } else {

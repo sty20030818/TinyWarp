@@ -7,8 +7,8 @@ use lazy_static::lazy_static;
 use markdown_parser::{
     FormattedImage, FormattedTextLine, parse_image_run_line, parse_markdown_with_gfm_tables,
 };
-use mermaid_to_svg::is_mermaid_diagram;
 use regex::Regex;
+use warp_editor::content::mermaid_diagram::is_mermaid_diagram;
 use warp_util::path::LineAndColumnArg;
 
 use super::{

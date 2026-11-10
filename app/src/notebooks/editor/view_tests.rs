@@ -5,23 +5,29 @@ use async_channel::TryRecvError;
 use parking_lot::Mutex;
 use string_offset::CharOffset;
 use tempfile::tempdir;
+#[cfg(feature = "markdown_mermaid")]
 use warp_editor::content::mermaid_diagram::mermaid_asset_source;
 use warp_editor::render::element::RichTextAction;
-use warp_editor::render::model::{
-    BlockItem, BlockSpacing, HitTestBlockType, ImageBlockConfig, Location, RenderEvent,
-};
+#[cfg(feature = "markdown_mermaid")]
+use warp_editor::render::model::{BlockItem, BlockSpacing, ImageBlockConfig};
+use warp_editor::render::model::{HitTestBlockType, Location, RenderEvent};
 use warp_util::user_input::UserInput;
+#[cfg(feature = "markdown_mermaid")]
 use warpui::assets::asset_cache::{AssetCache, AssetState};
 use warpui::r#async::block_on;
 use warpui::event::ModifiersState;
+#[cfg(feature = "markdown_mermaid")]
 use warpui::image_cache::ImageType;
 use warpui::platform::WindowStyle;
 use warpui::presenter::ChildView;
+#[cfg(feature = "markdown_mermaid")]
 use warpui::units::Pixels;
 use warpui::windowing::WindowManager;
 use warpui::{App, Element, Entity, SingletonEntity, TypedActionView, View, ViewHandle, WindowId};
 
-use super::{EditorViewAction, LayoutAffectingAssetLoad, RichTextEditorConfig, RichTextEditorView};
+#[cfg(feature = "markdown_mermaid")]
+use super::LayoutAffectingAssetLoad;
+use super::{EditorViewAction, RichTextEditorConfig, RichTextEditorView};
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -185,6 +191,7 @@ fn rendered_mermaid_block_range(
     None
 }
 
+#[cfg(feature = "markdown_mermaid")]
 #[test]
 fn test_loaded_mermaid_diagram_with_placeholder_height_needs_relayout() {
     App::test((), |app| async move {

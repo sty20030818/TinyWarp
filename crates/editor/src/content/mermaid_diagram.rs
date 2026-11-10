@@ -1,6 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
+#[cfg(feature = "mermaid")]
 use bytes::Bytes;
 use warpui_core::assets::asset_cache::{
     AssetCache, AssetSource, AssetState, AsyncAssetId, AsyncAssetType,
@@ -19,21 +20,37 @@ struct MermaidDiagramAsset;
 
 impl AsyncAssetType for MermaidDiagramAsset {}
 
+// 语言标记解析与渲染能力分离，保持已有 Markdown 分类及源码往返。
+pub fn is_mermaid_diagram(lang: &str) -> bool {
+    let lang_lower = lang.to_lowercase();
+    lang_lower == "mermaid" || lang_lower.starts_with("mermaid ")
+}
+
 pub fn mermaid_asset_source(source: &str) -> AssetSource {
     let source = source.to_string();
     let mut hasher = DefaultHasher::new();
     source.hash(&mut hasher);
     let id = format!("configured:{:x}", hasher.finish());
-    let fetch_source = source.clone();
+    #[cfg(feature = "mermaid")]
+    let fetch_source = source;
 
     AssetSource::Async {
         id: AsyncAssetId::new::<MermaidDiagramAsset>(id),
         fetch: Arc::new(move || {
+            #[cfg(feature = "mermaid")]
             let source = fetch_source.clone();
             Box::pin(async move {
-                mermaid_to_svg::render_mermaid_to_svg(&source, None)
-                    .map(|svg| Bytes::from(svg.into_bytes()))
-                    .map_err(Into::into)
+                #[cfg(feature = "mermaid")]
+                {
+                    mermaid_to_svg::render_mermaid_to_svg(&source, None)
+                        .map(|svg| Bytes::from(svg.into_bytes()))
+                        .map_err(Into::into)
+                }
+                #[cfg(not(feature = "mermaid"))]
+                {
+                    // 加载失败沿用源码代码块回退，不生成空图冒充成功。
+                    anyhow::bail!("此构建未包含 Mermaid 图表渲染器")
+                }
             })
         }),
     }

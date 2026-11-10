@@ -4,11 +4,14 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::time::Duration;
 
+#[cfg(feature = "markdown_mermaid")]
 use base64::Engine as _;
+#[cfg(feature = "markdown_mermaid")]
 use base64::prelude::BASE64_STANDARD;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use markdown_parser::FormattedText;
+#[cfg(feature = "markdown_mermaid")]
 use mermaid_to_svg::MermaidTheme;
 use num_traits::SaturatingSub;
 use regex::Regex;
@@ -135,6 +138,7 @@ enum InlineStyleAction {
     None,
 }
 
+#[cfg(feature = "markdown_mermaid")]
 fn mermaid_image_html(svg: &[u8]) -> String {
     format!(
         "<img src=\"data:image/svg+xml;base64,{}\" alt=\"Mermaid diagram\" />",
@@ -142,6 +146,7 @@ fn mermaid_image_html(svg: &[u8]) -> String {
     )
 }
 
+#[cfg(feature = "markdown_mermaid")]
 fn render_mermaid_clipboard_html(source: &str) -> Option<String> {
     let svg = mermaid_to_svg::render_mermaid_to_svg(source, Some(&MermaidTheme::light()))
         .ok()?
@@ -1745,13 +1750,13 @@ impl NotebooksEditorModel {
         if Self::editable_markdown_mermaid_enabled() {
             clipboard.plain_text = format!("```mermaid\n{source}\n```");
         }
-        let Some(image_html) = render_mermaid_clipboard_html(&source) else {
-            return clipboard;
-        };
-        clipboard.html = Some(match clipboard.html {
-            Some(existing_html) => format!("{existing_html}{image_html}"),
-            None => image_html,
-        });
+        #[cfg(feature = "markdown_mermaid")]
+        if let Some(image_html) = render_mermaid_clipboard_html(&source) {
+            clipboard.html = Some(match clipboard.html {
+                Some(existing_html) => format!("{existing_html}{image_html}"),
+                None => image_html,
+            });
+        }
         clipboard
     }
 

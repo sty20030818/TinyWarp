@@ -14,10 +14,12 @@ use warpui_core::image_cache::ImageType;
 use warpui_core::text_layout::{StyleAndFont, TextStyle};
 use warpui_core::{App, SingletonEntity};
 
+#[cfg(feature = "mermaid")]
+use super::layout_mermaid_diagram_block;
 use super::{
     BlockLocation, LayOutArgs, LayoutTask, MAX_LAYOUT_CONTENT_CHARS_PER_PARALLEL_CHUNK,
-    MAX_LAYOUT_TASKS_PER_PARALLEL_CHUNK, chunk_layout_tasks, layout_mermaid_diagram_block,
-    layout_table_block, layout_temporary_blocks, layout_text_block,
+    MAX_LAYOUT_TASKS_PER_PARALLEL_CHUNK, chunk_layout_tasks, layout_table_block,
+    layout_temporary_blocks, layout_text_block,
 };
 use crate::content::buffer::{StyledBufferBlock, StyledBufferRun, StyledTextBlock};
 use crate::content::edit::{
@@ -371,6 +373,7 @@ fn test_layout_partial_url() {
     })
 }
 
+#[cfg(feature = "mermaid")]
 #[test]
 fn test_layout_mermaid_block_uses_loaded_svg_aspect_ratio() {
     App::test((), |app| async move {
@@ -581,13 +584,21 @@ fn test_non_parseable_mermaid_block_lays_out_as_code_block() {
 
 #[test]
 fn test_invalid_mermaid_block_stays_as_code_block_after_load_fails() {
+    assert_mermaid_load_falls_back_to_code("echo hi\n");
+}
+
+#[cfg(not(feature = "mermaid"))]
+#[test]
+fn test_valid_mermaid_without_renderer_stays_as_code_block() {
+    assert_mermaid_load_falls_back_to_code("graph TD\nA --> B\n");
+}
+
+fn assert_mermaid_load_falls_back_to_code(contents: &'static str) {
     App::test((), |app| async move {
         let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let contents = "echo hi\n";
         let asset_source = mermaid_asset_source(contents);
 
-        // Drive the asset load to completion (it should fail, since `echo hi` isn't
-        // valid Mermaid).
+        // 无效源码或未编译渲染器时，加载失败后仍保留代码块。
         let pending = app.read(|ctx| {
             let asset_cache = AssetCache::as_ref(ctx);
             match asset_cache.load_asset::<ImageType>(asset_source.clone()) {
@@ -606,7 +617,7 @@ fn test_invalid_mermaid_block_stays_as_code_block_after_load_fails() {
                     asset_cache.load_asset::<ImageType>(asset_source.clone()),
                     AssetState::FailedToLoad(_)
                 ),
-                "Mermaid render for invalid source should have failed"
+                "Mermaid asset should report a load failure"
             );
 
             let text_layout =
@@ -636,6 +647,7 @@ fn test_invalid_mermaid_block_stays_as_code_block_after_load_fails() {
     })
 }
 
+#[cfg(feature = "mermaid")]
 #[test]
 fn test_valid_mermaid_block_lays_out_as_diagram_after_load() {
     App::test((), |app| async move {
