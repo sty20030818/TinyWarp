@@ -31,6 +31,7 @@ pub fn main() -> Result<()> {
             "test_local_terminal_first_launch_without_account"
                 | "test_local_terminal_preserves_legacy_account_history_and_tabs"
                 | "test_local_terminal_external_cli_ignores_legacy_agent_default"
+                | "test_local_terminal_settings_open_once_and_return_to_terminal"
         )
     });
     let test_app_id = if local_terminal_test {
@@ -166,6 +167,7 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_local_terminal_first_launch_without_account);
     register_test!(test_local_terminal_preserves_legacy_account_history_and_tabs);
     register_test!(test_local_terminal_external_cli_ignores_legacy_agent_default);
+    register_test!(test_local_terminal_settings_open_once_and_return_to_terminal);
     register_test!(test_single_command);
     register_test!(test_add_and_close_session);
     register_test!(test_child_pill_after_reopening_closed_parent_tab);

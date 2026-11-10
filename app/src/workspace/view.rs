@@ -8895,11 +8895,16 @@ impl Workspace {
             }
         });
 
+        let current_page = crate::settings_view::initial_settings_section(
+            page,
+            FeatureFlag::WarpControlCli.is_enabled(),
+            crate::local_terminal::is_enabled(ctx),
+        );
         let panes_layout = PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(LeafSnapshot {
             is_focused: true,
             custom_vertical_tabs_title: None,
             contents: LeafContents::Settings(SettingsPaneSnapshot::Local {
-                current_page: page.unwrap_or_default(),
+                current_page,
                 search_query: search_query.map(|s| s.to_owned()),
             }),
         })));

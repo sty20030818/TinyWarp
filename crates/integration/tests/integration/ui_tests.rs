@@ -10,6 +10,7 @@ integration_tests! {
     test_local_terminal_first_launch_without_account,
     test_local_terminal_preserves_legacy_account_history_and_tabs,
     test_local_terminal_external_cli_ignores_legacy_agent_default,
+    test_local_terminal_settings_open_once_and_return_to_terminal,
     test_add_many_sessions,
     test_child_pill_after_reopening_closed_parent_tab,
     test_ctrl_tab_session_switching,

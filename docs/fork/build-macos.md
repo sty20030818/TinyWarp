@@ -82,3 +82,24 @@ CARGO_TARGET_DIR="$PWD/.note/candidates/H1" CARGO_BUNDLE_SKIP_BUILD=1 \
 产物为 `.note/candidates/H1/release/bundle/osx/TinyWarp.app`。如果该候选已经在运行，后续构建应改用新的候选目录，或先妥善退出它；不要覆盖正在运行的 `.app`。不要在旧 OSS 尚有运行中任务时直接打开同一身份的新候选；它们使用同一个 OSS 数据目录，需先妥善结束旧 OSS。Preview 使用另一身份，继续并存。
 
 本阶段的实际验证和人工验收边界见 [H1 交付记录](h1-delivery.md)。
+
+## 日常开发与快速验证
+
+改主题、字体、设置或快捷键时，已有文件监听可重载相应配置；修改 Rust 界面或程序逻辑仍需编译并重启，没有现成的源码热替换流程。不要为普通逻辑修复默认执行完整正式 release。
+
+仓库 `./script/run` 默认使用 Cargo dev profile，macOS 开发配置使用 `split-debuginfo="unpacked"` 避免生成 packed dSYM。Cargo dev 默认支持增量编译，见 [Cargo profiles 官方说明](https://doc.rust-lang.org/stable/cargo/reference/profiles.html)。首次切换 profile 仍可能补建依赖，不能承诺秒级构建。
+
+本机已有完整 release 依赖缓存时，可沿用本文的 SDK／Metal 环境适配，仅覆盖应用包的编译参数：
+
+```bash
+cargo build --locked --release -p warp --bin warp-oss --features gui -j 2 \
+  --config profile.release.package.warp.opt-level=0 \
+  --config profile.release.package.warp.debug=0 \
+  --config 'profile.release.package.warp.split-debuginfo="unpacked"' \
+  --config profile.release.package.warp.debug-assertions=false \
+  --config profile.release.package.warp.overflow-checks=false
+```
+
+虽然沿用 release 依赖缓存，上述应用本身为无优化开发产物，不能用于性能对比或当作最终正式 release。它仍需链接，并非热更新。构建后复制到未使用的独立候选目录，用前述 `CARGO_BUNDLE_SKIP_BUILD=1` 与 `--dont-open --format osx` 组包；不覆盖运行中的 `.app`，也不通过强退项目任务实现自动重启。
+
+验证使用本次改动相关的测试与检查；普通修复先使用开发候选，正式 release 留到明确的阶段验收／发布需要。没有启用常驻自动构建或 watcher。设置入口的具体复现、修复和开发候选证据见 [L2 设置入口修复](l2-settings-fix.md)。本轮快速开发应用编译实测 2 分 43 秒（不含测试构建与验收）；不是后续每次的耗时保证。

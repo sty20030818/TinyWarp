@@ -353,3 +353,38 @@ pub fn assert_external_cli_finished_successfully(
         AssertionOutcome::Success
     })
 }
+
+/// 真实 PaneView 的类型排除仅保存 Settings 描述的停用占位 pane。
+pub fn assert_local_settings_pane_is_open_once(
+    app: &mut App,
+    window_id: WindowId,
+) -> AssertionOutcome {
+    use crate::integration_testing::view_getters::workspace_view;
+    use crate::pane_group::PaneView;
+    use crate::settings_view::SettingsView;
+
+    let tab_count = workspace_view(app, window_id).read(app, |workspace, _| workspace.tab_count());
+    if tab_count != 2 {
+        return AssertionOutcome::failure(format!(
+            "应保留原终端并只打开一个设置标签，实际标签数 {tab_count}",
+        ));
+    }
+    let panes = app
+        .views_of_type::<PaneView<SettingsView>>(window_id)
+        .unwrap_or_default();
+    if panes.len() != 1 {
+        return AssertionOutcome::failure(format!(
+            "应有一个真实 SettingsPane 包装视图，不能用停用占位 pane 代替，实际 {}",
+            panes.len(),
+        ));
+    }
+    let settings = panes[0].read(app, |pane, ctx| pane.child(ctx));
+    settings.read(app, |view, _| {
+        let section = view.current_settings_section();
+        if section.is_available_in_local_terminal() {
+            AssertionOutcome::Success
+        } else {
+            AssertionOutcome::failure(format!("设置应打开可用的本地页面，实际 {section:?}"))
+        }
+    })
+}

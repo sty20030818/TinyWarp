@@ -1074,7 +1074,7 @@ impl SettingsAction {
     }
 }
 
-fn initial_settings_section(
+pub(crate) fn initial_settings_section(
     page: Option<SettingsSection>,
     scripting_enabled: bool,
     is_local_terminal: bool,

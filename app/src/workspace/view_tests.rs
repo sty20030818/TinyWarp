@@ -285,6 +285,92 @@ pub(crate) fn mock_workspace(app: &mut App) -> ViewHandle<Workspace> {
     workspace
 }
 
+fn assert_real_local_settings_pane(workspace: &ViewHandle<Workspace>, app: &App) {
+    use crate::pane_group::{PaneContent as _, SettingsPane};
+
+    workspace.read(app, |workspace, ctx| {
+        let group_handle = workspace.active_tab_pane_group();
+        let group = group_handle.as_ref(ctx);
+        let focused_id = group.focused_pane_id(ctx);
+        let pane = group
+            .downcast_pane_by_id::<SettingsPane>(focused_id)
+            .expect("普通打开设置应创建真实 SettingsPane，不能落入不可用占位 pane");
+        assert_eq!(group.pane_ids().count(), 1);
+        assert_eq!(
+            pane.snapshot(ctx),
+            LeafContents::Settings(SettingsPaneSnapshot::Local {
+                current_page: SettingsSection::Features,
+                search_query: None,
+            })
+        );
+
+        let manager = SettingsPaneManager::as_ref(ctx);
+        let locator = manager
+            .find_pane(workspace.window_id)
+            .expect("真实设置 pane 必须注册窗口位置，供再次打开时复用");
+        assert_eq!(locator.pane_group_id, group_handle.id());
+        assert_eq!(locator.pane_id, focused_id);
+        let view = manager.settings_view(workspace.window_id);
+        assert_eq!(view.id(), workspace.settings_pane.id());
+        let settings_view = view.as_ref(ctx);
+        assert_eq!(
+            settings_view.current_settings_section(),
+            SettingsSection::Features
+        );
+    });
+}
+
+#[test]
+fn local_terminal_show_settings_without_section_opens_real_settings_and_reuses_it() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let workspace = mock_workspace(&mut app);
+        let before = workspace.read(&app, |workspace, _| workspace.tab_count());
+
+        // 原生设置动作与工具栏齿轮均执行这个不带 section 的 WorkspaceAction。
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx);
+        });
+        assert_real_local_settings_pane(&workspace, &app);
+        workspace.read(&app, |workspace, _| {
+            assert_eq!(workspace.tab_count(), before + 1)
+        });
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx);
+        });
+        assert_real_local_settings_pane(&workspace, &app);
+        workspace.read(&app, |workspace, _| {
+            assert_eq!(workspace.tab_count(), before + 1)
+        });
+    });
+}
+
+#[test]
+fn local_terminal_show_settings_normalizes_previous_account_page_before_creating_pane() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        workspace.read(&app, |workspace, ctx| {
+            assert_eq!(
+                workspace
+                    .settings_pane
+                    .as_ref(ctx)
+                    .current_settings_section(),
+                SettingsSection::Account
+            );
+        });
+        // 现有记忆保存在窗口 SettingsView 中；保留旧 Account 选择再启用测试策略，
+        // 模拟旧窗口状态，不写入没有生产消费者的假 LastSettingsPage 偏好。
+        app.update(crate::local_terminal::enable_for_test);
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx);
+        });
+        assert_real_local_settings_pane(&workspace, &app);
+    });
+}
+
 #[test]
 fn test_team_navigation_mode() {
     assert_eq!(

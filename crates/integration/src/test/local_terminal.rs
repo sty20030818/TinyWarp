@@ -7,11 +7,12 @@ use warp::integration_testing::command_search::{
 };
 use warp::integration_testing::local_terminal::{
     AuthFixture, LEGACY_HISTORY_COMMAND, assert_external_cli_finished_successfully,
-    assert_legacy_tabs_and_history, assert_onboarding_incomplete,
-    assert_shell_runtime_keeps_legacy_agent_preference, assert_startup_state, configure_startup,
-    seed_legacy_history,
+    assert_legacy_tabs_and_history, assert_local_settings_pane_is_open_once,
+    assert_onboarding_incomplete, assert_shell_runtime_keeps_legacy_agent_preference,
+    assert_startup_state, configure_startup, seed_legacy_history,
 };
 use warp::integration_testing::persistence::{PersistenceScope, database_file_path_for_scope};
+use warp::integration_testing::settings::assert_settings_widget_rendered;
 use warp::integration_testing::terminal::util::ExactLine;
 use warp::integration_testing::terminal::{
     assert_active_block_output_for_single_terminal_in_tab, assert_active_block_received_precmd,
@@ -213,5 +214,68 @@ exit 0
                 )
                 .add_assertion(assert_startup_state)
                 .add_assertion(assert_shell_runtime_keeps_legacy_agent_preference),
+        )
+}
+
+pub fn test_local_terminal_settings_open_once_and_return_to_terminal() -> Builder {
+    let (_, content_widget_id) =
+        warp::settings_view::settings_widget_deeplink_target("global_hotkey")
+            .expect("沿用 Features 本地设置控件的既有稳定映射");
+    Builder::new()
+        .use_tmp_filesystem_for_test_root_directory()
+        .with_setup(|_| configure_startup(AuthFixture::Empty))
+        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
+        .with_step(
+            TestStep::new("无账号终端首启保持独立测试身份").add_assertion(assert_startup_state),
+        )
+        .with_step(assert_settings_widget_rendered(content_widget_id, false))
+        .with_step(
+            TestStep::new("沿齿轮 ShowSettings 路径打开真实本地设置")
+                .with_action(|app, window_id, _| {
+                    warp::integration_testing::view_getters::workspace_view(app, window_id).update(
+                        app,
+                        |workspace, ctx| {
+                            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx)
+                        },
+                    );
+                })
+                .add_assertion(assert_local_settings_pane_is_open_once)
+                .add_named_assertion("设置标签获得焦点", assert_focused_tab_index(1))
+                .add_assertion(assert_startup_state),
+        )
+        .with_step(assert_settings_widget_rendered(content_widget_id, true))
+        .with_step(
+            TestStep::new("重复 ShowSettings 复用原设置标签")
+                .with_action(|app, window_id, _| {
+                    warp::integration_testing::view_getters::workspace_view(app, window_id).update(
+                        app,
+                        |workspace, ctx| {
+                            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx)
+                        },
+                    );
+                })
+                .add_assertion(assert_local_settings_pane_is_open_once)
+                .add_named_assertion("仍聚焦同一个设置标签", assert_focused_tab_index(1)),
+        )
+        .with_step(
+            TestStep::new("返回原终端标签")
+                .with_action(|app, window_id, _| {
+                    warp::integration_testing::view_getters::workspace_view(app, window_id).update(
+                        app,
+                        |workspace, ctx| {
+                            workspace.handle_action(&WorkspaceAction::ActivateTab(0), ctx)
+                        },
+                    );
+                })
+                .add_named_assertion("原终端获得焦点", assert_focused_tab_index(0)),
+        )
+        .with_step(assert_execute_command_successfully(
+            "printf 'tinywarp-l2-settings-return\\n'",
+            ExactLine::from("tinywarp-l2-settings-return"),
+        ))
+        .with_step(
+            TestStep::new("打开设置后本地身份及原终端保持可用")
+                .add_assertion(assert_startup_state)
+                .add_assertion(assert_local_settings_pane_is_open_once),
         )
 }
