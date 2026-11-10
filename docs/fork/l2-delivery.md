@@ -1,6 +1,6 @@
 # TinyWarp L2：停止内置 AI、Agent 与外围运行
 
-2026-11-10。基于 L1 `1e388f779`，分支 `sty20030818/local-terminal`。用户授权本阶段实现、在 Warp Preview 构建并本地提交，不自动推送。实现、自动验证和正式构建通过；本机启动验收正在等待 macOS 桌面访问授权，未将其写为通过。
+2026-11-10。基于 L1 `1e388f779`，分支 `sty20030818/local-terminal`。用户授权本阶段实现、在 Warp Preview 构建并本地提交，不自动推送。实现、自动验证、正式构建和本机基础运行检查已通过；本次补齐用户处理 macOS 桌面访问授权后的 shell 与原生菜单证据。
 
 ## 实现范围
 
@@ -48,8 +48,15 @@ PTY 参数新增当前构建内部能力字段。JSON 缺字段默认保留原�
 
 正式构建父进程链确认来自 Warp Preview。切换前旧 L1 只有空闲 shell，无项目子进程；OSS 自身 SQLite 通过只读 online backup 生成本地 0600 权限备份并通过 quick_check。正常退出旧 L1 并等待其根进程及 helper 消失后，打开精确 L2 路径；Preview 原 PID 保持存活。L1 包和备份保留，未恢复／覆盖数据库。
 
-初次 L2 PID 66689 虽存在，但没有 shell 命令执行标记，AX 菜单不可读，不能算启动通过。两次线程采样都定位 initialize_app → AppearanceManager::set_app_icon → NSWorkspace::setIcon_forFile_options → __setattrlist；TCC 元日志明确记录 kTCCServiceSystemPolicyDesktopFolder 的 AUTHREQ_PROMPTING，新 ad-hoc 签名未匹配旧授权。已请求用户处理系统桌面访问弹窗，没有修改权限、代点授权或为环境授权问题改应用源码。已通过只读 AX 精确定位 UserNotificationCenter 中属于 TinyWarp 的桌面授权弹窗，并执行 Raise 将其置前，未点击任何授权按钮。实际 shell、菜单与人工验收结果待该弹窗处理后补齐。
+初次 L2 PID 66689 虽存在，但没有 shell 命令执行标记，AX 菜单不可读，不能算启动通过。两次线程采样都定位 initialize_app → AppearanceManager::set_app_icon → NSWorkspace::setIcon_forFile_options → __setattrlist；TCC 元日志明确记录 kTCCServiceSystemPolicyDesktopFolder 的 AUTHREQ_PROMPTING，新 ad-hoc 签名未匹配旧授权。已请求用户处理系统桌面访问弹窗，没有修改权限、代点授权或为环境授权问题改应用源码。已通过只读 AX 精确定位 UserNotificationCenter 中属于 TinyWarp 的桌面授权弹窗，并执行 Raise 将其置前，未点击任何授权按钮。用户随后明确确认已在系统弹窗点击“允许”，同一 L2 进程继续完成初始化，无需修改程序或重启应用。
 
-全部必要代码／测试／lint／正式构建后，仅对本阶段 98 个 Rust 文件执行一次 Rustfmt 1.92.0；git diff --check 通过。按仓库要求不因纯格式化重跑测试、Clippy 或构建。本阶段按授权本地提交，不推送；提交号以同阶段 git log 为准。本机运行验收仍待系统授权。
+授权后取得的本机证据：
+
+- 已排队的新标签 shell 脚本完成 `pwd`、中文输出、`uname -m`，并确认 CLI 增强协议广告变量不存在。脚本执行标记的父链为 shell PID 73622 → L2 helper PID 66701 → 精确 L2 候选 PID 66689，确认来自本阶段应用。
+- 只读 AX 确认原生 AI 与云盘主菜单缺席，TinyWarp 应用菜单无账号条目；“窗口”菜单、⌘N 新建窗口及 ⌘Q 退出保留。
+- 授权后再核对 `codesign --verify --deep --strict`，退出码 0。Preview 原进程仍存活，主程序和 Info.plist 的 inode、大小、SHA-256 与本阶段基线一致；未对其数据库、配置或凭据执行迁移／清理。
+- 当前屏幕的可见窗口计数仍为 0，未据此声称视觉布局正确；没有截图验收或操作真实旧历史。中文 IME、真实 Codex／Claude、全屏 TUI、真实 SSH 和旧标签／历史逐条核对仍不在本次基础运行证据内。
+
+全部必要代码／测试／lint／正式构建后，仅对本阶段 98 个 Rust 文件执行一次 Rustfmt 1.92.0；git diff --check 通过。按仓库要求不因纯格式化重跑测试、Clippy 或构建。实现提交为 `0a3319c6221272c82f50efc7b94278e4e34dd203`，未推送。本次仅补交付记录，不修改实现或构建产物，不重复已通过的测试、Clippy 或构建。
 
 未做同条件性能基准，不报告内存减少、体积缩减或启动提速。下一阶段依据固定 fixture 的重复测量决定进一步拆加载与依赖。
