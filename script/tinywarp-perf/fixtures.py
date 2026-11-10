@@ -16,7 +16,7 @@ font_size = 14.0
 open_windows_at_custom_size = true
 new_windows_num_columns = 120
 new_windows_num_rows = 40
-override_opacity = 1.0
+override_opacity = 100
 [appearance.vertical_tabs]
 enabled = false
 [terminal]

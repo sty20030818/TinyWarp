@@ -33,6 +33,7 @@ if command -v warp-channel-config &>/dev/null; then
 else
     WARP_BIN_NAME="warp-oss"
     WARP_CHANNEL="oss"
+    FEATURES="tinywarp_gui"
 fi
 
 # Shared argument parsing. macOS-specific flags (--dont-open,

@@ -122,3 +122,9 @@ SSH 暂时保留。用户认为也可以移除，但如果对性能影响不大�
 应用 footprint 存在逐轮增长，额外 shell 能在默认约 60 秒撤销期后退出。结果包含控制服务、窗口缓存及现场调度影响，部分采样稀疏，尚不能认定泄漏或报告优化收益。原配置哈希、数据库文件元信息与 Preview 存活复核通过。
 
 详见 [L3A 基线与限制](l3a-performance-baseline.md)、[数字结果](l3a-results.json) 和 [测量工具](../../script/tinywarp-perf/README.md)。
+
+## TinyWarp L3C1：专用构建与语音依赖裁剪
+
+2026-11-10，用户调整为以功能精简推进，不再把专项性能定位作为前置任务。新增 `tinywarp_gui` 构建标记，OSS 开发与 macOS 打包入口默认使用；内置语音及独有音频链的 16 个 package 退出当前 macOS 构建图，原 `gui` 构建保留。
+
+开发候选已在 Warp Preview 编译、签名并做隔离 shell／CLI／设置检查，日常包未替换。不报告内存或速度收益。完整范围、失败自动化与验证边界见 [L3C1 交付记录](l3c1-delivery.md)，当前构建方法见 [macOS 构建说明](build-macos.md#l3c1-之后的-tinywarp-构建选择)。
