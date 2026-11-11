@@ -591,7 +591,7 @@ const TAB_BAR_PILL_WIDTH: f32 = 100.;
 const PILL_FONT_SIZE: f32 = 12.;
 // We use the word "Warp" in the Update Ready button to make it obvious that the terminal is Warp.
 // This can lead to free advertising when users screen-share Warp when an update is available.
-const UPDATE_READY_TEXT: &str = "Update Warp";
+const UPDATE_READY_TEXT: &str = "重启更新 TinyWarp";
 
 const TAB_BAR_OVERFLOW_MENU_WIDTH: f32 = 300.;
 
@@ -8266,7 +8266,7 @@ impl Workspace {
     }
 
     /// The tab bar overflow menu is the context menu that appears when
-    /// a user clicks "Update Warp" in the top right of the tab bar.
+    /// a user clicks "重启更新 TinyWarp" in the top right of the tab bar.
     pub fn toggle_tab_bar_overflow_menu(&mut self, ctx: &mut ViewContext<Self>) {
         if self.show_tab_bar_overflow_menu {
             self.close_tab_bar_overflow_menu(ctx);
@@ -8296,7 +8296,7 @@ impl Workspace {
                         .into_item(),
                 ),
                 AutoupdateStage::UnableToUpdateToNewVersion { .. } => menu_items.push(
-                    MenuItemFields::new("Update Warp manually")
+                    MenuItemFields::new("手动更新 TinyWarp")
                         .with_on_select_action(WorkspaceAction::DownloadNewVersion)
                         .into_item(),
                 ),
@@ -10057,7 +10057,84 @@ impl Workspace {
         ctx.notify();
     }
 
+    fn shows_application_menu(app: &AppContext) -> bool {
+        crate::local_terminal::is_enabled(app) || FeatureFlag::AvatarInTabBar.is_enabled()
+    }
+
+    fn local_terminal_menu_items(
+        stage: &AutoupdateStage,
+        version: Option<&str>,
+        can_update: bool,
+    ) -> Vec<MenuItem<WorkspaceAction>> {
+        let mut items = Vec::new();
+        if let Some(version) = version {
+            let display_version = version
+                .strip_prefix("v0.")
+                .unwrap_or(version)
+                .replace(".tinywarp_", ".");
+            items.push(
+                MenuItemFields::new(format!("当前版本：{display_version}"))
+                    .with_tooltip(version)
+                    .with_tooltip_position(crate::menu::MenuTooltipPosition::Above)
+                    .with_disabled(true)
+                    .into_item(),
+            );
+        }
+        if can_update && version.is_some() {
+            let busy = matches!(
+                stage,
+                AutoupdateStage::CheckingForUpdate
+                    | AutoupdateStage::DownloadingUpdate
+                    | AutoupdateStage::Updating { .. }
+            );
+            let label = match stage {
+                AutoupdateStage::CheckingForUpdate => "正在检查更新…",
+                AutoupdateStage::DownloadingUpdate => "正在准备更新…",
+                AutoupdateStage::Updating { .. } => "正在重启更新…",
+                _ => "检查 TinyWarp 更新",
+            };
+            items.push(
+                MenuItemFields::new(label)
+                    .with_disabled(busy)
+                    .with_on_select_action(WorkspaceAction::CheckForUpdate)
+                    .into_item(),
+            );
+            if stage.ready_for_update() {
+                items.push(
+                    MenuItemFields::new("重启更新 TinyWarp")
+                        .with_on_select_action(WorkspaceAction::ApplyUpdate)
+                        .into_item(),
+                );
+            }
+        }
+        if !items.is_empty() {
+            items.push(MenuItem::Separator);
+        }
+        items.extend([
+            MenuItemFields::new("设置")
+                .with_on_select_action(WorkspaceAction::ShowSettings)
+                .into_item(),
+            MenuItemFields::new("键盘快捷键")
+                .with_on_select_action(WorkspaceAction::ToggleKeybindingsPage)
+                .into_item(),
+        ]);
+        #[cfg(not(target_family = "wasm"))]
+        items.push(
+            MenuItemFields::new("查看 TinyWarp 日志")
+                .with_on_select_action(WorkspaceAction::ViewLogs)
+                .into_item(),
+        );
+        items
+    }
+
     fn user_menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
+        if crate::local_terminal::is_enabled(app) {
+            return Self::local_terminal_menu_items(
+                &autoupdate::get_update_state(app),
+                ChannelState::app_version(),
+                FeatureFlag::Autoupdate.is_enabled() && ChannelState::show_autoupdate_menu_items(),
+            );
+        }
         let mut items = Vec::new();
         if !crate::local_terminal::is_enabled(app) && !self.auth_state.is_anonymous_or_logged_out()
         {
@@ -10080,7 +10157,7 @@ impl Workspace {
                     ) =>
                 {
                     items.push(
-                        MenuItemFields::new("Update and relaunch Warp")
+                        MenuItemFields::new("重启更新 TinyWarp")
                             .with_on_select_action(WorkspaceAction::ApplyUpdate)
                             .with_override_text_color(appearance.theme().ansi_fg_red())
                             .into_item(),
@@ -10103,7 +10180,7 @@ impl Workspace {
                     ) =>
                 {
                     items.push(
-                        MenuItemFields::new("Update Warp manually")
+                        MenuItemFields::new("手动更新 TinyWarp")
                             .with_on_select_action(WorkspaceAction::DownloadNewVersion)
                             .with_override_text_color(appearance.theme().ansi_fg_red())
                             .into_item(),
@@ -10154,10 +10231,6 @@ impl Workspace {
                 .into_item(),
             MenuItem::Separator,
         ]);
-
-        if crate::local_terminal::is_enabled(app) {
-            return items;
-        }
 
         if self.auth_state.is_anonymous_or_logged_out() {
             items.push(
@@ -10233,7 +10306,11 @@ impl Workspace {
         self.is_user_menu_open = !self.is_user_menu_open;
         if self.is_user_menu_open {
             let items = self.user_menu_items(ctx);
+            let is_local = crate::local_terminal::is_enabled(ctx);
             self.user_menu.update(ctx, |menu, ctx| {
+                if is_local {
+                    menu.set_width(320.);
+                }
                 menu.set_items(items, ctx);
             });
         }
@@ -21854,7 +21931,7 @@ impl Workspace {
             target.add_child(pill);
         }
 
-        if FeatureFlag::AvatarInTabBar.is_enabled() && !crate::local_terminal::is_enabled(ctx) {
+        if Self::shows_application_menu(ctx) {
             target.add_child(
                 Container::new(self.render_avatar_button(appearance, ctx))
                     .with_margin_left(TAB_BAR_PADDING_LEFT)
@@ -22139,13 +22216,17 @@ impl Workspace {
     }
 
     fn render_avatar_button(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
-        let is_anonymous = self.auth_state.is_anonymous_or_logged_out();
-        let display_name = self
-            .auth_state
-            .username_for_display()
-            .unwrap_or(DEFAULT_USER_DISPLAY_NAME.to_owned());
+        let is_local = crate::local_terminal::is_enabled(ctx);
+        let is_anonymous = is_local || self.auth_state.is_anonymous_or_logged_out();
+        let display_name = if is_local {
+            "TinyWarp".to_owned()
+        } else {
+            self.auth_state
+                .username_for_display()
+                .unwrap_or(DEFAULT_USER_DISPLAY_NAME.to_owned())
+        };
 
-        let avatar_content = if self.auth_state.is_anonymous_or_logged_out() {
+        let avatar_content = if is_anonymous {
             AvatarContent::Icon(icons::Icon::Gear)
         } else {
             self.auth_state
@@ -22733,7 +22814,7 @@ impl Workspace {
                         description,
                         secondary_button: None,
                         button: Some(WorkspaceBannerButtonDetails {
-                            text: "Update Warp manually".to_string(),
+                            text: "手动更新 TinyWarp".to_string(),
                             action: WorkspaceAction::DownloadNewVersion,
                             variant: BannerButtonVariant::Outlined,
                             icon: None,
@@ -22758,7 +22839,7 @@ impl Workspace {
                         description,
                         secondary_button: None,
                         button: Some(WorkspaceBannerButtonDetails {
-                            text: "Update Warp manually".to_string(),
+                            text: "手动更新 TinyWarp".to_string(),
                             action: WorkspaceAction::DownloadNewVersion,
                             variant: BannerButtonVariant::Outlined,
                             icon: None,
@@ -28204,7 +28285,7 @@ impl View for Workspace {
             );
         }
 
-        if FeatureFlag::AvatarInTabBar.is_enabled() && self.is_user_menu_open {
+        if Self::shows_application_menu(app) && self.is_user_menu_open {
             stack.add_positioned_overlay_child(
                 ChildView::new(&self.user_menu).finish(),
                 OffsetPositioning::offset_from_save_position_element(

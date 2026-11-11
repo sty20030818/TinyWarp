@@ -2137,6 +2137,8 @@ impl RootView {
     fn start_autoupdate_polling(&self, ctx: &mut ViewContext<Self>) {
         if matches!(self.auth_onboarding_state, AuthOnboardingState::Terminal(_)) {
             AutoupdateState::handle(ctx).update(ctx, |state, ctx| state.start_polling(ctx));
+            #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+            crate::autoupdate::acknowledge_tinywarp_update();
         }
     }
 

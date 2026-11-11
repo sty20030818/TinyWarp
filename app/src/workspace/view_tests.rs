@@ -6057,3 +6057,61 @@ fn test_tab_group_rename_blur_does_not_commit_unfinished_name() {
         });
     });
 }
+
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn local_terminal_ready_menu_exposes_restart_and_excludes_account_and_cloud_actions() {
+    let version =
+        serde_json::from_value(serde_json::json!({"version":"v0.2026.11.11.09.00.tinywarp_03"}))
+            .unwrap();
+    let state = AutoupdateStage::UpdateReady {
+        new_version: version,
+        update_id: "menu-test".into(),
+    };
+    let items =
+        Workspace::local_terminal_menu_items(&state, Some("v0.2026.11.11.09.00.tinywarp_02"), true);
+    let actions: Vec<_> = items
+        .iter()
+        .filter_map(|item| match item {
+            MenuItem::Item(fields) => fields.on_select_action(),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        actions
+            .iter()
+            .any(|action| matches!(action, WorkspaceAction::ApplyUpdate))
+    );
+    assert!(
+        actions
+            .iter()
+            .any(|action| matches!(action, WorkspaceAction::ShowSettings))
+    );
+    assert!(actions.iter().all(|action| matches!(
+        action,
+        WorkspaceAction::ApplyUpdate
+            | WorkspaceAction::CheckForUpdate
+            | WorkspaceAction::ShowSettings
+            | WorkspaceAction::ToggleKeybindingsPage
+            | WorkspaceAction::ViewLogs
+    )));
+}
+
+#[test]
+fn local_terminal_busy_or_unversioned_menu_cannot_restart_update() {
+    for state in [
+        AutoupdateStage::CheckingForUpdate,
+        AutoupdateStage::DownloadingUpdate,
+    ] {
+        let items = Workspace::local_terminal_menu_items(
+            &state,
+            Some("v0.2026.11.11.09.00.tinywarp_02"),
+            true,
+        );
+        assert!(!items.iter().any(|item| matches!(item, MenuItem::Item(fields) if matches!(fields.on_select_action(), Some(WorkspaceAction::ApplyUpdate)))));
+        assert!(items.iter().any(|item| matches!(item, MenuItem::Item(fields) if matches!(fields.on_select_action(), Some(WorkspaceAction::CheckForUpdate)) && fields.is_disabled())));
+    }
+    let items =
+        Workspace::local_terminal_menu_items(&AutoupdateStage::NoUpdateAvailable, None, true);
+    assert!(items.iter().all(|item| !matches!(item, MenuItem::Item(fields) if matches!(fields.on_select_action(), Some(WorkspaceAction::CheckForUpdate | WorkspaceAction::ApplyUpdate)))));
+}

@@ -1,5 +1,11 @@
 mod changelog;
 mod channel_versions;
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+mod tinywarp;
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+pub(crate) use tinywarp::acknowledge_tinywarp_update;
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+pub use tinywarp::run_tinywarp_update_helper;
 #[cfg(target_os = "linux")]
 pub mod linux;
 #[cfg(target_os = "macos")]
@@ -232,6 +238,7 @@ impl AutoupdateState {
             self.stage,
             AutoupdateStage::CheckingForUpdate
                 | AutoupdateStage::DownloadingUpdate
+                | AutoupdateStage::Updating { .. }
                 | AutoupdateStage::UpdatedPendingRestart { .. }
         )
     }
@@ -773,6 +780,10 @@ async fn fetch_version(
     update_id: &str,
     server_api: Arc<ServerApi>,
 ) -> Result<VersionInfo> {
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if *channel == Channel::Oss {
+        return tinywarp::fetch_version();
+    }
     let versions = fetch_channel_versions(update_id, server_api.clone(), false, is_daily).await?;
 
     let channel_version = match channel {
@@ -808,6 +819,11 @@ async fn download_update(
     if ChannelState::app_version().is_none() {
         log::info!("No tag set, not performing autoupdate.");
         return Ok(DownloadReady::No);
+    }
+
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if ChannelState::channel() == Channel::Oss {
+        return tinywarp::stage_update(&version_info, &update_id);
     }
 
     cfg_if::cfg_if! {
@@ -862,6 +878,28 @@ pub fn apply_update(
 /// 2. Request a relaunch.
 /// 3. Terminate the app.
 pub fn initiate_relaunch_for_update(app: &mut AppContext) {
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if crate::local_terminal::is_enabled(app) {
+        let stage = AutoupdateState::as_ref(app).stage.clone();
+        if let AutoupdateStage::UpdateReady {
+            new_version,
+            update_id,
+        } = stage
+        {
+            AutoupdateState::handle(app).update(app, |state, ctx| {
+                state.set_autoupdate_stage(
+                    AutoupdateStage::Updating {
+                        new_version,
+                        update_id,
+                    },
+                    ctx,
+                );
+            });
+            RelaunchModel::handle(app).update(app, RelaunchModel::request_relaunch);
+            app.terminate_app(TerminationMode::Cancellable, None);
+        }
+        return;
+    }
     let autoupdate_stage = &AutoupdateState::as_ref(app).stage;
 
     match autoupdate_stage {
@@ -930,6 +968,10 @@ pub fn apply_pending_update<F>(app: &mut AppContext, on_update_complete: F) -> b
 where
     F: FnOnce(&mut AppContext) + Send + 'static,
 {
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if crate::local_terminal::is_enabled(app) {
+        return false;
+    }
     let has_update = AutoupdateState::handle(app).update(app, |autoupdate_state, ctx| {
         if let AutoupdateStage::UpdateReady {
             new_version,
@@ -992,6 +1034,24 @@ where
     }
 }
 
+pub fn prepare_termination(app: &mut AppContext) -> bool {
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if crate::local_terminal::is_enabled(app)
+        && RelaunchModel::as_ref(app).relaunch_status == RelaunchStatus::Requested
+        && let Err(error) = crate::workspace::global_actions::save_for_update(app)
+    {
+        crate::local_terminal::show_message(
+            "无法保存会话，已取消重启更新。请重试并查看日志。",
+            app,
+        );
+        crate::report_error!(error.context("无法保存会话，更新未安装"));
+        cancel_relaunch(app);
+        return false;
+    }
+    let _ = app;
+    true
+}
+
 pub fn cancel_relaunch(app: &mut AppContext) {
     let previous_status = RelaunchModel::handle(app).update(app, RelaunchModel::cancel_relaunch);
 
@@ -1017,6 +1077,17 @@ pub fn spawn_child_if_necessary(app: &mut AppContext) {
     // we don't necessarily want to block termination on it.
 
     if status == RelaunchStatus::Requested {
+        #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+        if crate::local_terminal::is_enabled(app) {
+            if let AutoupdateStage::Updating {
+                new_version,
+                update_id,
+            } = &AutoupdateState::as_ref(app).stage
+            {
+                report_if_error!(tinywarp::spawn_installer(new_version, update_id));
+            }
+            return;
+        }
         cfg_if::cfg_if! {
             if #[cfg(target_os = "macos")] {
                 let relaunch_status = mac::relaunch();

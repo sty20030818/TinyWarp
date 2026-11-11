@@ -9,6 +9,8 @@ mod app_services;
 mod app_state;
 mod auth;
 mod autoupdate;
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+pub use autoupdate::run_tinywarp_update_helper;
 mod banner;
 mod billing;
 mod changelog_model;
@@ -2913,6 +2915,9 @@ pub(crate) fn app_callbacks(
             // update check re-detects it (autoupdate state isn't persisted
             // across restarts, so the artifact may be re-downloaded).
             if source == TerminationRequestSource::System {
+                if local_terminal::is_enabled(ctx) {
+                    autoupdate::cancel_relaunch(ctx);
+                }
                 return ApproveTerminateResult::Terminate;
             }
 
@@ -2940,7 +2945,11 @@ pub(crate) fn app_callbacks(
             if !is_integration_test && summary.save_unsaved_code_and_should_warn(ctx) {
                 let shown = summary
                     .dialog()
-                    .on_confirm(|ctx| ctx.terminate_app(TerminationMode::ForceTerminate, None))
+                    .on_confirm(|ctx| {
+                        if autoupdate::prepare_termination(ctx) {
+                            ctx.terminate_app(TerminationMode::ForceTerminate, None);
+                        }
+                    })
                     .on_show_processes(|ctx| on_close_app_cancelled(true, ctx))
                     .on_cancel(|ctx| on_close_app_cancelled(false, ctx))
                     .show(ctx);
@@ -2949,7 +2958,11 @@ pub(crate) fn app_callbacks(
                 }
             }
 
-            ApproveTerminateResult::Terminate
+            if autoupdate::prepare_termination(ctx) {
+                ApproveTerminateResult::Terminate
+            } else {
+                ApproveTerminateResult::Cancel
+            }
         })),
         on_disable_warning_modal: Some(Box::new(move |ctx| {
             GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {

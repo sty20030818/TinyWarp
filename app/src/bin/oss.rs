@@ -4,7 +4,9 @@
 
 use anyhow::Result;
 use warp_core::AppId;
-use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig};
+use warp_core::channel::{
+    AutoupdateConfig, Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig,
+};
 
 // Simple wrapper around warp::run() for Warp OSS builds.
 fn main() -> Result<()> {
@@ -17,7 +19,12 @@ fn main() -> Result<()> {
             oz_config: OzConfig::production(),
             telemetry_config: None,
             crash_reporting_config: None,
-            autoupdate_config: None,
+            autoupdate_config: cfg!(all(feature = "tinywarp_gui", target_os = "macos")).then(
+                || AutoupdateConfig {
+                    releases_base_url: "".into(),
+                    show_autoupdate_menu_items: true,
+                },
+            ),
             mcp_static_config: None,
         },
     );
@@ -25,6 +32,11 @@ fn main() -> Result<()> {
         state = state.with_additional_features(warp_core::features::DEBUG_FLAGS);
     }
     ChannelState::set(state);
+
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if warp::run_tinywarp_update_helper()? {
+        return Ok(());
+    }
 
     warp::run()
 }

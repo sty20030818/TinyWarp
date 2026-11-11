@@ -372,6 +372,7 @@ pub enum ModelEvent {
     SaveBlock(BlockCompleted),
     DeleteBlocks(Vec<u8>),
     Snapshot(AppState),
+    SnapshotAndConfirm(AppState, SyncSender<Result<(), String>>),
     UpsertWorkflows(Vec<CloudWorkflow>),
     UpsertNotebooks(Vec<CloudNotebook>),
     UpsertFolders(Vec<CloudFolder>),

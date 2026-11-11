@@ -1591,3 +1591,63 @@ fn local_gui_ignores_unavailable_cloud_tables_but_propagates_local_read_failures
         );
     }
 }
+
+#[test]
+fn update_snapshot_is_committed_before_confirmation_and_preserves_history() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("update.sqlite");
+    let mut conn = setup_database(&path).unwrap();
+    seed_local_gui_fixture(&mut conn);
+    let protected = local_gui_excluded_rows(&mut conn);
+    let mut state = read_sqlite_data(&mut conn, None, PersistedDataScope::LocalGui)
+        .unwrap()
+        .app_state
+        .unwrap();
+    state.windows[0].tabs[0].custom_title = Some("更新前最后一个标签状态".into());
+    let expected = state.windows.clone();
+    let writer = start_writer(conn, path.clone()).unwrap();
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    writer
+        .sender
+        .send(ModelEvent::SnapshotAndConfirm(state, sender))
+        .unwrap();
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap()
+        .unwrap();
+    let mut reader = setup_database(&path).unwrap();
+    let restored = read_sqlite_data(&mut reader, None, PersistedDataScope::LocalGui).unwrap();
+    assert_eq!(restored.app_state.unwrap().windows, expected);
+    assert_eq!(restored.command_history.len(), 1);
+    assert_eq!(local_gui_excluded_rows(&mut reader), protected);
+    writer.sender.send(ModelEvent::Terminate).unwrap();
+    writer.handle.join().unwrap();
+}
+
+#[test]
+fn update_snapshot_reports_sqlite_transaction_failure() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("update-error.sqlite");
+    let mut conn = setup_database(&path).unwrap();
+    conn.batch_execute("PRAGMA query_only = ON;").unwrap();
+    let writer = start_writer(conn, path).unwrap();
+    let state = AppState {
+        windows: vec![test_terminal_window_snapshot(false)],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: Default::default(),
+    };
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    writer
+        .sender
+        .send(ModelEvent::SnapshotAndConfirm(state, sender))
+        .unwrap();
+    assert!(
+        receiver
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap()
+            .is_err()
+    );
+    writer.sender.send(ModelEvent::Terminate).unwrap();
+    writer.handle.join().unwrap();
+}

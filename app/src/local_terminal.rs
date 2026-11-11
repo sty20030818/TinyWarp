@@ -56,7 +56,7 @@ pub(crate) fn show_feature_unavailable(ctx: &mut AppContext) {
     );
 }
 
-fn show_message(message: &str, ctx: &mut AppContext) {
+pub(crate) fn show_message(message: &str, ctx: &mut AppContext) {
     let window_id = ctx
         .windows()
         .frontmost_window_id()

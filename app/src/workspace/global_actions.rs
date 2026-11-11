@@ -130,6 +130,31 @@ fn toggle_focus_reporting(_: &(), ctx: &mut AppContext) {
     });
 }
 
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+pub(crate) fn save_for_update(ctx: &mut AppContext) -> anyhow::Result<()> {
+    use anyhow::{Context as _, ensure};
+    if !*GeneralSettings::as_ref(ctx).restore_session {
+        return Ok(());
+    }
+    ensure!(
+        !CrossWindowTabDrag::as_ref(ctx).is_active(),
+        "请先结束标签拖动，再重启更新"
+    );
+    let sender = GlobalResourceHandlesProvider::as_ref(ctx)
+        .get()
+        .model_event_sender
+        .clone()
+        .context("会话存储不可用，已取消更新")?;
+    let (confirmation, receiver) = std::sync::mpsc::sync_channel(1);
+    sender.send(ModelEvent::SnapshotAndConfirm(
+        get_app_state(ctx),
+        confirmation,
+    ))?;
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(10))?
+        .map_err(anyhow::Error::msg)
+}
+
 fn save_app(_: &(), ctx: &mut AppContext) {
     if !AppExecutionMode::as_ref(ctx).can_save_session() {
         return;

@@ -601,6 +601,14 @@ fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<Writer
                                 log::info!("Removed SQLite database");
                             }
                         }
+                        ModelEvent::SnapshotAndConfirm(state, sender) => {
+                            let result = if paused {
+                                Err(anyhow::anyhow!("SQLite writer is paused"))
+                            } else {
+                                save_app_state(&mut current_conn, &state)
+                            };
+                            let _ = sender.send(result.map_err(|err| err.to_string()));
+                        }
                         ModelEvent::Terminate => {
                             log::info!("Shutting down SQLite writer thread");
                             return;
@@ -630,7 +638,8 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
     match event {
         ModelEvent::PauseAndRemoveDatabase
         | ModelEvent::ReconstructAndResume
-        | ModelEvent::Terminate => {
+        | ModelEvent::Terminate
+        | ModelEvent::SnapshotAndConfirm(..) => {
             panic!("Unhandled control-flow event {event:?}");
         }
         ModelEvent::SaveBlock(BlockCompleted {
