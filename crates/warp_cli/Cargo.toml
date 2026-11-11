@@ -11,7 +11,7 @@ chrono.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 cfg-if = { workspace = true }
 humantime.workspace = true
-jaq-all.workspace = true
+jaq-all = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 url = { workspace = true, features = ["serde"] }
@@ -32,6 +32,8 @@ windows = { workspace = true, features = [
 cfg_aliases.workspace = true
 
 [features]
+default = ["jq"]
+jq = ["dep:jaq-all"]
 integration_tests = []
 
 

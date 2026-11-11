@@ -18,7 +18,8 @@ packages = {line.split()[0] for line in graph.splitlines() if line.strip()}
 # aws-lc 属于共用 TLS，不能按 aws- 前缀整组排除。
 forbidden = {'voice_input', 'aws-config', 'aws-credential-types', 'aws-sdk-sts', 'aws-types',
              'candle-core', 'candle-onnx', 'tokenizers', 'mermaid_to_svg',
-             'dagre_rust', 'graphlib_rust'}
+             'dagre_rust', 'graphlib_rust', 'jaq-all', 'jaq-json', 'jaq-core',
+             'jaq-std', 'jaq-fmts'}
 required = {'warp_terminal', 'warpui', 'persistence'}
 unexpected = sorted(packages & forbidden)
 missing = sorted(required - packages)

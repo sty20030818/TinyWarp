@@ -1,26 +1,35 @@
 //! Reusable JSON output formatting component.
 
-use std::fmt;
-use std::ops::Deref;
-use std::sync::Arc;
+#[cfg(feature = "jq")]
+use std::{fmt, ops::Deref, sync::Arc};
 
 use clap::Args;
+#[cfg(feature = "jq")]
 use jaq_all::data::{self, DataKind};
+#[cfg(feature = "jq")]
 use jaq_all::load::FileReportsDisp;
 
 /// A jq filter, compiled and ready to execute against a [`jaq_json::Val`].
 ///
 /// This wraps the compiled [`jaq_all::data::Filter`] with `Clone` and `Debug`
 /// implementations.
+#[cfg(feature = "jq")]
 #[derive(Clone)]
 pub struct JqFilter(Arc<data::Filter>);
 
+// 保留共用参数形状；未编译引擎时解析明确失败，不能构造可执行过滤器。
+#[cfg(not(feature = "jq"))]
+#[derive(Clone, Debug)]
+pub enum JqFilter {}
+
+#[cfg(feature = "jq")]
 impl fmt::Debug for JqFilter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("JqFilter").field(&"<compiled>").finish()
     }
 }
 
+#[cfg(feature = "jq")]
 impl Deref for JqFilter {
     type Target = data::Filter;
 
@@ -64,6 +73,7 @@ impl JsonOutput {
 ///
 /// Used as a clap `value_parser` so invalid filters (syntax errors, unknown
 /// names) fail during argument parsing.
+#[cfg(feature = "jq")]
 pub fn parse_jq_filter(src: &str) -> Result<JqFilter, String> {
     let compiled = jaq_all::compile_with::<DataKind>(src, jaq_all::defs(), data::base_funs(), &[])
         .map_err(|reports| {
@@ -74,6 +84,11 @@ pub fn parse_jq_filter(src: &str) -> Result<JqFilter, String> {
             format!("invalid jq filter `{src}`:\n{detail}")
         })?;
     Ok(JqFilter(Arc::new(compiled)))
+}
+
+#[cfg(not(feature = "jq"))]
+pub fn parse_jq_filter(src: &str) -> Result<JqFilter, String> {
+    Err(format!("此构建未包含内置 jq 过滤器，无法编译 `{src}`"))
 }
 
 #[cfg(test)]

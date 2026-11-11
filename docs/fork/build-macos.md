@@ -136,3 +136,7 @@ python3 script/check_tinywarp_features
 TinyWarp 的 Cargo 参数继续使用 `--no-default-features --features tinywarp_gui`。`app_defaults` 只保留共享默认能力；完整默认另行启用 `markdown_mermaid`，该 feature 同时启用应用剪贴板 SVG 导出和 `warp_editor/mermaid`。TinyWarp 不生成 Mermaid SVG，源码和代码块格式继续保留。
 
 `warp_editor` 独立构建默认仍启用 `mermaid`；workspace 引用关闭其默认 feature，由实际应用的渲染能力显式选择。`languages` 与 `syntax_tree` 使用编辑数据／语法类型，不需要渲染器；原版 GUI、TUI 通过完整应用默认继续启用渲染。依赖边界脚本同时防止 Mermaid、图布局专用库回流。详见 [L3C3 交付记录](l3c3-delivery.md)。
+
+## L3C4 的内置 JSON 过滤边界
+
+构建参数不变：TinyWarp 使用 `--no-default-features --features tinywarp_gui`。完整应用默认额外启用 `agent_cli_jq`，将应用过滤输出与 `warp_cli/jq` 一起开启。`warp_cli` 的独立默认仍含 jq；workspace 消费者由应用 feature 选择。精简版的内置 `--jq` 解析会明确失败，普通 JSON、终端和外部 CLI 沿用原路径。详见 [L3C4 交付记录](l3c4-delivery.md)。

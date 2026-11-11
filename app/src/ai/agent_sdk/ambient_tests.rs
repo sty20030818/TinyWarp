@@ -4,7 +4,9 @@ use std::sync::Arc;
 use bytes::Bytes;
 use chrono::{TimeZone, Utc};
 use warp_cli::SortOrderArg;
-use warp_cli::json_filter::{JsonOutput, parse_jq_filter};
+use warp_cli::json_filter::JsonOutput;
+#[cfg(feature = "agent_cli_jq")]
+use warp_cli::json_filter::parse_jq_filter;
 use warp_cli::scope::TeamSelection;
 use warp_cli::task::{
     ArtifactTypeArg, ExecutionLocationArg, ListTasksArgs, RunSortByArg, RunSourceArg, RunStateArg,
@@ -26,9 +28,10 @@ use crate::settings::PrivacySettings;
 use crate::workspaces::team::Team;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::update_manager::TeamUpdateManager;
+#[cfg(feature = "agent_cli_jq")]
+use crate::workspaces::user_workspaces::TeamContextForOperation;
 use crate::workspaces::user_workspaces::{
-    TeamContextForOperation, TeamlessScopeForTest, UserWorkspaces, WorkspacesMetadataResponse,
-    WorkspacesMetadataWithPricing,
+    TeamlessScopeForTest, UserWorkspaces, WorkspacesMetadataResponse, WorkspacesMetadataWithPricing,
 };
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 
@@ -66,6 +69,7 @@ fn request_team_scope() -> RequestTeamScope {
     RequestTeamScope::from_scope(&TeamlessScopeForTest)
 }
 
+#[cfg(feature = "agent_cli_jq")]
 fn request_scope_for_team(team_uid: ServerId) -> RequestTeamScope {
     RequestTeamScope::from_scope(&TeamContextForOperation::new_for_test(team_uid))
 }
@@ -279,6 +283,7 @@ async fn raw_json_run_listing_supplies_cli_scope() {
     .unwrap();
 }
 
+#[cfg(feature = "agent_cli_jq")]
 #[tokio::test]
 async fn jq_run_listing_supplies_selected_cli_scope_to_raw_request() {
     let team_uid = ServerId::from(123);

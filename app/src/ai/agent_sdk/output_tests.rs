@@ -1,12 +1,14 @@
 use comfy_table::Cell;
 use serde::Serialize;
+#[cfg(feature = "agent_cli_jq")]
 use serde_json::json;
 use warp_cli::agent::OutputFormat;
+#[cfg(feature = "agent_cli_jq")]
 use warp_cli::json_filter::parse_jq_filter;
 
-use super::{
-    TableFormat, run_jq_filter, write_filter_output, write_json, write_json_line, write_list,
-};
+use super::{TableFormat, write_json, write_json_line, write_list};
+#[cfg(feature = "agent_cli_jq")]
+use super::{run_jq_filter, write_filter_output};
 
 #[derive(Serialize)]
 struct TestItem {
@@ -95,6 +97,7 @@ fn write_json_line_emits_compact_json_with_trailing_newline() {
     );
 }
 /// A small fixture that matches the shape of `GET /api/v1/agent/runs`.
+#[cfg(feature = "agent_cli_jq")]
 fn list_response_fixture() -> serde_json::Value {
     json!({
         "runs": [
@@ -106,6 +109,7 @@ fn list_response_fixture() -> serde_json::Value {
 }
 
 /// Run a filter against `value` and return its output as a UTF-8 string.
+#[cfg(feature = "agent_cli_jq")]
 fn run(value: serde_json::Value, filter: &str) -> String {
     let filter = parse_jq_filter(filter).expect("filter compiles");
     let mut buf = Vec::new();
@@ -114,6 +118,7 @@ fn run(value: serde_json::Value, filter: &str) -> String {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn identity_filter_matches_non_filtered_json_output() {
     let fixture = list_response_fixture();
     let filtered = run(fixture.clone(), ".");
@@ -126,6 +131,7 @@ fn identity_filter_matches_non_filtered_json_output() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn scalar_string_is_unwrapped() {
     let fixture = list_response_fixture();
     let out = run(fixture, ".runs[0].task_id");
@@ -133,6 +139,7 @@ fn scalar_string_is_unwrapped() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn scalar_number_is_unwrapped() {
     let fixture = list_response_fixture();
     let out = run(fixture, ".runs | length");
@@ -140,6 +147,7 @@ fn scalar_number_is_unwrapped() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn scalar_bool_and_null_are_unwrapped() {
     let fixture = list_response_fixture();
     assert_eq!(run(fixture.clone(), ".page_info.has_next_page"), "false\n");
@@ -148,6 +156,7 @@ fn scalar_bool_and_null_are_unwrapped() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn multiple_scalar_outputs_each_on_own_line() {
     let fixture = list_response_fixture();
     let out = run(fixture, ".runs[].task_id");
@@ -158,6 +167,7 @@ fn multiple_scalar_outputs_each_on_own_line() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn non_scalar_output_is_pretty_json() {
     let fixture = list_response_fixture();
     let out = run(fixture, ".runs[0]");
@@ -171,6 +181,7 @@ fn non_scalar_output_is_pretty_json() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn inner_scalars_stay_json_encoded() {
     let fixture = list_response_fixture();
     let out = run(fixture, ".runs");
@@ -185,6 +196,7 @@ fn inner_scalars_stay_json_encoded() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn empty_filter_produces_no_output() {
     let fixture = list_response_fixture();
     let out = run(fixture, "empty");
@@ -192,6 +204,7 @@ fn empty_filter_produces_no_output() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn runtime_error_is_surfaced_after_partial_output() {
     // `.runs[].title | .[0]` succeeds on the first string but fails on a
     // later element if we introduce a non-indexable value. Build a fixture
@@ -218,6 +231,7 @@ fn runtime_error_is_surfaced_after_partial_output() {
 }
 
 #[test]
+#[cfg(feature = "agent_cli_jq")]
 fn write_filter_output_respects_scalar_unwrapping_for_direct_vals() {
     use jaq_json::Val;
 

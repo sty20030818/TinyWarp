@@ -117,8 +117,8 @@ http.workspace = true
 http_client.workspace = true
 image.workspace = true
 infer = "0.19.0"
-jaq-json.workspace = true
-jaq-all.workspace = true
+jaq-json = { workspace = true, optional = true }
+jaq-all = { workspace = true, optional = true }
 # Built WITHOUT the `symbolize` feature: `dump_pprof()` then returns a raw
 # pprof (sample addresses + mappings + GNU build-id), which is symbolized
 # offline against the debug-info file uploaded to Sentry by the release
@@ -504,7 +504,7 @@ codebase_index_persistence = ["full_source_code_embedding"]
 well_known_mcp_ids = []
 factory_mcp = []
 preview_urls_mcp = []
-default = ["app_defaults", "aws_llm_credentials", "markdown_mermaid"]
+default = ["app_defaults", "aws_llm_credentials", "markdown_mermaid", "agent_cli_jq"]
 # 共用能力只维护一份，TinyWarp 可排除专用依赖而保留终端所需功能。
 app_defaults = [
     "agent_mode",
@@ -740,8 +740,9 @@ grep_tool = []
 # For the most part, including GUI code in headless builds is fine; the main use case is
 # for things that pull in external dependencies.
 gui = ["voice_input"]
-# TinyWarp 复用共享能力，不引入内置语音、云模型凭据 SDK 与图表渲染器。
+# TinyWarp 复用共享能力，由完整默认单独启用内置 AI 的专用依赖。
 tinywarp_gui = ["app_defaults"]
+agent_cli_jq = ["dep:jaq-all", "dep:jaq-json", "warp_cli/jq"]
 aws_llm_credentials = ["dep:aws-config", "dep:aws-credential-types", "dep:aws-sdk-sts", "dep:aws-types"]
 nld_classifier_v1 = ["input_classifier/nld_classifier_v1"]
 nld_classifier_v2 = ["input_classifier/nld_classifier_v2"]
