@@ -32,7 +32,7 @@
 
 首次应用测试编译发现模型初始化误用了不存在的 API，已改为生产相同的单例注册方式，并重跑受影响应用测试。一次构建会话退出后保留了已通过组件与 TinyWarp 测试，从完整配置继续。依赖门禁曾过度排除被 Tantivy 共用的词干库；查清消费者后仅修正门禁与依赖核对，Rust 源码及已通过的回归／严格检查未变，只续跑相关边界和候选构建。失败记录分别保留在 `.note/l3c7/attempt1-test-model-api/`、`attempt2-build-session-ended/` 和 `attempt3-shared-stemmer-boundary/`，不采用失败步骤冒充成功证据。
 
-用户明确要求固定复用同一个 Preview 构建窗口／标签，已将此约定写入 [开发说明](build-macos.md#日常开发与快速验证)，并记录本机 shell PID、TTY 和应用身份于忽略的 `.note/tinywarp-build-session.json`。后续先核对并复用空闲会话；激活后等待窗口恢复，不以短暂读不到 AX 窗口作为另开窗口的依据。本阶段后续步骤在同一已记录的 shell 内执行，没有更改 Preview 设置。
+用户明确要求固定复用同一个 Preview 构建窗口／标签，已将此约定写入 [开发说明](build-macos.md#日常开发与快速验证)，并记录本机 shell PID、TTY 和应用身份于忽略的 `.note/tinywarp-build-session.json`。后续先核对并复用空闲会话；激活后等待窗口恢复，不以短暂读不到 AX 窗口作为另开窗口的依据。本阶段后续步骤在同一已记录的 shell 内执行，没有更改 Preview 设置。用户在 D1 日常交付时进一步澄清：只需复用同一个 Preview 窗口，可以在其中新开会话，不必绑定旧 shell／TTY；后续以开发说明的最新约定为准。
 
 当前最终证据见 `.note/l3c7/acceptance-final.json`，其他构建、测试、图、签名、截图及保护记录位于同目录；这些临时数据与构建产物不提交。
 
