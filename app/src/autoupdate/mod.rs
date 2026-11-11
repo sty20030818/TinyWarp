@@ -782,7 +782,7 @@ async fn fetch_version(
 ) -> Result<VersionInfo> {
     #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
     if *channel == Channel::Oss {
-        return tinywarp::fetch_version();
+        return tinywarp::fetch_version().await;
     }
     let versions = fetch_channel_versions(update_id, server_api.clone(), false, is_daily).await?;
 
@@ -823,7 +823,7 @@ async fn download_update(
 
     #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
     if ChannelState::channel() == Channel::Oss {
-        return tinywarp::stage_update(&version_info, &update_id);
+        return tinywarp::stage_update(&version_info, &update_id).await;
     }
 
     cfg_if::cfg_if! {

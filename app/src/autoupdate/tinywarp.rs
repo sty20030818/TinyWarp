@@ -15,6 +15,9 @@ use sha2::{Digest as _, Sha256};
 use super::DownloadReady;
 use crate::ChannelState;
 
+#[path = "tinywarp_remote.rs"]
+mod remote;
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct LocalRelease {
@@ -90,13 +93,20 @@ fn validate_release(release: &LocalRelease) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn fetch_version() -> Result<VersionInfo> {
-    let version = match release()? {
-        Some(release) => release.version,
-        None => ChannelState::app_version()
-            .context("开发构建未设置 GIT_RELEASE_TAG")?
-            .to_owned(),
+pub(super) async fn fetch_version() -> Result<VersionInfo> {
+    let current = ChannelState::app_version().context("开发构建未设置 GIT_RELEASE_TAG")?;
+    let release = match release()? {
+        Some(local)
+            if ParsedVersion::try_from(local.version.as_str())?
+                > ParsedVersion::try_from(current)? =>
+        {
+            Some(local)
+        }
+        _ => remote::fetch_release().await?,
     };
+    let version = release
+        .map(|release| release.version)
+        .unwrap_or_else(|| current.to_owned());
     Ok(serde_json::from_value(
         serde_json::json!({"version":version}),
     )?)
@@ -184,12 +194,11 @@ fn verify_bundle(bundle: &Path, installed: &Path, version: &str) -> Result<()> {
     )
 }
 
-pub(super) fn stage_update(version: &VersionInfo, update_id: &str) -> Result<DownloadReady> {
-    let release = release()?.context("本地更新清单不存在")?;
-    ensure!(
-        release.version == version.version,
-        "更新源已变化，请重新检查"
-    );
+pub(super) async fn stage_update(version: &VersionInfo, update_id: &str) -> Result<DownloadReady> {
+    let (release, is_local) = match release()? {
+        Some(local) if local.version == version.version => (local, true),
+        _ => (remote::cached_release(&version.version)?, false),
+    };
     let bundle = PathBuf::from(warp_core::macos::get_bundle_path()?);
     ensure!(
         permissions::is_writable(&bundle)?,
@@ -203,11 +212,15 @@ pub(super) fn stage_update(version: &VersionInfo, update_id: &str) -> Result<Dow
     let destination = stage_dir(update_id);
     ensure!(!destination.exists(), "更新暂存目录已存在");
     private_dir(&destination)?;
-    let result = (|| {
-        let archive = root().join("inbox/update.zip");
-        trusted_path(&archive)?;
+    let result = async {
         let snapshot = destination.join("update.zip");
-        fs::copy(&archive, &snapshot)?;
+        if is_local {
+            let archive = root().join("inbox/update.zip");
+            trusted_path(&archive)?;
+            fs::copy(&archive, &snapshot)?;
+        } else {
+            remote::download_archive(&release, &snapshot).await?;
+        }
         ensure!(
             sha256(&snapshot)?.eq_ignore_ascii_case(&release.sha256),
             "更新包校验失败"
@@ -224,7 +237,8 @@ pub(super) fn stage_update(version: &VersionInfo, update_id: &str) -> Result<Dow
             &version.version,
         )?;
         Ok(DownloadReady::Yes)
-    })();
+    }
+    .await;
     if result.is_err() {
         fs::remove_dir_all(destination)?;
     }
