@@ -1690,16 +1690,8 @@ pub(crate) fn initialize_app(
     };
     // Only read the subsets of persisted data this launch mode actually
     // consumes; loading everything is expensive on large databases.
-    let persisted_data_scope = match launch_mode {
-        LaunchMode::Tui { .. } => persistence::PersistedDataScope::TuiFrontend,
-        LaunchMode::RemoteServerDaemon { .. } => {
-            persistence::PersistedDataScope::CodebaseIndicesOnly
-        }
-        LaunchMode::App { .. }
-        | LaunchMode::CommandLine { .. }
-        | LaunchMode::RemoteServerProxy
-        | LaunchMode::Test { .. } => persistence::PersistedDataScope::Full,
-    };
+    let persisted_data_scope =
+        persistence::PersistedDataScope::for_launch_mode(launch_mode, local_terminal);
     let (sqlite_data, writer_handles) =
         persistence::initialize(ctx, persistence_scope, persisted_data_scope);
     timer.mark_interval_end("SQLITE_INITIALIZED");

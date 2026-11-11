@@ -1322,8 +1322,8 @@ fn local_terminal_legacy_window_and_ai_block_survive_snapshot_and_save_block_rou
     });
     super::save_block(&mut conn, pane_uuid.clone(), &block, true)
         .expect("write legacy block fixture");
-    let loaded =
-        read_sqlite_data(&mut conn, None, PersistedDataScope::Full).expect("load without account");
+    let loaded = read_sqlite_data(&mut conn, None, PersistedDataScope::LocalGui)
+        .expect("load local GUI without account");
     let loaded_state = loaded.app_state.expect("legacy GUI window remains");
     assert_eq!(loaded_state.windows, state.windows);
     assert_eq!(loaded_state.running_mcp_servers, state.running_mcp_servers);
@@ -1372,4 +1372,222 @@ fn local_terminal_legacy_window_and_ai_block_survive_snapshot_and_save_block_rou
     assert_eq!(saved.agent_view_visibility, block.agent_view_visibility);
     assert_eq!(saved.stylized_command, block.stylized_command);
     assert_eq!(saved.stylized_output, block.stylized_output);
+}
+
+fn local_gui_command(command: &str) -> StartedCommandMetadata {
+    StartedCommandMetadata {
+        command: command.to_owned(),
+        start_ts: Some(Local::now()),
+        pwd: Some("/tmp/本地项目".to_owned()),
+        shell: Some("zsh".to_owned()),
+        username: Some("fixture-user".to_owned()),
+        hostname: Some("fixture-host".to_owned()),
+        session_id: Some(SessionId::from(5)),
+        git_branch: Some("feature/local".to_owned()),
+        cloud_workflow_id: None,
+        workflow_command: None,
+        is_agent_executed: false,
+    }
+}
+
+fn seed_local_gui_fixture(conn: &mut diesel::SqliteConnection) {
+    use diesel::RunQueryDsl;
+    let mut window = test_terminal_window_snapshot(true);
+    window.tabs[0].pinned = true;
+    window.tabs[0].custom_title = Some("本地窗口".to_owned());
+    let state = AppState {
+        windows: vec![window],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: vec![uuid::Uuid::new_v4()],
+    };
+    save_app_state(conn, &state).expect("保存旧会话");
+    super::insert_command(conn, local_gui_command("printf '旧历史'")).expect("保存历史");
+    save_codebase_index_metadata(conn, test_codebase_metadata("/tmp/旧索引")).expect("保存索引");
+    conn.batch_execute("INSERT INTO folders (id, name, is_open, is_warp_pack) VALUES (501, '旧云目录', 1, 0);
+        INSERT INTO object_actions (hashed_object_id, action, data, pending) VALUES ('legacy-object', 'legacy-opaque-action', '原样保留', 1);
+        INSERT INTO user_profiles (firebase_uid, photo_url, email, display_name) VALUES ('legacy-user', '', 'fixture@example.com', '旧账号');
+        INSERT INTO projects (path, added_ts) VALUES ('/tmp/旧项目', '2026-01-01 00:00:00');
+        INSERT INTO ignored_suggestions (suggestion, suggestion_type) VALUES ('旧忽略命令', 'shell_command'), ('旧 AI 提示', 'ai_query');")
+        .expect("保存未使用的旧记录");
+    let data = serde_json::to_string(&crate::persistence::model::AgentConversationData::default())
+        .expect("会话数据");
+    diesel::sql_query("INSERT INTO agent_conversations (conversation_id, conversation_data, last_modified_at, summary) VALUES (?, ?, '2026-01-01 00:00:00', NULL)")
+        .bind::<diesel::sql_types::Text, _>(uuid::Uuid::new_v4().to_string())
+        .bind::<diesel::sql_types::Text, _>(data)
+        .execute(conn).expect("保存待回填的旧 AI 会话");
+}
+
+#[derive(diesel::QueryableByName)]
+struct LocalGuiStoredRow {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    value: String,
+}
+
+fn local_gui_excluded_rows(conn: &mut diesel::SqliteConnection) -> Vec<Vec<String>> {
+    use diesel::RunQueryDsl;
+    [
+        "SELECT quote(id)||quote(name)||quote(is_open)||quote(is_warp_pack) AS value FROM folders ORDER BY id",
+        "SELECT quote(id)||quote(hashed_object_id)||quote(action)||quote(data)||quote(pending) AS value FROM object_actions ORDER BY id",
+        "SELECT quote(id)||quote(conversation_id)||quote(conversation_data)||quote(summary)||quote(last_modified_at) AS value FROM agent_conversations ORDER BY id",
+        "SELECT quote(firebase_uid)||quote(photo_url)||quote(email)||quote(display_name) AS value FROM user_profiles ORDER BY firebase_uid",
+        "SELECT quote(id)||quote(repo_path)||quote(navigated_ts)||quote(modified_ts)||quote(queried_ts) AS value FROM workspace_metadata ORDER BY id",
+        "SELECT quote(path)||quote(added_ts)||quote(last_opened_ts) AS value FROM projects ORDER BY path",
+    ].into_iter().map(|sql| diesel::sql_query(sql).load::<LocalGuiStoredRow>(conn)
+        .expect("读取旧记录原始字段").into_iter().map(|row| row.value).collect()).collect()
+}
+
+#[test]
+fn local_gui_reads_terminal_data_without_cloud_and_ai_control_queries() {
+    use diesel::Connection;
+    use diesel::connection::InstrumentationEvent;
+    let directory = tempfile::tempdir().expect("临时目录");
+    let mut conn = setup_database(&directory.path().join("scope.sqlite")).expect("测试数据库");
+    seed_local_gui_fixture(&mut conn);
+    let queries = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let recorded = queries.clone();
+    conn.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+        if let InstrumentationEvent::StartQuery { query, .. } = event {
+            recorded.lock().expect("查询记录锁").push(query.to_string());
+        }
+    });
+    let loaded = read_sqlite_data(
+        &mut conn,
+        Some(UserUid::new("legacy-user")),
+        PersistedDataScope::LocalGui,
+    )
+    .expect("本地读取");
+    let state = loaded.app_state.expect("保留 GUI 会话");
+    assert_eq!(
+        state.windows[0].tabs[0].custom_title.as_deref(),
+        Some("本地窗口")
+    );
+    assert!(state.windows[0].tabs[0].pinned);
+    assert_eq!(state.running_mcp_servers.len(), 1);
+    assert_eq!(loaded.command_history[0].command, "printf '旧历史'");
+    assert_eq!(
+        loaded.command_history[0].pwd.as_deref(),
+        Some("/tmp/本地项目")
+    );
+    assert!(loaded.cloud_objects.is_empty());
+    assert!(loaded.workspaces.is_empty());
+    assert!(loaded.object_actions.is_empty());
+    assert!(loaded.multi_agent_conversations.is_empty());
+    assert!(loaded.conversation_summary_backfills.is_empty());
+    assert!(loaded.codebase_indices.is_empty());
+    assert_eq!(loaded.projects.len(), 1);
+    assert_eq!(loaded.projects[0].path, "/tmp/旧项目");
+    assert_eq!(
+        loaded.ignored_suggestions,
+        vec![(
+            "旧忽略命令".to_owned(),
+            crate::suggestions::ignored_suggestions_model::SuggestionType::ShellCommand
+        )]
+    );
+    let queries = queries.lock().expect("查询记录锁");
+    assert!(queries.iter().any(|q| q.contains("commands")));
+    assert!(queries.iter().any(|q| q.contains("windows")));
+    assert!(queries.iter().any(|q| q.contains("projects")));
+    assert!(
+        queries
+            .iter()
+            .any(|q| q.contains("ignored_suggestions") && q.contains("shell_command"))
+    );
+    for table in [
+        "object_metadata",
+        "workflows",
+        "notebooks",
+        "folders",
+        "generic_string_objects",
+        "teams",
+        "team_members",
+        "team_settings",
+        "workspace_teams",
+        "workspaces",
+        "user_profiles",
+        "object_actions",
+        "server_experiments",
+        "ai_queries",
+        "workspace_metadata",
+        "workspace_language_server",
+        "agent_conversations",
+        "agent_tasks",
+        "project_rules",
+        "mcp_server_installations",
+        "mcp_servers_to_restore",
+    ] {
+        assert!(
+            !queries.iter().any(|q| q.contains(table)),
+            "本地启动不应查询 {table}"
+        );
+    }
+    assert!(
+        queries
+            .iter()
+            .all(|q| !q.to_uppercase().contains("UPDATE "))
+    );
+}
+
+#[test]
+fn local_gui_read_and_normal_writer_preserve_legacy_rows_and_session() {
+    let directory = tempfile::tempdir().expect("临时目录");
+    let path = directory.path().join("writer.sqlite");
+    let mut conn = setup_database(&path).expect("测试数据库");
+    seed_local_gui_fixture(&mut conn);
+    let before = local_gui_excluded_rows(&mut conn);
+    assert!(before.iter().all(|rows| rows.len() == 1));
+    let restored =
+        read_sqlite_data(&mut conn, None, PersistedDataScope::LocalGui).expect("本地读取");
+    let state = restored.app_state.expect("旧会话");
+    let old_windows = state.windows.clone();
+    let old_mcp = state.running_mcp_servers.clone();
+    let writer = start_writer(conn, path.clone()).expect("正常持久化 writer");
+    writer
+        .sender
+        .send(ModelEvent::Snapshot(state))
+        .expect("保存会话");
+    writer
+        .sender
+        .send(ModelEvent::InsertCommand {
+            metadata: local_gui_command("printf '新历史'"),
+        })
+        .expect("写历史");
+    writer.sender.send(ModelEvent::Terminate).expect("正常退出");
+    writer.handle.join().expect("writer 结束");
+    let mut conn = setup_database(&path).expect("重新打开测试数据库");
+    assert_eq!(local_gui_excluded_rows(&mut conn), before);
+    let restored =
+        read_sqlite_data(&mut conn, None, PersistedDataScope::LocalGui).expect("再次本地读取");
+    let state = restored.app_state.expect("会话仍在");
+    assert_eq!(state.windows, old_windows);
+    assert_eq!(state.running_mcp_servers, old_mcp);
+    assert_eq!(restored.command_history.len(), 2);
+    let metadata = get_all_codebase_index_metadata(&mut conn).expect("完整数据仍在磁盘");
+    assert_eq!(metadata[0].path, PathBuf::from("/tmp/旧索引"));
+}
+
+#[test]
+fn local_gui_ignores_unavailable_cloud_tables_but_propagates_local_read_failures() {
+    let directory = tempfile::tempdir().expect("临时目录");
+    let mut conn = setup_database(&directory.path().join("cloud.sqlite")).expect("测试数据库");
+    conn.batch_execute(
+        "ALTER TABLE folders RENAME TO unavailable_folders;
+        ALTER TABLE agent_conversations RENAME TO unavailable_conversations;
+        ALTER TABLE workspace_metadata RENAME TO unavailable_indices;",
+    )
+    .expect("模拟不可用的非终端表");
+    assert!(read_sqlite_data(&mut conn, None, PersistedDataScope::LocalGui).is_ok());
+    assert!(read_sqlite_data(&mut conn, None, PersistedDataScope::Full).is_err());
+    for table in ["windows", "commands"] {
+        let directory = tempfile::tempdir().expect("临时目录");
+        let mut conn = setup_database(&directory.path().join("local.sqlite")).expect("测试数据库");
+        conn.batch_execute(&format!(
+            "ALTER TABLE {table} RENAME TO unavailable_{table}"
+        ))
+        .expect("模拟本地读取失败");
+        assert!(
+            read_sqlite_data(&mut conn, None, PersistedDataScope::LocalGui).is_err(),
+            "{table} 错误不得伪装成空数据"
+        );
+    }
 }

@@ -108,6 +108,8 @@ pub enum PersistedDataScope {
     /// The GUI app: everything, including window/tab/block session
     /// restoration and command history.
     Full,
+    /// 本地 GUI：会话、历史及终端共用本地元数据，不加载云与 AI 控制数据。
+    LocalGui,
     /// The `warp-tui` front-end: command history, cloud objects, user profiles,
     /// and agent/conversation state, but no GUI session restoration or pending
     /// object actions.
@@ -117,22 +119,44 @@ pub enum PersistedDataScope {
 }
 
 impl PersistedDataScope {
+    pub(crate) fn for_launch_mode(launch_mode: &crate::LaunchMode, local_terminal: bool) -> Self {
+        match launch_mode {
+            crate::LaunchMode::Tui { .. } => Self::TuiFrontend,
+            crate::LaunchMode::RemoteServerDaemon { .. } => Self::CodebaseIndicesOnly,
+            crate::LaunchMode::App { .. } | crate::LaunchMode::Test { .. } if local_terminal => {
+                Self::LocalGui
+            }
+            crate::LaunchMode::App { .. }
+            | crate::LaunchMode::CommandLine { .. }
+            | crate::LaunchMode::RemoteServerProxy
+            | crate::LaunchMode::Test { .. } => Self::Full,
+        }
+    }
+
     /// Window/tab/pane snapshots and restored blocks.
     fn session_restoration(self) -> bool {
-        matches!(self, PersistedDataScope::Full)
+        matches!(
+            self,
+            PersistedDataScope::Full | PersistedDataScope::LocalGui
+        )
     }
 
     /// Shell-command history consumed by both interactive front-ends.
     fn command_history(self) -> bool {
         matches!(
             self,
-            PersistedDataScope::Full | PersistedDataScope::TuiFrontend
+            PersistedDataScope::Full
+                | PersistedDataScope::LocalGui
+                | PersistedDataScope::TuiFrontend
         )
     }
 
     /// User profiles used to identify cloud-object creators in both interactive frontends.
     fn user_profiles(self) -> bool {
-        self != PersistedDataScope::CodebaseIndicesOnly
+        matches!(
+            self,
+            PersistedDataScope::Full | PersistedDataScope::TuiFrontend
+        )
     }
 
     /// Pending object actions, which only the GUI consumes.
@@ -281,6 +305,7 @@ impl SingletonEntity for PersistenceWriter {}
 /// of user ID->SqliteData and get the respective AppState after the user logs in.
 ///
 /// For now, to address the global scoping here, we clear all persisted data on logout.
+#[derive(Default)]
 pub struct PersistedData {
     /// Session restoration data. `None` when the launch mode's
     /// [`PersistedDataScope`] excludes it entirely (the daemon).
@@ -502,3 +527,7 @@ pub enum ModelEvent {
         title: String,
     },
 }
+
+#[cfg(test)]
+#[path = "scope_tests.rs"]
+mod scope_tests;

@@ -1715,13 +1715,19 @@ fn delete_project_rules(conn: &mut SqliteConnection, rules_paths: Vec<PathBuf>) 
     Ok(())
 }
 
-fn get_all_ignored_suggestions(
+fn get_ignored_suggestions(
     conn: &mut SqliteConnection,
+    kind: Option<SuggestionType>,
 ) -> Result<Vec<(String, SuggestionType)>, diesel::result::Error> {
     use schema::ignored_suggestions::dsl::*;
 
-    Ok(ignored_suggestions
+    let mut query = ignored_suggestions
         .select((suggestion, suggestion_type))
+        .into_boxed();
+    if let Some(kind) = kind {
+        query = query.filter(suggestion_type.eq(kind.as_str()));
+    }
+    Ok(query
         .load::<(String, String)>(conn)?
         .into_iter()
         .filter_map(|(suggestion_text, suggestion_type_str)| {
@@ -2493,26 +2499,8 @@ fn read_sqlite_data(
 ) -> Result<PersistedData, Error> {
     if matches!(data_scope, PersistedDataScope::CodebaseIndicesOnly) {
         return Ok(PersistedData {
-            app_state: None,
-            cloud_objects: Default::default(),
-            workspaces: Default::default(),
-            current_workspace_uid: None,
-            command_history: Default::default(),
-            user_profiles: Default::default(),
-            time_of_next_force_object_refresh: None,
-            object_actions: Default::default(),
-            experiments: Default::default(),
-            ai_queries: Default::default(),
-            nld_prompts: Default::default(),
             codebase_indices: get_all_codebase_index_metadata(conn)?,
-            workspace_language_servers: Default::default(),
-            multi_agent_conversations: Default::default(),
-            projects: Default::default(),
-            project_rules: Default::default(),
-            ignored_suggestions: Default::default(),
-            mcp_server_installations: Default::default(),
-            mcp_servers_to_restore: Default::default(),
-            conversation_summary_backfills: Default::default(),
+            ..Default::default()
         });
     }
 
@@ -2727,6 +2715,17 @@ fn read_sqlite_data(
         None
     };
 
+    if matches!(data_scope, PersistedDataScope::LocalGui) {
+        // 不查询未使用的数据组；原表留在磁盘，快照中的原始元数据继续无损保存。
+        return Ok(PersistedData {
+            app_state,
+            command_history: read_command_history(conn)?,
+            projects: get_all_projects(conn)?,
+            ignored_suggestions: get_ignored_suggestions(conn, Some(SuggestionType::ShellCommand))?,
+            ..Default::default()
+        });
+    }
+
     let read_context = load_cloud_object_read_context(conn, current_user_id)?;
     let mut cloud_objects: Vec<Box<dyn CloudObject>> = Vec::new();
     cloud_objects.extend(
@@ -2853,13 +2852,7 @@ fn read_sqlite_data(
     // The GUI and TUI both consume command history. Other headless launch
     // modes skip it.
     let commands = if data_scope.command_history() {
-        schema::commands::dsl::commands
-            // The newest row for a duplicate command supplies its summary metadata.
-            .order(schema::commands::columns::id.desc())
-            .load_iter::<model::Command, DefaultLoadingMode>(conn)?
-            .filter_map(|command| command.ok())
-            .map(PersistedCommand::from)
-            .collect()
+        read_command_history(conn)?
     } else {
         Vec::new()
     };
@@ -2914,7 +2907,7 @@ fn read_sqlite_data(
         read_agent_conversation_metadata(conn)?;
     let projects = get_all_projects(conn)?;
     let project_rules = get_all_project_rules(conn)?;
-    let ignored_suggestions = get_all_ignored_suggestions(conn)?;
+    let ignored_suggestions = get_ignored_suggestions(conn, None)?;
     let mcp_server_installations = get_all_mcp_server_installations(conn)?;
     let mcp_servers_to_restore = get_mcp_servers_to_restore(conn)?;
 
@@ -2940,6 +2933,16 @@ fn read_sqlite_data(
         mcp_servers_to_restore,
         conversation_summary_backfills,
     })
+}
+
+fn read_command_history(conn: &mut SqliteConnection) -> Result<Vec<PersistedCommand>, Error> {
+    Ok(schema::commands::dsl::commands
+        // 重复命令沿用最新行的摘要元数据。
+        .order(schema::commands::columns::id.desc())
+        .load_iter::<model::Command, DefaultLoadingMode>(conn)?
+        .filter_map(|command| command.ok())
+        .map(PersistedCommand::from)
+        .collect())
 }
 
 impl From<StartedCommandMetadata> for model::NewCommand {

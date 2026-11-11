@@ -38,6 +38,10 @@ impl ServerExperiments {
         incoming: Vec<ServerExperiment>,
         ctx: &mut ModelContext<Self>,
     ) {
+        // 本地终端不应用或回写服务端实验；未加载的缓存不能覆盖磁盘旧值。
+        if crate::local_terminal::is_enabled(ctx) {
+            return;
+        }
         // Dedup the set of experiments.
         let incoming = HashSet::from_iter(incoming);
 

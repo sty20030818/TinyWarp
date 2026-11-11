@@ -140,3 +140,7 @@ TinyWarp 的 Cargo 参数继续使用 `--no-default-features --features tinywarp
 ## L3C4 的内置 JSON 过滤边界
 
 构建参数不变：TinyWarp 使用 `--no-default-features --features tinywarp_gui`。完整应用默认额外启用 `agent_cli_jq`，将应用过滤输出与 `warp_cli/jq` 一起开启。`warp_cli` 的独立默认仍含 jq；workspace 消费者由应用 feature 选择。精简版的内置 `--jq` 解析会明确失败，普通 JSON、终端和外部 CLI 沿用原路径。详见 [L3C4 交付记录](l3c4-delivery.md)。
+
+## L3C5 的本地 GUI 数据范围
+
+构建参数不变。LocalGui 是按现有本地终端策略选择的启动读取范围，保留 GUI 恢复、历史、本地项目路径与忽略的 shell 建议，不能替换成会跳过 GUI 恢复的 TuiFrontend。原版非本地 GUI／CLI、TUI 和 daemon 的选择不变；完整构建中的 OSS 本地 GUI 也采用 LocalGui。无 schema 或依赖清单调整，详见 [L3C5 交付记录](l3c5-delivery.md)。
