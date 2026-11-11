@@ -85,6 +85,8 @@ CARGO_TARGET_DIR="$PWD/.note/candidates/H1" CARGO_BUNDLE_SKIP_BUILD=1 \
 
 ## 日常开发与快速验证
 
+用户已明确要求固定复用同一个 Warp Preview 构建窗口／标签，不再每轮新开。先核对 `.note/tinywarp-build-session.json` 记录的应用、shell PID 和 TTY 仍属于构建会话，确认上一条任务已经结束后，在该会话执行下一条命令；当前任务运行中先等待。激活 Preview 后先等待窗口恢复，不能把暂时读不到 AX 窗口当作会话不存在；仅在确认原会话已关闭时新建。目标不明确时先核对窗口，不向其他项目缓冲输入。该记录只用于本机会话定位，不提交，也不更改 Preview 设置。
+
 改主题、字体、设置或快捷键时，已有文件监听可重载相应配置；修改 Rust 界面或程序逻辑仍需编译并重启，没有现成的源码热替换流程。不要为普通逻辑修复默认执行完整正式 release。
 
 仓库 `./script/run` 默认使用 Cargo dev profile，macOS 开发配置使用 `split-debuginfo="unpacked"` 避免生成 packed dSYM。Cargo dev 默认支持增量编译，见 [Cargo profiles 官方说明](https://doc.rust-lang.org/stable/cargo/reference/profiles.html)。首次切换 profile 仍可能补建依赖，不能承诺秒级构建。

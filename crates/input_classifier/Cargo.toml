@@ -8,8 +8,11 @@ license.workspace = true
 [[bin]]
 name = "evaluate"
 path = "src/bin/evaluate.rs"
+required-features = ["heuristic"]
 
 [features]
+default = ["heuristic"]
+heuristic = ["natural_language_detection/word_scoring"]
 onnx_candle = [
     "onnx",
     "dep:candle-core",
@@ -23,14 +26,14 @@ onnx_ort = [
     "dep:ndarray",
     "dep:parking_lot",
 ]
-onnx = ["dep:rust-embed", "dep:tokenizers"]
+onnx = ["heuristic", "dep:rust-embed", "dep:tokenizers"]
 # Selects which BERT-tiny ONNX model bytes are embedded via rust-embed; enable exactly one.
 nld_classifier_v1 = ["onnx_candle"]
 nld_classifier_v2 = ["onnx_candle"]
 nld_classifier_v3 = ["onnx_candle"]
 # Selects which shell-command heuristic behavior is used. If both are enabled, v2 wins.
-nld_heuristic_v1 = []
-nld_heuristic_v2 = []
+nld_heuristic_v1 = ["heuristic"]
+nld_heuristic_v2 = ["heuristic"]
 
 [dependencies]
 warp_errors.workspace = true

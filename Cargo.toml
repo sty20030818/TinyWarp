@@ -48,7 +48,7 @@ fuzzy_match = { path = "crates/fuzzy_match" }
 handlebars = { path = "crates/handlebars" }
 http_client = { path = "crates/http_client" }
 http_server = { path = "crates/http_server" }
-input_classifier = { path = "crates/input_classifier" }
+input_classifier = { path = "crates/input_classifier", default-features = false }
 integration = { path = "crates/integration" }
 ipc = { path = "crates/ipc" }
 ipynb_parser = { path = "crates/ipynb_parser" }
@@ -58,7 +58,7 @@ local_control = { path = "crates/local_control" }
 lsp = { path = "crates/lsp", default-features = false }
 markdown_parser = { path = "crates/markdown_parser" }
 mcp = { path = "crates/mcp" }
-natural_language_detection = { path = "crates/natural_language_detection" }
+natural_language_detection = { path = "crates/natural_language_detection", default-features = false }
 node_runtime = { path = "crates/node_runtime" }
 onboarding = { path = "crates/onboarding" }
 persistence = { path = "crates/persistence" }

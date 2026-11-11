@@ -1,12 +1,15 @@
+#[cfg(feature = "heuristic")]
 mod heuristic_classifier;
 mod input_type;
 #[cfg(feature = "onnx")]
 mod onnx;
+#[cfg(feature = "heuristic")]
 mod parser;
 pub mod test_utils;
 pub mod util;
 
 use async_trait::async_trait;
+#[cfg(feature = "heuristic")]
 pub use heuristic_classifier::HeuristicClassifier;
 pub use input_type::InputType;
 #[cfg(feature = "onnx")]
@@ -74,6 +77,7 @@ pub struct ClassificationResult {
 }
 
 impl ClassificationResult {
+    #[cfg(feature = "heuristic")]
     fn pure_ai(source: InputClassifierDecisionSource) -> Self {
         Self {
             p_shell: 0.0,
@@ -82,6 +86,7 @@ impl ClassificationResult {
         }
     }
 
+    #[cfg(feature = "heuristic")]
     fn pure_shell(source: InputClassifierDecisionSource) -> Self {
         Self {
             p_shell: 1.0,

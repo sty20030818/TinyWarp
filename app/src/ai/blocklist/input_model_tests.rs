@@ -175,6 +175,7 @@ const SHELL_UNLOCKED: InputConfig = InputConfig {
 struct StubPolicy {
     initial: InputConfig,
     allows_locked_ai: bool,
+    autodetection_enabled: bool,
     on_conversation_activated: Option<InputConfig>,
     on_conversation_deactivated: Option<InputConfig>,
     on_settings_changed: Option<InputConfig>,
@@ -186,6 +187,7 @@ impl StubPolicy {
         Self {
             initial,
             allows_locked_ai: true,
+            autodetection_enabled: false,
             on_conversation_activated: None,
             on_conversation_deactivated: None,
             on_settings_changed: None,
@@ -203,7 +205,7 @@ impl InputModePolicy for StubPolicy {
     }
 
     fn is_autodetection_enabled(&self, _app: &AppContext) -> bool {
-        false
+        self.autodetection_enabled
     }
 
     fn config_on_conversation_selection_changed(
@@ -413,6 +415,21 @@ fn local_terminal_keeps_shell_input_with_old_ai_policy_and_restore_config() {
             assert!(!model.is_autodetection_enabled_for_current_context(ctx));
             assert!(model.autodetect_abort_handle.is_none());
             assert!(!ctx.has_singleton_model::<crate::input_classifier::InputClassifierModel>());
+        });
+    });
+}
+
+#[cfg(not(feature = "input_classification"))]
+#[test]
+fn stripped_build_disables_enabled_autodetection_policy() {
+    App::test((), |mut app| async move {
+        let mut policy = StubPolicy::inert(AI_LOCKED);
+        policy.autodetection_enabled = true;
+        let input_model = app.update(|ctx| BlocklistAIInputModel::mock(Rc::new(policy), ctx));
+        input_model.read(&app, |model, ctx| {
+            assert!(!model.is_autodetection_enabled_for_current_context(ctx));
+            assert!(!model.should_run_input_autodetection(ctx));
+            assert!(model.autodetect_abort_handle.is_none());
         });
     });
 }

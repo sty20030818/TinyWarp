@@ -558,7 +558,8 @@ impl BlocklistAIInputModel {
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect
     /// and change the input type.
     pub fn should_run_input_autodetection(&self, app: &AppContext) -> bool {
-        !crate::local_terminal::is_enabled(app)
+        cfg!(feature = "input_classification")
+            && !crate::local_terminal::is_enabled(app)
             && FeatureFlag::AgentMode.is_enabled()
             && self.is_autodetection_enabled_for_current_context(app)
             && !self.input_config.is_locked
@@ -567,7 +568,7 @@ impl BlocklistAIInputModel {
     /// Returns whether autodetection is enabled for the current context, layering view-agnostic
     /// guards (agent in control, pending attachments) over the view policy's setting lookup.
     pub fn is_autodetection_enabled_for_current_context(&self, app: &AppContext) -> bool {
-        if crate::local_terminal::is_enabled(app) {
+        if !cfg!(feature = "input_classification") || crate::local_terminal::is_enabled(app) {
             return false;
         }
 
@@ -749,7 +750,9 @@ impl BlocklistAIInputModel {
             }
         };
 
-        let classifier = InputClassifierModel::as_ref(ctx).classifier();
+        let Some(classifier) = InputClassifierModel::as_ref(ctx).classifier() else {
+            return;
+        };
         let handle = ctx
             .spawn(
                 async move {

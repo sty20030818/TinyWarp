@@ -12,9 +12,17 @@ host = next(line.split(': ', 1)[1] for line in version.splitlines() if line.star
 graph = subprocess.check_output([
     'cargo', 'tree', '--locked', '-p', 'warp', '--target', host,
     '--no-default-features', '--features', 'tinywarp_gui',
-    '-e', 'normal,build', '--prefix', 'none', '--format', '{p}',
+    '-e', 'normal,build', '--prefix', 'none', '--format', '{p}|{f}',
 ], cwd=root, text=True)
-packages = {line.split()[0] for line in graph.splitlines() if line.strip()}
+packages = set()
+features = {}
+for line in graph.splitlines():
+    package, separator, enabled = line.removesuffix(' (*)').partition('|')
+    if not separator:
+        raise SystemExit('Cargo 依赖输出缺少 feature 信息')
+    name = package.split()[0]
+    packages.add(name)
+    features.setdefault(name, set()).update(filter(None, enabled.split(',')))
 # aws-lc 属于共用 TLS，不能按 aws- 前缀整组排除。
 forbidden = {'voice_input', 'aws-config', 'aws-credential-types', 'aws-sdk-sts', 'aws-types',
              'candle-core', 'candle-onnx', 'tokenizers', 'mermaid_to_svg',
@@ -23,7 +31,19 @@ forbidden = {'voice_input', 'aws-config', 'aws-credential-types', 'aws-sdk-sts',
 required = {'warp_terminal', 'warpui', 'persistence'}
 unexpected = sorted(packages & forbidden)
 missing = sorted(required - packages)
-if unexpected or missing:
-    raise SystemExit(f'TinyWarp 构建边界不符：专用依赖残留={unexpected}，共用依赖缺失={missing}')
+# rust-stemmers 仍由 Tantivy 搜索共用，按专用功能排除，避免误删共用依赖。
+forbidden_features = {
+    'warp': {'input_classification'},
+    'input_classifier': {'heuristic', 'onnx'},
+    'natural_language_detection': {'word_scoring'},
+}
+feature_leaks = {
+    name: sorted(features.get(name, set()) & excluded)
+    for name, excluded in forbidden_features.items()
+    if features.get(name, set()) & excluded
+}
+if unexpected or missing or feature_leaks:
+    raise SystemExit(f'TinyWarp 构建边界不符：专用依赖残留={unexpected}，共用依赖缺失={missing}，专用功能残留={feature_leaks}')
 print(json.dumps({'target': host, 'dependency_boundary_ok': True,
-                  'normal_build_package_names': len(packages)}, ensure_ascii=False))
+                  'normal_build_package_names': len(packages),
+                  'feature_boundaries_checked': sorted(forbidden_features)}, ensure_ascii=False))
