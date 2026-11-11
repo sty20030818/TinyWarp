@@ -971,7 +971,7 @@ impl InitStepBlock {
 
         ctx.spawn(
             async move {
-                let candidate = server_type.candidate(http_client);
+                let candidate = server_type.candidate(http_client)?;
                 let metadata = candidate.fetch_latest_server_metadata().await?;
                 candidate.install(metadata, &executor).await?;
                 Ok::<_, anyhow::Error>(())

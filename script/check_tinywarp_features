@@ -19,7 +19,7 @@ packages = {line.split()[0] for line in graph.splitlines() if line.strip()}
 forbidden = {'voice_input', 'aws-config', 'aws-credential-types', 'aws-sdk-sts', 'aws-types',
              'candle-core', 'candle-onnx', 'tokenizers', 'mermaid_to_svg',
              'dagre_rust', 'graphlib_rust', 'jaq-all', 'jaq-json', 'jaq-core',
-             'jaq-std', 'jaq-fmts'}
+             'jaq-std', 'jaq-fmts', 'node_runtime'}
 required = {'warp_terminal', 'warpui', 'persistence'}
 unexpected = sorted(packages & forbidden)
 missing = sorted(required - packages)

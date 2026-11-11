@@ -4,6 +4,7 @@ pub use command_builder::CommandBuilder;
 mod config;
 mod language_server_candidate;
 pub use language_server_candidate::LanguageServerCandidate;
+#[cfg(feature = "builtin_servers")]
 pub mod install;
 mod manager;
 mod model;
@@ -12,6 +13,7 @@ mod model;
 #[cfg_attr(target_family = "wasm", path = "server_repo_watcher_wasm.rs")]
 mod server_repo_watcher;
 
+#[cfg(feature = "builtin_servers")]
 pub mod servers;
 mod service;
 pub mod supported_servers;

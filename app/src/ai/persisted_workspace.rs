@@ -575,7 +575,13 @@ impl PersistedWorkspace {
                 for workspace_path in paths_to_scan {
                     let mut suggested = Vec::new();
                     for server_type in LSPServerType::all() {
-                        let candidate = server_type.candidate(http_client.clone());
+                        let candidate = match server_type.candidate(http_client.clone()) {
+                            Ok(candidate) => candidate,
+                            Err(error) => {
+                                log::warn!("Language server discovery unavailable: {error}");
+                                continue;
+                            }
+                        };
                         if candidate
                             .should_suggest_for_repo(&workspace_path, &executor)
                             .await
@@ -1006,7 +1012,7 @@ impl PersistedWorkspace {
         let http_client = ServerApiProvider::as_ref(ctx).get_http_client();
         ctx.spawn(
             async move {
-                let candidate = server_type.candidate(http_client);
+                let candidate = server_type.candidate(http_client)?;
                 let metadata = candidate.fetch_latest_server_metadata().await?;
                 candidate.install(metadata, &executor).await?;
                 Ok::<_, anyhow::Error>(())
@@ -1299,10 +1305,18 @@ impl PersistedWorkspace {
                         // Wait for interactive PATH, then check installation
                         let path_env_var = path_future.await;
                         let executor = lsp::CommandBuilder::new(path_env_var);
-                        let candidate = server_type.candidate(http_client);
-                        candidate.is_installed(&executor).await
+                        let candidate = server_type.candidate(http_client)?;
+                        Ok::<_, anyhow::Error>(candidate.is_installed(&executor).await)
                     },
-                    move |me, is_installed, ctx| {
+                    move |me, result, ctx| {
+                        let is_installed = match result {
+                            Ok(is_installed) => is_installed,
+                            Err(error) => {
+                                log::warn!("Language server detection unavailable: {error}");
+                                me.lsp_installation_status.remove(&server_type);
+                                return;
+                            }
+                        };
                         let status = if is_installed {
                             LSPInstallationStatus::Installed
                         } else {

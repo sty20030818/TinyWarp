@@ -1,20 +1,25 @@
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
 use command::r#async::Command;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
 use crate::CommandBuilder;
+#[cfg(feature = "builtin_servers")]
 use crate::servers::clangd::ClangdCandidate;
+#[cfg(feature = "builtin_servers")]
 use crate::servers::go::GoPlsCandidate;
+#[cfg(feature = "builtin_servers")]
 use crate::servers::pyright::PyrightCandidate;
+#[cfg(feature = "builtin_servers")]
 use crate::servers::rust::RustAnalyzerCandidate;
+#[cfg(feature = "builtin_servers")]
 use crate::servers::typescript_language_server::TypeScriptLanguageServerCandidate;
 use crate::{LanguageId, LanguageServerCandidate};
 
@@ -23,7 +28,7 @@ use crate::{LanguageId, LanguageServerCandidate};
 /// For most LSP servers, we just need the binary path. However, for Node.js-based
 /// servers like Pyright, we need to run `node langserver.index.js --stdio` instead
 /// of relying on the wrapper script (which has a shebang that requires node in PATH).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
 #[derive(Debug, Clone)]
 pub struct CustomBinaryConfig {
     /// The path to the executable (e.g., node binary or rust-analyzer binary)
@@ -54,7 +59,7 @@ impl LSPServerType {
     ///
     /// If a custom binary config is provided (e.g., from our data_dir installation),
     /// it will be used. Otherwise, falls back to the system PATH.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
     pub(crate) fn create_command(
         &self,
         custom_config: Option<CustomBinaryConfig>,
@@ -80,7 +85,7 @@ impl LSPServerType {
     /// # Arguments
     /// * `path_env_var` - The PATH environment variable to use when checking for system dependencies
     ///   (e.g., system node for pyright).
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
     pub async fn find_installed_binary_config(
         &self,
         path_env_var: Option<&str>,
@@ -117,13 +122,13 @@ impl LSPServerType {
     ///
     /// Delegates to each server's candidate implementation.
     /// Returns true only if the binary executes successfully with exit code 0.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
     pub async fn is_working_on_path(
         &self,
         executor: &CommandBuilder,
         client: Arc<http_client::Client>,
-    ) -> bool {
-        self.candidate(client).is_installed_on_path(executor).await
+    ) -> anyhow::Result<bool> {
+        Ok(self.candidate(client)?.is_installed_on_path(executor).await)
     }
 
     pub fn binary_name(&self) -> &'static str {
@@ -137,7 +142,7 @@ impl LSPServerType {
     }
 
     /// Arguments for running via system PATH.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
     fn args(&self) -> Vec<&'static str> {
         match self {
             LSPServerType::RustAnalyzer | LSPServerType::GoPls | LSPServerType::Clangd => vec![],
@@ -147,7 +152,7 @@ impl LSPServerType {
 
     /// Arguments for running from a custom installation.
     /// These are added after any prepend_args from CustomBinaryConfig.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
     fn custom_install_args(&self) -> Vec<&'static str> {
         match self {
             LSPServerType::RustAnalyzer => vec![],
@@ -197,15 +202,31 @@ impl LSPServerType {
         }
     }
 
-    pub fn candidate(&self, client: Arc<http_client::Client>) -> Box<dyn LanguageServerCandidate> {
-        match self {
-            LSPServerType::RustAnalyzer => Box::new(RustAnalyzerCandidate::new(client)),
-            LSPServerType::GoPls => Box::new(GoPlsCandidate::new(client)),
-            LSPServerType::Pyright => Box::new(PyrightCandidate::new(client)),
-            LSPServerType::TypeScriptLanguageServer => {
-                Box::new(TypeScriptLanguageServerCandidate::new(client))
-            }
-            LSPServerType::Clangd => Box::new(ClangdCandidate::new(client)),
+    /// 未包含内置服务器的构建显式拒绝发现和安装，避免误用旧配置。
+    pub fn candidate(
+        &self,
+        client: Arc<http_client::Client>,
+    ) -> anyhow::Result<Box<dyn LanguageServerCandidate>> {
+        #[cfg(feature = "builtin_servers")]
+        {
+            let candidate: Box<dyn LanguageServerCandidate> = match self {
+                LSPServerType::RustAnalyzer => Box::new(RustAnalyzerCandidate::new(client)),
+                LSPServerType::GoPls => Box::new(GoPlsCandidate::new(client)),
+                LSPServerType::Pyright => Box::new(PyrightCandidate::new(client)),
+                LSPServerType::TypeScriptLanguageServer => {
+                    Box::new(TypeScriptLanguageServerCandidate::new(client))
+                }
+                LSPServerType::Clangd => Box::new(ClangdCandidate::new(client)),
+            };
+            Ok(candidate)
+        }
+        #[cfg(not(feature = "builtin_servers"))]
+        {
+            drop(client);
+            anyhow::bail!(
+                "Built-in language servers are not included in this build: {}",
+                self.binary_name()
+            )
         }
     }
 
@@ -213,3 +234,7 @@ impl LSPServerType {
         LSPServerType::iter()
     }
 }
+
+#[cfg(test)]
+#[path = "supported_servers_tests.rs"]
+mod tests;

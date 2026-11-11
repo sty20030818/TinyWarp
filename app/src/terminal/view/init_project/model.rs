@@ -421,7 +421,13 @@ impl InitProjectModel {
             async move {
                 let mut relevant_servers = Vec::new();
                 for server_type in LSPServerType::all() {
-                    let candidate = server_type.candidate(http_client.clone());
+                    let candidate = match server_type.candidate(http_client.clone()) {
+                        Ok(candidate) => candidate,
+                        Err(error) => {
+                            log::warn!("Language server discovery unavailable: {error}");
+                            continue;
+                        }
+                    };
                     let should_suggest = candidate
                         .should_suggest_for_repo(&repo_root, &executor)
                         .await;

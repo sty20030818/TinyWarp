@@ -216,3 +216,26 @@ fn test_path_to_lsp_uri_rejects_relative_path() {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("must be absolute"));
 }
+
+#[cfg(all(not(target_arch = "wasm32"), not(feature = "builtin_servers")))]
+#[test]
+fn stripped_build_rejects_server_launch_before_spawning() {
+    use std::sync::Arc;
+
+    use crate::LspServerConfig;
+    use crate::supported_servers::LSPServerType;
+
+    for server in LSPServerType::all() {
+        let config = LspServerConfig::new(
+            server,
+            std::env::temp_dir(),
+            Some(String::new()),
+            "TinyWarp".into(),
+            Arc::new(http_client::Client::new()),
+        );
+        let result = futures::executor::block_on(config.command_and_params());
+        let error = result.err().expect("不得启动内置服务器").to_string();
+        assert!(error.contains("not included"));
+        assert!(error.contains(server.binary_name()));
+    }
+}

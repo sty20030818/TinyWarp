@@ -99,6 +99,7 @@ pub struct LspServerConfig {
     path_env_var: Option<String>,
     client_name: String,
     /// Shared HTTP client used for LSP installation checks and downloads.
+    #[cfg_attr(not(feature = "builtin_servers"), allow(dead_code))]
     client: Arc<http_client::Client>,
     /// Optional path relative to the LSP log namespace for server stderr output.
     log_relative_path: Option<PathBuf>,
@@ -161,14 +162,14 @@ impl LspServerConfig {
     ///
     /// PATH takes precedence over custom installations. If the binary is available
     /// and working on PATH, we use that. Otherwise, we fall back to our custom installation.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "builtin_servers"))]
     pub(crate) async fn command_and_params(self) -> Result<ResolvedLspCommand> {
         // PATH takes precedence - only use custom installation if not working on PATH
         let executor = crate::CommandBuilder::new(self.path_env_var.clone());
         let is_working_on_path = self
             .server_type
             .is_working_on_path(&executor, self.client.clone())
-            .await;
+            .await?;
         let custom_binary_config = if is_working_on_path {
             // Binary works on PATH, don't use custom installation
             None
@@ -206,6 +207,14 @@ impl LspServerConfig {
         let params = default_init_params(&self.initial_workspace, self.client_name)?;
 
         Ok(ResolvedLspCommand { command, params })
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), not(feature = "builtin_servers")))]
+    pub(crate) async fn command_and_params(self) -> Result<ResolvedLspCommand> {
+        anyhow::bail!(
+            "Built-in language servers are not included in this build: {}",
+            self.server_type.binary_name()
+        )
     }
 
     pub(crate) fn server_type(&self) -> LSPServerType {
