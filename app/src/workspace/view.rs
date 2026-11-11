@@ -10067,19 +10067,6 @@ impl Workspace {
         can_update: bool,
     ) -> Vec<MenuItem<WorkspaceAction>> {
         let mut items = Vec::new();
-        if let Some(version) = version {
-            let display_version = version
-                .strip_prefix("v0.")
-                .unwrap_or(version)
-                .replace(".tinywarp_", ".");
-            items.push(
-                MenuItemFields::new(format!("当前版本：{display_version}"))
-                    .with_tooltip(version)
-                    .with_tooltip_position(crate::menu::MenuTooltipPosition::Above)
-                    .with_disabled(true)
-                    .into_item(),
-            );
-        }
         if can_update && version.is_some() {
             let busy = matches!(
                 stage,
@@ -10306,11 +10293,7 @@ impl Workspace {
         self.is_user_menu_open = !self.is_user_menu_open;
         if self.is_user_menu_open {
             let items = self.user_menu_items(ctx);
-            let is_local = crate::local_terminal::is_enabled(ctx);
             self.user_menu.update(ctx, |menu, ctx| {
-                if is_local {
-                    menu.set_width(320.);
-                }
                 menu.set_items(items, ctx);
             });
         }
