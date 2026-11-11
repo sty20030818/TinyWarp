@@ -35,7 +35,7 @@ script/tinywarp-stage-update /绝对路径/TinyWarp.app --data-dir /目标实例
 
 当前候选为 `.note/candidates/U1U2-D/release/bundle/osx/TinyWarp.app`，版本 `v0.2026.11.11.09.00.tinywarp_03`。它是 opt0 开发候选，不替换 D1 opt3 日常优化版。隔离测试使用临时 HOME、独立测试身份与真实数据路径禁令。
 
-`/Applications/TinyWarp.app`、现有 `~/.warp-oss`、日常数据库和 Preview 的设置／数据没有被本阶段迁移、恢复或覆盖；Preview 只用于构建。当前日常应用还没有新更新器，后续需一次经过验证的引导安装。
+`/Applications/TinyWarp.app`、现有 `~/.warp-oss`、日常数据库和 Preview 的设置／数据没有被本阶段迁移、恢复或覆盖；Preview 只用于构建。U1/U2 阶段结束时日常应用尚无新更新器，随后已按用户确认完成 [U3 日常引导安装](u3-bootstrap-delivery.md)。
 
 U3 尚未完成：公开 HTTPS 更新源、发布签名与发布工具属于下一阶段。没有生成正式发布私钥，没有推送源码或公开上传安装包。当前签名为本机 ad hoc，不代表 Apple Developer ID、公证或首次下载 Gatekeeper 验收通过。
 
