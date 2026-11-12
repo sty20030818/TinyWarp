@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from tinywarp_version import main
+
+main()

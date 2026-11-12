@@ -7,6 +7,18 @@ use crate::auth::{AuthManager, AuthStateProvider};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 
+fn update_versions() -> [&'static str; 3] {
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if ChannelState::channel() == Channel::Oss {
+        return ["v0.1.0-dev.1", "v0.1.0", "v0.1.1"];
+    }
+    [
+        "v0.2023.05.15.08.04.stable_01",
+        "v0.2023.05.15.08.04.stable_02",
+        "v0.2023.05.15.08.04.stable_03",
+    ]
+}
+
 fn initialize_app(app: &mut App) -> ModelHandle<AutoupdateState> {
     let server_api_provider = app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
@@ -296,8 +308,8 @@ fn test_download_failure_allows_retry() {
         let autoupdate_state = initialize_app(&mut app);
 
         app.update_model(&autoupdate_state, |autoupdate, ctx| {
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_01"));
-            let target_version = "v0.2023.05.15.08.04.stable_02";
+            ChannelState::set_app_version(Some(update_versions()[0]));
+            let target_version = update_versions()[1];
 
             autoupdate.on_download_update_complete(
                 RequestType::Poll,
@@ -338,8 +350,8 @@ fn test_successful_download_prevents_redownload() {
         let autoupdate_state = initialize_app(&mut app);
 
         app.update_model(&autoupdate_state, |autoupdate, ctx| {
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_01"));
-            let target_version = "v0.2023.05.15.08.04.stable_02";
+            ChannelState::set_app_version(Some(update_versions()[0]));
+            let target_version = update_versions()[1];
 
             autoupdate.on_download_update_complete(
                 RequestType::Poll,
@@ -390,9 +402,9 @@ fn test_failed_download_preserves_previous_successful_download() {
         let autoupdate_state = initialize_app(&mut app);
 
         app.update_model(&autoupdate_state, |autoupdate, ctx| {
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_01"));
-            let v2 = "v0.2023.05.15.08.04.stable_02";
-            let v3 = "v0.2023.05.15.08.04.stable_03";
+            ChannelState::set_app_version(Some(update_versions()[0]));
+            let v2 = update_versions()[1];
+            let v3 = update_versions()[2];
 
             // Successful download of v2.
             autoupdate.on_download_update_complete(
@@ -458,9 +470,9 @@ fn test_successful_download_after_failure_replaces_preserved_download() {
         let autoupdate_state = initialize_app(&mut app);
 
         app.update_model(&autoupdate_state, |autoupdate, ctx| {
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_01"));
-            let v2 = "v0.2023.05.15.08.04.stable_02";
-            let v3 = "v0.2023.05.15.08.04.stable_03";
+            ChannelState::set_app_version(Some(update_versions()[0]));
+            let v2 = update_versions()[1];
+            let v3 = update_versions()[2];
 
             // Step 1: Successful download of v2.
             autoupdate.on_download_update_complete(
@@ -514,10 +526,7 @@ fn test_should_update() {
         app.update_model(&autoupdate_state, |autoupdate, _| {
             // Test 1: No version tag set
             ChannelState::set_app_version(None);
-            let version = make_version_info(
-                "v0.2023.05.15.08.04.stable_01",
-                false, /* is_rollback */
-            );
+            let version = make_version_info(update_versions()[0], false /* is_rollback */);
 
             let result = autoupdate.should_update(version, "update1".to_string());
             assert!(
@@ -526,11 +535,8 @@ fn test_should_update() {
             );
 
             // Test 2: Already up to date
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_01"));
-            let version = make_version_info(
-                "v0.2023.05.15.08.04.stable_01",
-                false, /* is_rollback */
-            );
+            ChannelState::set_app_version(Some(update_versions()[0]));
+            let version = make_version_info(update_versions()[0], false /* is_rollback */);
             let result = autoupdate.should_update(version, "update2".to_string());
             assert!(
                 matches!(result, UpdateReady::No),
@@ -538,11 +544,8 @@ fn test_should_update() {
             );
 
             // Test 3: Current version ahead of server version (no rollback)
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_02"));
-            let version = make_version_info(
-                "v0.2023.05.15.08.04.stable_01",
-                false, /* is_rollback */
-            );
+            ChannelState::set_app_version(Some(update_versions()[1]));
+            let version = make_version_info(update_versions()[0], false /* is_rollback */);
             let result = autoupdate.should_update(version, "update3".to_string());
             assert!(
                 matches!(result, UpdateReady::No),
@@ -550,21 +553,26 @@ fn test_should_update() {
             );
 
             // Test 4: Current version ahead of server version (with rollback)
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_02"));
-            let version =
-                make_version_info("v0.2023.05.15.08.04.stable_01", true /* is_rollback */);
+            ChannelState::set_app_version(Some(update_versions()[1]));
+            let version = make_version_info(update_versions()[0], true /* is_rollback */);
             let result = autoupdate.should_update(version, "update4".to_string());
-            assert!(
-                matches!(result, UpdateReady::CanDownload { .. }),
-                "Should update when current version is ahead but rollback is true"
-            );
+            let local = cfg!(all(feature = "tinywarp_gui", target_os = "macos"))
+                && ChannelState::channel() == Channel::Oss;
+            if local {
+                assert!(
+                    matches!(result, UpdateReady::No),
+                    "TinyWarp 不接受降级，即使清单标记回滚"
+                );
+            } else {
+                assert!(
+                    matches!(result, UpdateReady::CanDownload { .. }),
+                    "原 Warp 通道继续支持服务器回滚"
+                );
+            }
 
             // Test 5: New update available for download
-            ChannelState::set_app_version(Some("v0.2023.05.15.08.04.stable_01"));
-            let version = make_version_info(
-                "v0.2023.05.15.08.04.stable_02",
-                false, /* is_rollback */
-            );
+            ChannelState::set_app_version(Some(update_versions()[0]));
+            let version = make_version_info(update_versions()[1], false /* is_rollback */);
             let result = autoupdate.should_update(version.clone(), "updateid".to_string());
             match result {
                 UpdateReady::CanDownload {
@@ -572,7 +580,8 @@ fn test_should_update() {
                     update_id,
                 } => {
                     assert_eq!(
-                        new_version.version, "v0.2023.05.15.08.04.stable_02",
+                        new_version.version,
+                        update_versions()[1],
                         "New version should match server version"
                     );
                     assert_eq!(
@@ -582,6 +591,45 @@ fn test_should_update() {
                 }
                 _ => panic!("Expected UpdateReady::CanDownload for new update"),
             }
+        });
+    });
+}
+
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+#[test]
+fn tinywarp_update_state_uses_semver_and_rejects_invalid_releases() {
+    App::test((), |mut app| async move {
+        let state = initialize_app(&mut app);
+        app.update_model(&state, |state, _| {
+            ChannelState::set_app_version(Some("v0.9.0"));
+            assert!(matches!(
+                state.should_update(make_version_info("v0.10.0", false), "numeric".into()),
+                UpdateReady::CanDownload { .. }
+            ));
+            for version in [
+                "v0.8.0",
+                "v0.9.0",
+                "v0.1.0/escape",
+                "v0.2026.11.12.00.30.tinywarp_02",
+            ] {
+                assert!(
+                    matches!(
+                        state.should_update(make_version_info(version, false), "rejected".into()),
+                        UpdateReady::No
+                    ),
+                    "{version}"
+                );
+            }
+            ChannelState::set_app_version(Some("v0.1.0-dev.1"));
+            assert!(matches!(
+                state.should_update(make_version_info("v0.1.0", false), "stable".into()),
+                UpdateReady::CanDownload { .. }
+            ));
+            ChannelState::set_app_version(Some("invalid"));
+            assert!(matches!(
+                state.should_update(make_version_info("v0.1.0", false), "bad-current".into()),
+                UpdateReady::No
+            ));
         });
     });
 }

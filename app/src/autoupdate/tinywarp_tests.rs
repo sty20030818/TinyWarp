@@ -2,7 +2,7 @@ use super::*;
 
 fn valid() -> LocalRelease {
     LocalRelease {
-        version: "v0.2026.11.11.09.00.tinywarp_01".into(),
+        version: "v0.1.0-dev.1".into(),
         sha256: "a".repeat(64),
         architecture: std::env::consts::ARCH.into(),
     }
@@ -66,4 +66,20 @@ fn archive_checksum_covers_file_contents() {
         sha256(file.path()).unwrap(),
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     );
+}
+
+#[test]
+fn retired_local_inbox_is_ignored_but_invalid_new_releases_fail() {
+    let mut release = valid();
+    release.version = "v0.2026.11.12.00.30.tinywarp_02".into();
+    let old = serde_json::to_vec(&release).unwrap();
+    assert!(decode_release(old.as_slice()).unwrap().is_none());
+    release.version = "v0.1.0".into();
+    assert!(
+        decode_release(serde_json::to_vec(&release).unwrap().as_slice())
+            .unwrap()
+            .is_some()
+    );
+    release.version = "v0.01.0".into();
+    assert!(decode_release(serde_json::to_vec(&release).unwrap().as_slice()).is_err());
 }

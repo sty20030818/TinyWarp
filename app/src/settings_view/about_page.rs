@@ -61,7 +61,7 @@ impl SettingsWidget for AboutPageWidget {
         &self,
         _view: &AboutPageView,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder();
@@ -74,8 +74,31 @@ impl SettingsWidget for AboutPageWidget {
 
         let version = ChannelState::app_version().unwrap_or("v#.##.###");
 
+        let is_local = crate::local_terminal::is_enabled(app);
+        let display_version = version.to_owned();
+        #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+        let display_version = if is_local {
+            crate::tinywarp_version::display_label(version)
+        } else {
+            display_version
+        };
+        let branding = if is_local {
+            ui_builder.span("TinyWarp").build().finish()
+        } else {
+            ConstrainedBox::new(
+                Image::new(
+                    AssetSource::Bundled { path: image_path },
+                    CacheOption::BySize,
+                )
+                .finish(),
+            )
+            .with_max_height(100.)
+            .with_max_width(350.)
+            .finish()
+        };
+
         let version_text = ui_builder
-            .span(version.to_string())
+            .span(display_version)
             .with_soft_wrap()
             .build()
             .with_margin_top(16.)
@@ -103,18 +126,7 @@ impl SettingsWidget for AboutPageWidget {
         Align::new(
             Flex::column()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    ConstrainedBox::new(
-                        Image::new(
-                            AssetSource::Bundled { path: image_path },
-                            CacheOption::BySize,
-                        )
-                        .finish(),
-                    )
-                    .with_max_height(100.)
-                    .with_max_width(350.)
-                    .finish(),
-                )
+                .with_child(branding)
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder

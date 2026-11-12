@@ -85,7 +85,9 @@ CARGO_TARGET_DIR="$PWD/.note/candidates/H1" CARGO_BUNDLE_SKIP_BUILD=1 \
 
 ## 日常开发与快速验证
 
-用户已进一步明确：固定同一个 Warp Preview 窗口，每轮可在该窗口中新开终端标签／会话，不需要复用旧 shell 或 TTY，也不要每次新开窗口。先定位现有构建窗口，再用“New Terminal Tab”创建独立会话；当前正在执行的构建继续完成，不因会话偏好调整而重启。激活 Preview 后先等待窗口恢复，不能把暂时读不到 AX 窗口当作窗口不存在。仅在确认原窗口已关闭时新建窗口；目标不明确时先核对，不向其他项目缓冲输入。`.note/tinywarp-build-session.json` 只记录本机定位信息和当前任务进程，不将旧 PID／TTY 作为后续构建的硬性要求，也不提交或更改 Preview 设置。
+用户最新约定：以后在日常 TinyWarp 的现有窗口中新开终端标签／会话构建，不再使用 Warp Preview；不需要复用旧 shell 或 TTY，也不要每次新开窗口。先确认目标应用与窗口，再通过“文件 → 新建终端标签页”创建独立会话；输入构建命令前确认焦点仍属于 TinyWarp。已有任务继续运行，不覆盖正在运行的 `.app`。窗口或焦点不明确时停止输入并核对，不向其他项目缓冲输入。早期阶段记录中的 Preview 构建仅代表当时执行方式，不是当前操作约定。
+
+TinyWarp 的新版本及 macOS 字段由根目录 `tinywarp-version.json` 管理，具体约束和日期版切换见 [版本规则](tinywarp-versioning.md)。默认 `script/run` 的 OSS 打包入口从该文件派生版本；本地开发时设置 `TINYWARP_DEV_SEQUENCE=1` 可得到 `v0.1.0-dev.1`。直接调用 Cargo 时，先显式 `export GIT_RELEASE_TAG="$(./script/tinywarp-version --development 1)"`，并将同一环境传给编译和打包。
 
 改主题、字体、设置或快捷键时，已有文件监听可重载相应配置；修改 Rust 界面或程序逻辑仍需编译并重启，没有现成的源码热替换流程。不要为普通逻辑修复默认执行完整正式 release。
 

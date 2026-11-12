@@ -5,23 +5,21 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import plistlib
-import re
 import shutil
 import subprocess
 import tempfile
+
+from tinywarp_version import bundle_version
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('app', type=Path)
 parser.add_argument('--data-dir', type=Path, required=True, help='目标实例的独立 Application Support 目录')
 args = parser.parse_args()
 app = args.app.resolve(strict=True)
-info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
-version = info.get('WarpVersion', '')
-if not re.fullmatch(r'v\d+\.\d{4}\.\d{2}\.\d{2}\.\d{2}\.\d{2}\.tinywarp_\d+', version):
-    parser.error('应用没有有效 WarpVersion；请用 GIT_RELEASE_TAG 构建和打包')
-metadata = json.loads((app / 'Contents/Resources/bundled/metadata/version.json').read_text())
-assert metadata['warp_version'] == version, '资源版本不一致'
+try:
+    version = bundle_version(app)
+except ValueError as error:
+    parser.error(str(error))
 subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], check=True)
 root = args.data_dir.resolve() / 'tinywarp-updates'
 root.mkdir(mode=0o700, parents=True, exist_ok=True)

@@ -6,7 +6,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result, ensure};
-use channel_versions::{ParsedVersion, VersionInfo};
+use channel_versions::VersionInfo;
 use command::blocking::Command;
 use instant::Instant;
 use serde::{Deserialize, Serialize};
@@ -68,20 +68,20 @@ fn release() -> Result<Option<LocalRelease>> {
     trusted_path(&inbox.join("latest.json"))?;
     let metadata = fs::metadata(inbox.join("latest.json"))?;
     ensure!(metadata.len() <= 4096, "更新清单过大");
-    let release: LocalRelease = serde_json::from_reader(File::open(inbox.join("latest.json"))?)?;
+    decode_release(File::open(inbox.join("latest.json"))?)
+}
+
+fn decode_release(reader: impl std::io::Read) -> Result<Option<LocalRelease>> {
+    let release: LocalRelease = serde_json::from_reader(reader)?;
+    if crate::tinywarp_version::is_legacy(&release.version) {
+        return Ok(None);
+    }
     validate_release(&release)?;
     Ok(Some(release))
 }
 
 fn validate_release(release: &LocalRelease) -> Result<()> {
-    ParsedVersion::try_from(release.version.as_str())?;
-    ensure!(
-        release
-            .version
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"._".contains(&b)),
-        "无效版本号"
-    );
+    crate::tinywarp_version::parse(&release.version)?;
     ensure!(
         release.architecture == std::env::consts::ARCH,
         "更新包架构不匹配"
@@ -96,12 +96,7 @@ fn validate_release(release: &LocalRelease) -> Result<()> {
 pub(super) async fn fetch_version() -> Result<VersionInfo> {
     let current = ChannelState::app_version().context("开发构建未设置 GIT_RELEASE_TAG")?;
     let release = match release()? {
-        Some(local)
-            if ParsedVersion::try_from(local.version.as_str())?
-                > ParsedVersion::try_from(current)? =>
-        {
-            Some(local)
-        }
+        Some(local) if crate::tinywarp_version::newer(&local.version, current)? => Some(local),
         _ => remote::fetch_release().await?,
     };
     let version = release

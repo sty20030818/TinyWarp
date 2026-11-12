@@ -6,7 +6,7 @@ use super::*;
 use crate::autoupdate::tinywarp::checked;
 
 fn payload() -> String {
-    serde_json::json!({"version":"v0.2026.11.12.00.00.tinywarp_01","architecture":std::env::consts::ARCH,"sha256":"a".repeat(64)}).to_string()
+    serde_json::json!({"version":"v0.1.0","architecture":std::env::consts::ARCH,"sha256":"a".repeat(64)}).to_string()
 }
 
 fn key(directory: &Path, name: &str) -> (std::path::PathBuf, String) {
@@ -47,9 +47,11 @@ fn signed_manifest_roundtrip_and_cached_envelope_preserve_exact_payload() {
     let restored: SignedRelease = serde_json::from_slice(&encoded).unwrap();
     let release = authenticated_release(&restored, &public).unwrap();
     assert_eq!(release.sha256, "a".repeat(64));
-    assert!(archive_url(&release).unwrap().starts_with(&format!(
-        "{RELEASES}/download/v0.2026.11.12.00.00.tinywarp_01/"
-    )));
+    assert!(
+        archive_url(&release)
+            .unwrap()
+            .starts_with(&format!("{RELEASES}/download/v0.1.0/"))
+    );
 }
 
 #[test]

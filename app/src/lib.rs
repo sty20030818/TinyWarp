@@ -10,6 +10,8 @@ mod app_state;
 mod auth;
 mod autoupdate;
 #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+mod tinywarp_version;
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
 pub use autoupdate::run_tinywarp_update_helper;
 mod banner;
 mod billing;

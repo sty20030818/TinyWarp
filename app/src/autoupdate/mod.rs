@@ -322,6 +322,18 @@ impl AutoupdateState {
             }
         };
 
+        #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+        if ChannelState::channel() == Channel::Oss {
+            match crate::tinywarp_version::newer(&version.version, current_version) {
+                Ok(true) => {}
+                Ok(false) => return UpdateReady::No,
+                Err(error) => {
+                    log::warn!("TinyWarp 版本不可比较，更新未准备: {error:#}");
+                    return UpdateReady::No;
+                }
+            }
+        }
+
         // In case the version didn't update, but the soft cutoff did,
         // let's make sure that's reflected in the last downloaded update that we continue to use.
         if let Some(download) = self.downloaded_update.as_mut() {
@@ -385,6 +397,10 @@ impl AutoupdateState {
         new_version: &VersionInfo,
         current_version: &str,
     ) -> Result<bool> {
+        #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+        if ChannelState::channel() == Channel::Oss {
+            return crate::tinywarp_version::newer(current_version, &new_version.version);
+        }
         let current_version = ParsedVersion::try_from(current_version)?;
         let new_version = ParsedVersion::try_from(new_version.version.as_str())?;
         Ok(current_version > new_version)
@@ -1198,6 +1214,14 @@ impl Entity for RelaunchModel {
 impl SingletonEntity for RelaunchModel {}
 
 pub fn is_incoming_version_past_current(version: Option<&str>) -> bool {
+    #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+    if ChannelState::channel() == Channel::Oss {
+        return version
+            .zip(ChannelState::app_version())
+            .is_some_and(|(incoming, current)| {
+                crate::tinywarp_version::newer(incoming, current).unwrap_or(false)
+            });
+    }
     let installed_version = get_curr_parsed_version();
 
     let Ok(incoming_version): Result<ParsedVersion> = version

@@ -21,6 +21,16 @@ cd "${REPO_ROOT}"
 : "${WARP_CHANNEL:?WARP_CHANNEL must be set (invoke via ./script/run)}"
 : "${FEATURES:?FEATURES must be set (invoke via ./script/run)}"
 
+if [[ "$WARP_CHANNEL" == "oss" && ",$FEATURES," == *,tinywarp_gui,* ]]; then
+    if [[ -n "$GIT_RELEASE_TAG" ]]; then
+        ./script/tinywarp-version --check-tag "$GIT_RELEASE_TAG" > /dev/null
+    elif [[ -n "$TINYWARP_DEV_SEQUENCE" ]]; then
+        export GIT_RELEASE_TAG="$(./script/tinywarp-version --development "$TINYWARP_DEV_SEQUENCE")"
+    else
+        export GIT_RELEASE_TAG="$(./script/tinywarp-version)"
+    fi
+fi
+
 # Resolve Cargo's actual target directory rather than assuming ./target. This
 # honors a shared CARGO_TARGET_DIR / build.target-dir (e.g. set in
 # ~/.cargo/config.toml), which is where `cargo bundle` writes the .app bundle.
