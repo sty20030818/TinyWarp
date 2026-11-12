@@ -242,9 +242,7 @@ use crate::auth::auth_override_warning_modal::{
 };
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewEvent, AuthViewVariant};
-use crate::autoupdate::{
-    AutoupdateState, AutoupdateStateEvent, RelaunchModel, is_incoming_version_past_current,
-};
+use crate::autoupdate::{AutoupdateState, RelaunchModel, is_incoming_version_past_current};
 use crate::banner::BannerState;
 use crate::billing::shared_objects_creation_denied_modal::{
     SharedObjectsCreationDeniedModal, SharedObjectsCreationDeniedModalEvent,
@@ -3206,10 +3204,28 @@ impl Workspace {
         ctx.observe(&tips_completed, Workspace::on_tips_model_changed);
 
         let autoupdate_handle = AutoupdateState::handle(ctx);
-        ctx.subscribe_to_model(&autoupdate_handle, |_view, _handle, evt, ctx| {
-            if let AutoupdateStateEvent::UpdateAvailable = evt {
-                ctx.notify();
+        ctx.observe(&autoupdate_handle, |view, _, ctx| {
+            if view.is_user_menu_open {
+                let items = view.user_menu_items(ctx);
+                view.user_menu.update(ctx, |menu, ctx| {
+                    let selected = menu.selected_item();
+                    let selected_index = selected.as_ref().and_then(|selected| {
+                        items.iter().position(|item| {
+                            item.selectable()
+                                && matches!((item, selected),
+                                    (MenuItem::Item(fields), MenuItem::Item(selected_fields))
+                                        if fields.label() == selected_fields.label())
+                        })
+                    });
+                    menu.set_items(items, ctx);
+                    if let Some(index) = selected_index {
+                        menu.set_selected_by_index(index, ctx);
+                    } else if selected.is_some() {
+                        menu.select_first(ctx);
+                    }
+                });
             }
+            ctx.notify();
         });
 
         ctx.subscribe_to_model(
@@ -10076,7 +10092,7 @@ impl Workspace {
             );
             let label = match stage {
                 AutoupdateStage::CheckingForUpdate => "正在检查更新…",
-                AutoupdateStage::DownloadingUpdate => "正在准备更新…",
+                AutoupdateStage::DownloadingUpdate => "正在下载并校验更新…",
                 AutoupdateStage::Updating { .. } => "正在重启更新…",
                 _ => "检查 TinyWarp 更新",
             };
@@ -10088,7 +10104,7 @@ impl Workspace {
             );
             if stage.ready_for_update() {
                 items.push(
-                    MenuItemFields::new("重启更新 TinyWarp")
+                    MenuItemFields::new("更新已就绪，重启 TinyWarp")
                         .with_on_select_action(WorkspaceAction::ApplyUpdate)
                         .into_item(),
                 );

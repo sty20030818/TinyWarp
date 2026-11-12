@@ -624,6 +624,15 @@ impl AutoupdateState {
         ctx.notify();
     }
 
+    #[cfg(all(test, feature = "tinywarp_gui", target_os = "macos"))]
+    pub(crate) fn set_stage_for_test(
+        &mut self,
+        stage: AutoupdateStage,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.set_autoupdate_stage(stage, ctx);
+    }
+
     /// Record that we did not successfully relaunch to update.
     fn set_unable_to_launch_state(
         &mut self,

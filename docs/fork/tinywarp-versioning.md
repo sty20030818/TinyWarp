@@ -66,3 +66,8 @@ script/tinywarp-release /绝对路径/TinyWarp.app --output /不存在的发布�
 用户已实际查看关于页并反馈恢复原版品牌样式；命令输入尚未收到明确确认，自动回读不替代人工验收。正式 `v0.1.0（构建 2）` 已完成独立构建、签名和用户确认的公开发布，客户端公网升级和数据保留回读已通过；已发现展开菜单的状态刷新遗留，建议下一补丁修正。发布详情见 [U3 首次公开发布记录](u3-public-updates.md)。
 
 规则参考：[Semantic Versioning](https://semver.org/lang/zh-CN/)、[Apple 产品版本字段](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring)、[Apple 构建版本字段](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleversion)。
+
+
+## 0.1.1 本地修正
+
+菜单刷新遗留已在 `0.1.1（构建 3）` 修正并形成独立本地候选。回归、构建、隔离验收和鼠标界面验收缺口见 [0.1.1 交付记录](0.1.1-update-menu.md)。本阶段未推送或发布，日常包仍为 `0.1.0（构建 2）`；以上 0.1.0 公开资产及历史升级记录保持原状。

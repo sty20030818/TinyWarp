@@ -52,7 +52,8 @@ class TinyWarpVersionTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "darwin", "需要 macOS plutil")
     def test_tinywarp_plist_and_original_warp_channel_are_separate(self):
-        for tag, features, expected in [("v0.1.0-dev.1", "tinywarp_gui", "0.1.0"), ("v0.2026.11.12.00.30.stable_02", "gui", "0.2026.11.12.00.30.02")]:
+        version = load_config()["version"]
+        for tag, features, expected in [(f"v{version}-dev.1", "tinywarp_gui", version), ("v0.2026.11.12.00.30.stable_02", "gui", "0.2026.11.12.00.30.02")]:
             with tempfile.TemporaryDirectory() as temporary:
                 app, path = self.bundle(temporary, tag)
                 value = plistlib.loads(path.read_bytes())

@@ -6115,3 +6115,196 @@ fn local_terminal_busy_or_unversioned_menu_cannot_restart_update() {
         Workspace::local_terminal_menu_items(&AutoupdateStage::NoUpdateAvailable, None, true);
     assert!(items.iter().all(|item| !matches!(item, MenuItem::Item(fields) if matches!(fields.on_select_action(), Some(WorkspaceAction::CheckForUpdate | WorkspaceAction::ApplyUpdate)))));
 }
+
+#[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
+#[test]
+#[serial_test::serial]
+fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
+    use warp_core::AppId;
+    use warp_core::channel::{AutoupdateConfig, ChannelConfig, OzConfig, WarpServerConfig};
+
+    ChannelState::set(ChannelState::new(
+        Channel::Oss,
+        ChannelConfig {
+            app_id: AppId::new("dev", "warp", "WarpOss"),
+            logfile_name: "".into(),
+            server_config: WarpServerConfig::production(),
+            oz_config: OzConfig::production(),
+            telemetry_config: None,
+            autoupdate_config: Some(AutoupdateConfig {
+                releases_base_url: "".into(),
+                show_autoupdate_menu_items: true,
+            }),
+            crash_reporting_config: None,
+            mcp_static_config: None,
+        },
+    ));
+    ChannelState::set_app_version(Some("v0.1.1"));
+    let _autoupdate = FeatureFlag::Autoupdate.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let workspace = mock_workspace(&mut app);
+        let menu = workspace.update(&mut app, |workspace, ctx| {
+            workspace.toggle_user_menu(ctx);
+            workspace.user_menu.clone()
+        });
+        menu.update(&mut app, |menu, ctx| {
+            assert!(menu.set_selected_by_name("设置", ctx));
+        });
+        let state = app.read(AutoupdateState::handle);
+        let version = serde_json::from_value::<::channel_versions::VersionInfo>(
+            serde_json::json!({"version":"v0.1.2"}),
+        )
+        .unwrap();
+        let ready = AutoupdateStage::UpdateReady {
+            new_version: version.clone(),
+            update_id: "live-menu-test".into(),
+        };
+
+        for (stage, label, busy, can_restart) in [
+            (
+                AutoupdateStage::CheckingForUpdate,
+                "正在检查更新…",
+                true,
+                false,
+            ),
+            (
+                AutoupdateStage::DownloadingUpdate,
+                "正在下载并校验更新…",
+                true,
+                false,
+            ),
+            (ready.clone(), "检查 TinyWarp 更新", false, true),
+            (
+                AutoupdateStage::CheckingForUpdate,
+                "正在检查更新…",
+                true,
+                false,
+            ),
+            (ready.clone(), "检查 TinyWarp 更新", false, true),
+            (
+                AutoupdateStage::NoUpdateAvailable,
+                "检查 TinyWarp 更新",
+                false,
+                false,
+            ),
+            (
+                AutoupdateStage::CheckingForUpdate,
+                "正在检查更新…",
+                true,
+                false,
+            ),
+            (
+                AutoupdateStage::DownloadingUpdate,
+                "正在下载并校验更新…",
+                true,
+                false,
+            ),
+            (
+                AutoupdateStage::NoUpdateAvailable,
+                "检查 TinyWarp 更新",
+                false,
+                false,
+            ),
+            (
+                AutoupdateStage::UnableToUpdateToNewVersion {
+                    new_version: version.clone(),
+                },
+                "检查 TinyWarp 更新",
+                false,
+                false,
+            ),
+            (
+                AutoupdateStage::UnableToLaunchNewVersion {
+                    new_version: version.clone(),
+                },
+                "检查 TinyWarp 更新",
+                false,
+                false,
+            ),
+            (
+                AutoupdateStage::UpdatedPendingRestart {
+                    new_version: version,
+                },
+                "检查 TinyWarp 更新",
+                false,
+                true,
+            ),
+            (ready.clone(), "检查 TinyWarp 更新", false, true),
+        ] {
+            state.update(&mut app, |state, ctx| state.set_stage_for_test(stage, ctx));
+            workspace.update(&mut app, |workspace, ctx| {
+                assert!(workspace.is_user_menu_open);
+                assert!(ctx.check_view_focused(ctx.window_id(), &menu.id()));
+            });
+            menu.read(&app, |menu, _| {
+                let first = menu.items()[0].fields().unwrap();
+                assert_eq!(first.label(), label);
+                assert_eq!(first.is_disabled(), busy);
+                assert_eq!(
+                    menu.items().iter().any(|item| matches!(
+                        item.item_on_select_action(),
+                        Some(WorkspaceAction::ApplyUpdate)
+                    )),
+                    can_restart
+                );
+                assert_eq!(
+                    menu.selected_item().unwrap().fields().unwrap().label(),
+                    "设置"
+                );
+            });
+        }
+
+        app.update(autoupdate::initiate_relaunch_for_update);
+        menu.read(&app, |menu, _| {
+            assert_eq!(menu.items()[0].fields().unwrap().label(), "正在重启更新…");
+            assert!(!menu.items().iter().any(|item| matches!(
+                item.item_on_select_action(),
+                Some(WorkspaceAction::ApplyUpdate)
+            )));
+        });
+        app.update(autoupdate::cancel_relaunch);
+        menu.read(&app, |menu, _| {
+            assert!(menu.items().iter().any(|item| matches!(
+                item.item_on_select_action(),
+                Some(WorkspaceAction::ApplyUpdate)
+            )));
+        });
+
+        menu.update(&mut app, |menu, ctx| {
+            assert!(menu.set_selected_by_name("检查 TinyWarp 更新", ctx));
+        });
+        state.update(&mut app, |state, ctx| {
+            state.set_stage_for_test(AutoupdateStage::CheckingForUpdate, ctx);
+        });
+        menu.read(&app, |menu, _| {
+            assert!(matches!(
+                menu.selected_item().unwrap().item_on_select_action(),
+                Some(WorkspaceAction::ShowSettings)
+            ));
+        });
+        menu.update(&mut app, |menu, ctx| {
+            menu.select_next(ctx);
+            assert!(matches!(
+                menu.selected_item().unwrap().item_on_select_action(),
+                Some(WorkspaceAction::ToggleKeybindingsPage)
+            ));
+            menu.handle_action(&MenuAction::Close(false), ctx);
+        });
+        state.update(&mut app, |state, ctx| state.set_stage_for_test(ready, ctx));
+        workspace.update(&mut app, |workspace, ctx| {
+            assert!(!workspace.is_user_menu_open);
+            workspace.toggle_user_menu(ctx);
+        });
+        menu.read(&app, |menu, _| {
+            assert!(menu.items().iter().any(|item| matches!(
+                item.item_on_select_action(),
+                Some(WorkspaceAction::ApplyUpdate)
+            )));
+        });
+    });
+    ChannelState::set_app_version(None);
+    ChannelState::set(ChannelState::init());
+}
