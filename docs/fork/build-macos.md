@@ -85,6 +85,8 @@ CARGO_TARGET_DIR="$PWD/.note/candidates/H1" CARGO_BUNDLE_SKIP_BUILD=1 \
 
 ## 日常开发与快速验证
 
+当前本地仓库位于 `/Users/stonefish/Desktop/TinyWarp`。本机忽略目录内的 `.note/l2-settings-fix/environment.sh` 按脚本自身位置定位仓库，可从其他目录加载；无需依赖旧目录名。`target` 中的依赖与增量缓存原位保留，旧构建记录含原绝对路径，改名后的首次编译可能重建部分缓存。历史日志、备份与已发布版本保留原始记录。
+
 用户最新约定：以后在日常 TinyWarp 的现有窗口中新开终端标签／会话构建，不再使用 Warp Preview；不需要复用旧 shell 或 TTY，也不要每次新开窗口。先确认目标应用与窗口，再通过“文件 → 新建终端标签页”创建独立会话；输入构建命令前确认焦点仍属于 TinyWarp。已有任务继续运行，不覆盖正在运行的 `.app`。窗口或焦点不明确时停止输入并核对，不向其他项目缓冲输入。早期阶段记录中的 Preview 构建仅代表当时执行方式，不是当前操作约定。
 
 TinyWarp 的新版本及 macOS 字段由根目录 `tinywarp-version.json` 管理，具体约束和日期版切换见 [版本规则](tinywarp-versioning.md)。默认 `script/run` 的 OSS 打包入口从该文件派生版本；本地开发时设置 `TINYWARP_DEV_SEQUENCE=1` 可得到 `v0.1.0-dev.1`。直接调用 Cargo 时，先显式 `export GIT_RELEASE_TAG="$(./script/tinywarp-version --development 1)"`，并将同一环境传给编译和打包。

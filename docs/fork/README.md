@@ -14,7 +14,7 @@ SSH 暂时保留。用户认为也可以移除，但如果对性能影响不大�
 
 ## 源码与构建基线
 
-- 本地源码：`/Users/stonefish/Desktop/Warp`
+- 本地源码：`/Users/stonefish/Desktop/TinyWarp`（2026-11-12 从 `Warp` 改名；历史交付记录保留当时路径）
 - 个人 fork：<https://github.com/sty20030818/warp>
 - upstream：<https://github.com/warpdotdev/warp>
 - 起始提交：`abb3fe33e004f7b1de540fecd6e3eec20dbc1883`
