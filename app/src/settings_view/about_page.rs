@@ -82,20 +82,6 @@ impl SettingsWidget for AboutPageWidget {
         } else {
             display_version
         };
-        let branding = if is_local {
-            ui_builder.span("TinyWarp").build().finish()
-        } else {
-            ConstrainedBox::new(
-                Image::new(
-                    AssetSource::Bundled { path: image_path },
-                    CacheOption::BySize,
-                )
-                .finish(),
-            )
-            .with_max_height(100.)
-            .with_max_width(350.)
-            .finish()
-        };
 
         let version_text = ui_builder
             .span(display_version)
@@ -126,7 +112,18 @@ impl SettingsWidget for AboutPageWidget {
         Align::new(
             Flex::column()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(branding)
+                .with_child(
+                    ConstrainedBox::new(
+                        Image::new(
+                            AssetSource::Bundled { path: image_path },
+                            CacheOption::BySize,
+                        )
+                        .finish(),
+                    )
+                    .with_max_height(100.)
+                    .with_max_width(350.)
+                    .finish(),
+                )
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder
