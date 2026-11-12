@@ -43,6 +43,73 @@ fn test_menu_item_selectable() {
 }
 
 #[test]
+fn initial_keyboard_navigation_skips_disabled_edges() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let (_, menu) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+            let mut menu = Menu::<TestAction>::new();
+            menu.set_items(
+                [
+                    MenuItemFields::new("disabled first")
+                        .with_disabled(true)
+                        .into_item(),
+                    MenuItemFields::new("first enabled")
+                        .with_on_select_action(TestAction::Root)
+                        .into_item(),
+                    MenuItemFields::new("last enabled")
+                        .with_on_select_action(TestAction::ChildOne)
+                        .into_item(),
+                    MenuItemFields::new("disabled last")
+                        .with_disabled(true)
+                        .into_item(),
+                ],
+                ctx,
+            );
+            menu
+        });
+        menu.update(&mut app, |menu, ctx| {
+            menu.select_next(ctx);
+            assert_eq!(
+                menu.menu.selected_action_for_enter(ctx),
+                Some(TestAction::Root)
+            );
+            menu.reset_selection(ctx);
+            menu.select_previous(ctx);
+            assert_eq!(
+                menu.menu.selected_action_for_enter(ctx),
+                Some(TestAction::ChildOne)
+            );
+        });
+    });
+}
+
+#[test]
+fn disabled_menu_cannot_select_or_activate_an_action() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let (_, menu) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+            let mut menu = Menu::<TestAction>::new();
+            menu.set_items(
+                [MenuItemFields::new("busy")
+                    .with_disabled(true)
+                    .with_on_select_action(TestAction::Root)
+                    .into_item()],
+                ctx,
+            );
+            menu
+        });
+        menu.update(&mut app, |menu, ctx| {
+            menu.select_next(ctx);
+            assert!(menu.selected_item().is_none());
+            menu.select_previous(ctx);
+            assert!(menu.selected_item().is_none());
+            menu.set_selected_by_index(0, ctx);
+            assert_eq!(menu.menu.selected_action_for_enter(ctx), None);
+        });
+    });
+}
+
+#[test]
 fn test_next_and_previous_indexes() {
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| Appearance::mock());

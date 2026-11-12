@@ -6070,6 +6070,15 @@ fn local_terminal_ready_menu_exposes_restart_and_excludes_account_and_cloud_acti
     };
     let items =
         Workspace::local_terminal_menu_items(&state, Some("v0.2026.11.11.09.00.tinywarp_02"), true);
+    assert_eq!(items.len(), 5);
+    assert_eq!(items[0].fields().unwrap().label(), "设置");
+    assert_eq!(items[1].fields().unwrap().label(), "键盘快捷键");
+    assert!(items[2].is_separator());
+    assert_eq!(items[3].fields().unwrap().label(), "重启并更新");
+    assert!(matches!(
+        items[3].item_on_select_action(),
+        Some(WorkspaceAction::ApplyUpdate)
+    ));
     let actions: Vec<_> = items
         .iter()
         .filter_map(|item| match item {
@@ -6166,53 +6175,43 @@ fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
         for (stage, label, busy, can_restart) in [
             (
                 AutoupdateStage::CheckingForUpdate,
-                "正在检查更新…",
+                "检查更新中…",
                 true,
                 false,
             ),
             (
                 AutoupdateStage::DownloadingUpdate,
-                "正在下载并校验更新…",
+                "下载并校验中…",
                 true,
                 false,
             ),
-            (ready.clone(), "检查 TinyWarp 更新", false, true),
+            (ready.clone(), "重启并更新", false, true),
             (
                 AutoupdateStage::CheckingForUpdate,
-                "正在检查更新…",
+                "检查更新中…",
                 true,
                 false,
             ),
-            (ready.clone(), "检查 TinyWarp 更新", false, true),
-            (
-                AutoupdateStage::NoUpdateAvailable,
-                "检查 TinyWarp 更新",
-                false,
-                false,
-            ),
+            (ready.clone(), "重启并更新", false, true),
+            (AutoupdateStage::NoUpdateAvailable, "检查更新", false, false),
             (
                 AutoupdateStage::CheckingForUpdate,
-                "正在检查更新…",
+                "检查更新中…",
                 true,
                 false,
             ),
             (
                 AutoupdateStage::DownloadingUpdate,
-                "正在下载并校验更新…",
+                "下载并校验中…",
                 true,
                 false,
             ),
-            (
-                AutoupdateStage::NoUpdateAvailable,
-                "检查 TinyWarp 更新",
-                false,
-                false,
-            ),
+            (AutoupdateStage::NoUpdateAvailable, "检查更新", false, false),
             (
                 AutoupdateStage::UnableToUpdateToNewVersion {
                     new_version: version.clone(),
                 },
-                "检查 TinyWarp 更新",
+                "检查更新",
                 false,
                 false,
             ),
@@ -6220,7 +6219,7 @@ fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
                 AutoupdateStage::UnableToLaunchNewVersion {
                     new_version: version.clone(),
                 },
-                "检查 TinyWarp 更新",
+                "检查更新",
                 false,
                 false,
             ),
@@ -6228,11 +6227,11 @@ fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
                 AutoupdateStage::UpdatedPendingRestart {
                     new_version: version,
                 },
-                "检查 TinyWarp 更新",
+                "重启并更新",
                 false,
                 true,
             ),
-            (ready.clone(), "检查 TinyWarp 更新", false, true),
+            (ready.clone(), "重启并更新", false, true),
         ] {
             state.update(&mut app, |state, ctx| state.set_stage_for_test(stage, ctx));
             workspace.update(&mut app, |workspace, ctx| {
@@ -6240,9 +6239,13 @@ fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
                 assert!(ctx.check_view_focused(ctx.window_id(), &menu.id()));
             });
             menu.read(&app, |menu, _| {
-                let first = menu.items()[0].fields().unwrap();
-                assert_eq!(first.label(), label);
-                assert_eq!(first.is_disabled(), busy);
+                assert_eq!(menu.items_len(), 5, "更新各阶段保持相同的菜单行数");
+                assert_eq!(menu.items()[0].fields().unwrap().label(), "设置");
+                assert_eq!(menu.items()[1].fields().unwrap().label(), "键盘快捷键");
+                assert!(menu.items()[2].is_separator());
+                let update = menu.items()[3].fields().unwrap();
+                assert_eq!(update.label(), label);
+                assert_eq!(update.is_disabled(), busy);
                 assert_eq!(
                     menu.items().iter().any(|item| matches!(
                         item.item_on_select_action(),
@@ -6259,7 +6262,7 @@ fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
 
         app.update(autoupdate::initiate_relaunch_for_update);
         menu.read(&app, |menu, _| {
-            assert_eq!(menu.items()[0].fields().unwrap().label(), "正在重启更新…");
+            assert_eq!(menu.items()[3].fields().unwrap().label(), "重启更新中…");
             assert!(!menu.items().iter().any(|item| matches!(
                 item.item_on_select_action(),
                 Some(WorkspaceAction::ApplyUpdate)
@@ -6274,7 +6277,7 @@ fn local_terminal_open_menu_tracks_update_notifications_without_reopening() {
         });
 
         menu.update(&mut app, |menu, ctx| {
-            assert!(menu.set_selected_by_name("检查 TinyWarp 更新", ctx));
+            assert!(menu.set_selected_by_name("重启并更新", ctx));
         });
         state.update(&mut app, |state, ctx| {
             state.set_stage_for_test(AutoupdateStage::CheckingForUpdate, ctx);

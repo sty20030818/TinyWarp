@@ -221,6 +221,17 @@ pub fn test_local_terminal_settings_open_once_and_return_to_terminal() -> Builde
     let (_, content_widget_id) =
         warp::settings_view::settings_widget_deeplink_target("global_hotkey")
             .expect("沿用 Features 本地设置控件的既有稳定映射");
+    let menu_step = TestStep::new("展开本地应用菜单").with_action(|app, window_id, _| {
+        warp::integration_testing::view_getters::workspace_view(app, window_id)
+            .update(app, |workspace, ctx| {
+                workspace.handle_action(&WorkspaceAction::ToggleUserMenu, ctx)
+            });
+    });
+    let menu_step = if std::env::var_os("WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS").is_some() {
+        menu_step.with_take_screenshot("application-menu.png")
+    } else {
+        menu_step
+    };
     Builder::new()
         .use_tmp_filesystem_for_test_root_directory()
         .with_setup(|_| configure_startup(AuthFixture::Empty))
@@ -229,16 +240,10 @@ pub fn test_local_terminal_settings_open_once_and_return_to_terminal() -> Builde
             TestStep::new("无账号终端首启保持独立测试身份").add_assertion(assert_startup_state),
         )
         .with_step(assert_settings_widget_rendered(content_widget_id, false))
+        .with_step(menu_step)
         .with_step(
-            TestStep::new("沿齿轮 ShowSettings 路径打开真实本地设置")
-                .with_action(|app, window_id, _| {
-                    warp::integration_testing::view_getters::workspace_view(app, window_id).update(
-                        app,
-                        |workspace, ctx| {
-                            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx)
-                        },
-                    );
-                })
+            TestStep::new("从菜单用键盘打开真实本地设置")
+                .with_keystrokes(&["down", "enter"])
                 .add_assertion(assert_local_settings_pane_is_open_once)
                 .add_named_assertion("设置标签获得焦点", assert_focused_tab_index(1))
                 .add_assertion(assert_startup_state),

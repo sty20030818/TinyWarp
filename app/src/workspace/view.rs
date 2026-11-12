@@ -10082,48 +10082,49 @@ impl Workspace {
         version: Option<&str>,
         can_update: bool,
     ) -> Vec<MenuItem<WorkspaceAction>> {
-        let mut items = Vec::new();
-        if can_update && version.is_some() {
-            let busy = matches!(
-                stage,
-                AutoupdateStage::CheckingForUpdate
-                    | AutoupdateStage::DownloadingUpdate
-                    | AutoupdateStage::Updating { .. }
-            );
-            let label = match stage {
-                AutoupdateStage::CheckingForUpdate => "正在检查更新…",
-                AutoupdateStage::DownloadingUpdate => "正在下载并校验更新…",
-                AutoupdateStage::Updating { .. } => "正在重启更新…",
-                _ => "检查 TinyWarp 更新",
-            };
-            items.push(
-                MenuItemFields::new(label)
-                    .with_disabled(busy)
-                    .with_on_select_action(WorkspaceAction::CheckForUpdate)
-                    .into_item(),
-            );
-            if stage.ready_for_update() {
-                items.push(
-                    MenuItemFields::new("更新已就绪，重启 TinyWarp")
-                        .with_on_select_action(WorkspaceAction::ApplyUpdate)
-                        .into_item(),
-                );
-            }
-        }
-        if !items.is_empty() {
-            items.push(MenuItem::Separator);
-        }
-        items.extend([
+        let mut items = vec![
             MenuItemFields::new("设置")
                 .with_on_select_action(WorkspaceAction::ShowSettings)
                 .into_item(),
             MenuItemFields::new("键盘快捷键")
                 .with_on_select_action(WorkspaceAction::ToggleKeybindingsPage)
                 .into_item(),
-        ]);
+        ];
+        let show_update = can_update && version.is_some();
+        if show_update || cfg!(not(target_family = "wasm")) {
+            items.push(MenuItem::Separator);
+        }
+        if show_update {
+            let (label, action, busy) = match stage {
+                AutoupdateStage::CheckingForUpdate => {
+                    ("检查更新中…", WorkspaceAction::CheckForUpdate, true)
+                }
+                AutoupdateStage::DownloadingUpdate => {
+                    ("下载并校验中…", WorkspaceAction::CheckForUpdate, true)
+                }
+                AutoupdateStage::Updating { .. } => {
+                    ("重启更新中…", WorkspaceAction::CheckForUpdate, true)
+                }
+                AutoupdateStage::UpdateReady { .. }
+                | AutoupdateStage::UpdatedPendingRestart { .. } => {
+                    ("重启并更新", WorkspaceAction::ApplyUpdate, false)
+                }
+                AutoupdateStage::NoUpdateAvailable
+                | AutoupdateStage::UnableToUpdateToNewVersion { .. }
+                | AutoupdateStage::UnableToLaunchNewVersion { .. } => {
+                    ("检查更新", WorkspaceAction::CheckForUpdate, false)
+                }
+            };
+            items.push(
+                MenuItemFields::new(label)
+                    .with_disabled(busy)
+                    .with_on_select_action(action)
+                    .into_item(),
+            );
+        }
         #[cfg(not(target_family = "wasm"))]
         items.push(
-            MenuItemFields::new("查看 TinyWarp 日志")
+            MenuItemFields::new("查看日志")
                 .with_on_select_action(WorkspaceAction::ViewLogs)
                 .into_item(),
         );

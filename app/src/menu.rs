@@ -1963,7 +1963,27 @@ impl<A: Action + Clone> SubMenu<A> {
                         0,
                     )
                 }
-                _ => (0, 0),
+                (SelectAction::Previous | SelectAction::Next, _, _) => {
+                    let row = if matches!(action, SelectAction::Previous) {
+                        self.items.iter().rposition(MenuItem::selectable)
+                    } else {
+                        self.items.iter().position(MenuItem::selectable)
+                    };
+                    let Some(row) = row else {
+                        self.selected_row_index = None;
+                        self.selected_item_index = None;
+                        self.hovered_row_index = None;
+                        return;
+                    };
+                    let item = if matches!(action, SelectAction::Previous) {
+                        self.items[row]
+                            .items_len()
+                            .map_or(0, |len| len.saturating_sub(1))
+                    } else {
+                        0
+                    };
+                    (row, item)
+                }
             };
 
         self.selected_row_index = Some(selected_row_index);
@@ -2056,7 +2076,11 @@ impl<A: Action + Clone> SubMenu<A> {
         let active_menu = self.active_menu_mut();
         let selected_row_index = active_menu.selected_row_index?;
         let selected_item_index = active_menu.selected_item_index.unwrap_or_default();
-        match active_menu.items.get_mut(selected_row_index)? {
+        match active_menu
+            .items
+            .get_mut(selected_row_index)
+            .filter(|item| item.selectable())?
+        {
             MenuItem::Item(fields) => fields.on_select_action.clone(),
             MenuItem::Separator => None,
             MenuItem::ItemsRow { items } => items
