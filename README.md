@@ -1,124 +1,60 @@
 # TinyWarp
 
-基于 Warp 公开 master 的个人终端 fork，先在 macOS 上完成简体中文界面，再逐步收敛为本地终端。
+基于 [Warp](https://github.com/warpdotdev/warp) 的独立终端 fork：保留命令分块、历史、补全、标签与分屏，提供中文界面，专注本地终端。
 
-- [项目范围与阶段记录](docs/fork/README.md)
-- [技术方案](docs/fork/2026-11-09-technical-plan.md)
-- [macOS 构建方法](docs/fork/build-macos.md)
+无需 Warp 账号，停用内置 AI／Agent、云同步与团队协作；Codex、Claude Code、SSH 等外部 CLI 仍作为普通终端程序使用。TinyWarp 由独立维护者开发，与 Warp 官方没有隶属关系。
 
-TinyWarp 保留 OSS 的数据身份，与已安装的 Warp Preview 分开保存配置和会话。H1/H2 已完成本地终端汉化；L1 已支持启动直接进入本地终端，停用账号与云同步入口及后台活动。后续继续精简 AI 和外围能力。
+[下载与版本记录](https://github.com/sty20030818/TinyWarp/releases) · [待办与路线](ROADMAP.md) · [参与贡献](CONTRIBUTING.md) · [构建说明](docs/fork/build-macos.md)
 
-以下保留上游项目说明和许可入口。
+## 当前状态
 
----
+TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.1（构建 4）**，首阶段支持 **macOS Apple Silicon**；Intel Mac、Windows 和 Linux 尚不列入已验证支持范围。
 
-<a href="https://www.warp.dev">
-    <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
-</a>
-&nbsp;
-<p align="center">
-  <a href="https://warp.dev/factories"><img height="20" alt="Built with Warp" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Built-With-Warp-Export@2x.png" /></a>
-</p>
+当前公开包采用 ad hoc 签名，应用内更新使用专用发布公钥验证清单与包哈希。Apple Developer ID、公证和首次浏览器下载的 Gatekeeper 体验尚待完成，当前发布不代表这些分发环节已通过验收。
 
-<p align="center">
-  <a href="https://www.warp.dev">Website</a>
-  ·
-  <a href="https://www.warp.dev/code">Code</a>
-  ·
-  <a href="https://www.warp.dev/agents">Agents</a>
-  ·
-  <a href="https://www.warp.dev/terminal">Terminal</a>
-  ·
-  <a href="https://www.warp.dev/drive">Drive</a>
-  ·
-  <a href="https://docs.warp.dev">Docs</a>
-  ·
-  <a href="https://www.warp.dev/blog/how-warp-works">How Warp Works</a>
-</p>
+## 保留与精简
 
-> [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
+| 保留 | 已停用／裁剪 |
+| --- | --- |
+| 命令分块、历史搜索与本地补全 | 内置 AI、Agent 及其增强界面 |
+| 多标签、分屏、快捷键与会话恢复 | 登录、账号、订阅、云同步与团队协作入口 |
+| 主题、字体与本地设置 | Warp Drive、内置代码编辑器与文件树 |
+| SSH、运行项目和任意外部 CLI | 内置语音、部分语言服务器及相关专用运行依赖 |
 
-<h1></h1>
+这是产品运行与构建范围的区别，部分底层共享代码和历史数据类型仍保留。现阶段没有可证明“比 Warp 更省内存／更快”的完整对照结果，不承诺未经测量的性能收益。
 
-## About
+## 下载与更新
 
-[Warp](https://www.warp.dev) is an agentic development environment, born out of the terminal. Use Warp's built-in coding agent, or bring your own CLI agent (Claude Code, Codex, Gemini CLI, and others).
+首次安装可从 [Latest Release](https://github.com/sty20030818/TinyWarp/releases/latest) 获取 `TinyWarp-aarch64.zip`。同一 Release 还提供更新清单和独立签名；这里只分发 macOS Apple Silicon 应用。
 
-## Installation
+已安装 TinyWarp 的用户在右上角应用菜单选择“检查更新”，准备完成后选择“重启并更新”。更新沿用现有设置与本地数据；重启前请妥善处理运行中的命令。旧 0.1.0 菜单若在出现更新红点后仍停留在检查状态，可收起再展开查看重启入口。
 
-You can [download Warp](https://www.warp.dev/download) and [read our docs](https://docs.warp.dev/) for platform-specific instructions.
+更新不需要 Warp 或 GitHub 账号。仓库改名前的已安装版本仍使用旧地址，由 GitHub 重定向继续获取更新；新源码使用 TinyWarp 仓库地址。发布清单认证与安装／回退边界见 [公开更新说明](docs/fork/u3-public-updates.md)。
 
-## Warp Contributions Overview Dashboard
+## 数据与兼容
 
-Explore [build.warp.dev](https://build.warp.dev) to:
-- Watch thousands of [Warp Factory](warp.dev/factories) agents triage issues, write specs, implement changes, and review PRs
-- View top contributors and in-flight features
-- Track your own issues with GitHub sign-in
-- Click into active agent sessions in a web-compiled Warp terminal
+TinyWarp 目前沿用 OSS 身份 `dev.warp.WarpOss`、配置目录 `~/.warp-oss` 和对应本地数据库，与 Warp Preview 分开保存。仓库改名不改变这些身份，也不触发数据迁移。它会与其他使用同一 OSS 身份的安装共享数据，不应把两者当作隔离环境同时运行。
 
-## Automate development with Warp Factories
+Tab／分屏布局恢复不等于恢复已退出的进程。已有偶发 Tab 丢失反馈，复现和修复列在 [路线](ROADMAP.md) 中；重要工作请保留独立记录。
 
-This repository is driven by [Warp Factories](https://warp.dev/factories): open, flexible infrastructure for teams to build cloud software factories of their own.
+## 开发与维护
 
-Warp Factories are defined in code and easy to deploy on any model or harness, with evals, benchmarks, and self-improvement built in. [Get early access](https://warp.dev/factories) or [book a demo](https://warp.dev/get-started) for a tailored walk-through of the platform. Eligible teams can receive up to $10,000 in free factory usage.
+主线为 `main`。TinyWarp 独立演进，按需挑选上游的终端、安全和兼容性修复，不自动合并上游全部功能。
 
-## Licensing
+项目沿用 Rust、WarpUI 和现有锁文件。TinyWarp GUI 使用 `--no-default-features --features tinywarp_gui`，完整环境、当前构建命令与独立候选验证方式见 [macOS 构建说明](docs/fork/build-macos.md)。部分早期文档含历史构建方法，实施时以当前章节为准。
 
-Warp's UI framework (the `warpui_core` and `warpui` crates) are licensed under the [MIT license](LICENSE-MIT).
+贡献前请阅读 [贡献指南](CONTRIBUTING.md) 与 [工程约定](AGENTS.md)。TinyWarp 自己的 CI 和可复现发布流程仍在建设，不把继承的 Warp 自动化视为已经可用的验证保障。
 
-The rest of the code in this repository is licensed under the [AGPL v3](LICENSE-AGPL).
+## 反馈与路线
 
-## Open Source & Contributing
+使用 [TinyWarp Issues](https://github.com/sty20030818/TinyWarp/issues) 报告可复现问题或提出需求；请附版本、系统、操作步骤和预期行为，提交日志前移除凭据、命令内容和其他私人信息。
 
-Warp's client codebase is open source and lives in this repository. We welcome community contributions and have designed a lightweight workflow to help new contributors get started. For the full contribution flow, read our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
+当前待办、已确认的产品边界以及暂停的研究统一放在 [ROADMAP.md](ROADMAP.md)。历史实现和验收证据保留在 [项目记录](docs/fork/README.md)。
 
-> [!TIP]
-> **Chat with contributors and the Warp team** in the [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) Slack channel — a good place for ad-hoc questions, design discussion, and pairing with maintainers. New here? [Join the Warp Slack community](https://go.warp.dev/join-preview) first, then jump into `#oss-contributors`.
+## 上游与许可
 
-### Issue to PR
+感谢 [Warp 及其贡献者](https://github.com/warpdotdev/warp) 和所依赖的开源项目。TinyWarp 从公开 `master` 的 `abb3fe33e004f7b1de540fecd6e3eec20dbc1883` 起步；保留上游来源、提交历史和许可文件。
 
-Before filing, [search existing issues](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc) for your bug or feature request. If nothing exists, [file an issue](https://github.com/warpdotdev/warp/issues/new/choose) using our templates. Security vulnerabilities should be reported privately as described in [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues).
-
-Once filed, a Warp maintainer reviews the issue and may apply a readiness label: [`ready-to-spec`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-spec) signals the design is open for contributors to spec out, and [`ready-to-implement`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-implement) signals the design is settled and code PRs are welcome. Anyone can pick up a labeled issue — mention **@oss-maintainers** on an issue if you'd like it considered for a readiness label.
-
-### Building the Repo Locally
-
-To build and run Warp from source:
-
-```bash
-./script/bootstrap   # platform-specific setup
-./script/run         # build and run Warp
-./script/presubmit   # fmt, clippy, and tests
-```
-
-See [AGENTS.md](AGENTS.md) for the full engineering guide, including coding style, testing, and platform-specific notes.
-
-## Joining the Team
-
-Interested in joining the team? See our [open roles](https://www.warp.dev/careers).
-
-## Support and Questions
-
-1. See our [docs](https://docs.warp.dev/) for a comprehensive guide to Warp's features.
-2. Join our [Slack Community](https://go.warp.dev/join-preview) to connect with other users and get help from the Warp team — contributors hang out in [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB).
-3. Try our [Preview build](https://www.warp.dev/download-preview) to test the latest experimental features.
-4. Mention **@oss-maintainers** on any issue to escalate to the team — for example, if you encounter problems with the automated agents.
-
-## Code of Conduct
-
-We ask everyone to be respectful and empathetic. Warp follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report violations, email warp-coc at warp.dev.
-
-## Open Source Dependencies
-
-We'd like to call out a few of the [open source dependencies](https://docs.warp.dev/help/licenses) that have helped Warp to get off the ground:
-
-- [Tokio](https://github.com/tokio-rs/tokio)
-- [NuShell](https://github.com/nushell/nushell)
-- [Fig Completion Specs](https://github.com/withfig/autocomplete)
-- [Warp Server Framework](https://github.com/seanmonstar/warp)
-- [Alacritty](https://github.com/alacritty/alacritty)
-- [Hyper HTTP library](https://github.com/hyperium/hyper)
-- [FontKit](https://github.com/servo/font-kit)
-- [Core-foundation](https://github.com/servo/core-foundation-rs)
-- [Smol](https://github.com/smol-rs/smol)
+- WarpUI（`warpui_core`、`warpui`）使用 [MIT](LICENSE-MIT) 许可。
+- 其余代码使用 [AGPL v3](LICENSE-AGPL) 许可。
+- 发布应用随包提供项目许可、第三方许可汇总和精确源码定位。

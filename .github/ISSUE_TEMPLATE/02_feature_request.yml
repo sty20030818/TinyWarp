@@ -1,69 +1,25 @@
-name: Feature Request
-description: "Have a great new idea? Please search through our existing feature requests, and upvote it if it's already exists."
-labels: ["enhancement"]
+name: TinyWarp 功能建议
+description: 说明实际使用需求及希望改善的体验。
 body:
-  - type: checkboxes
+  - type: markdown
     attributes:
-      label: "Pre-submit Checks"
-      options:
-        - label: "I have [searched Warp feature requests](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+label%3Aenhancement) and there are no duplicates"
-          required: true
-        - label: "I have [searched Warp docs](https://docs.warp.dev) and my feature is not there"
-          required: true
+      value: 请先查看 ROADMAP 和已有讨论。TinyWarp 专注本地终端，首阶段支持 macOS Apple Silicon。
   - type: textarea
-    id: "describe-solution"
+    id: problem
     attributes:
-      label: "Describe the solution you'd like?"
-      description: "A clear and concise description of what you want to happen."
+      label: 遇到了什么使用问题
+      description: 说明使用场景、当前行为和受影响的人群。
     validations:
       required: true
   - type: textarea
-    id: "related-to-problem"
+    id: proposal
     attributes:
-      label: "Is your feature request related to a problem? Please describe."
-      description: "A clear and concise description of what the problem is."
-      placeholder: "I'm always frustrated when [...]"
+      label: 希望怎样改善
+      description: 可附具体例子、替代做法或设计参考。
     validations:
-      required: false
+      required: true
   - type: textarea
-    id: "additional-context"
+    id: context
     attributes:
-      label: "Additional context"
-      description: "Add any other context or screenshots about the feature request here. If you want to upload a picture you can drag one in from Finder."
-    validations:
-      required: false
-  - type: dropdown
-    id: "os"
-    attributes:
-      label: "Operating system (OS)"
-      multiple: false
-      options:
-        - "Select an OS"
-        - macOS
-        - Linux
-        - Windows
-        - Cross-platform
-    validations:
-      required: true
-  - type: dropdown
-    id: "importance"
-    attributes:
-      label: "How important is this feature to you?"
-      multiple: false
-      options:
-        - "1 (Not too important)"
-        - "2"
-        - "3"
-        - "4"
-        - "5 (Can't work without it!)"
-    validations:
-      required: true
-  - type: dropdown
-    id: "linear-label-feature"
-    attributes:
-      label: "Warp Internal (ignore) - linear-label:39cc6478-1249-4ee7-950b-c428edfeecd1"
-      multiple: false
-      options:
-        - Ignore
-    validations:
-      required: false
+      label: 补充背景
+      description: 如涉及其他平台、数据兼容或上游能力，请在这里说明。

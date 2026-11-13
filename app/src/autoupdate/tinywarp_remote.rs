@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{LocalRelease, private_dir, root, trusted_path, validate_release};
 
-const RELEASES: &str = "https://github.com/sty20030818/warp/releases";
+const RELEASES: &str = "https://github.com/sty20030818/TinyWarp/releases";
 const NAMESPACE: &str = "tinywarp-updates";
 const PUBLIC_KEY: &str = include_str!("../../../resources/tinywarp-updates.pub");
 const MAX_DOCUMENT_BYTES: usize = 4096;
