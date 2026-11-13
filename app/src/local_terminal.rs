@@ -5,6 +5,8 @@ use crate::LaunchMode;
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ToastStack, WorkspaceAction};
 
+pub(crate) const REPOSITORY_URL: &str = "https://github.com/sty20030818/TinyWarp";
+
 struct LocalTerminal {
     enabled: bool,
 }

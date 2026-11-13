@@ -1287,7 +1287,7 @@ fn localized_toggle_registration_preserves_english_aliases_and_actions() {
 }
 
 #[test]
-fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_features() {
+fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_appearance() {
     let unavailable = [
         SettingsSection::Account,
         SettingsSection::BillingAndUsage,
@@ -1311,11 +1311,12 @@ fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_feat
         assert!(!section.is_available_in_local_terminal());
         assert_eq!(
             initial_settings_section(Some(parsed), true, true),
-            SettingsSection::Features
+            SettingsSection::Appearance
         );
         assert_eq!(initial_settings_section(Some(parsed), true, false), section);
     }
     for section in [
+        SettingsSection::About,
         SettingsSection::Appearance,
         SettingsSection::Features,
         SettingsSection::Keybindings,
@@ -1328,7 +1329,7 @@ fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_feat
     }
     assert_eq!(
         initial_settings_section(None, true, true),
-        SettingsSection::Features
+        SettingsSection::Appearance
     );
     assert_eq!(
         initial_settings_section(None, true, false),
@@ -1336,6 +1337,6 @@ fn local_terminal_settings_keep_legacy_slugs_but_resolve_account_targets_to_feat
     );
     assert_eq!(
         initial_settings_section(Some(SettingsSection::Scripting), false, true),
-        SettingsSection::Features
+        SettingsSection::Appearance
     );
 }

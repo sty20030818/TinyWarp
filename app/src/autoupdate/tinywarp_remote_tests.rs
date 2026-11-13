@@ -50,7 +50,7 @@ fn signed_manifest_roundtrip_and_cached_envelope_preserve_exact_payload() {
     assert!(
         archive_url(&release)
             .unwrap()
-            .starts_with(&format!("{RELEASES}/download/v0.1.0/"))
+            .starts_with(&format!("{REPOSITORY_URL}/releases/download/v0.1.0/"))
     );
 }
 

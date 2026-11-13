@@ -19162,7 +19162,9 @@ impl Workspace {
     }
 
     fn show_settings(&mut self, ctx: &mut ViewContext<Self>) {
-        self.show_settings_with_section(None, ctx);
+        let section = crate::local_terminal::is_enabled(ctx)
+            .then_some(SettingsSection::LOCAL_TERMINAL_DEFAULT);
+        self.show_settings_with_section(section, ctx);
     }
 
     fn show_settings_with_section(
@@ -19174,7 +19176,7 @@ impl Workspace {
             && section.is_some_and(|section| !section.is_available_in_local_terminal())
         {
             crate::local_terminal::show_unavailable(ctx);
-            Some(SettingsSection::Features)
+            Some(SettingsSection::LOCAL_TERMINAL_DEFAULT)
         } else {
             section
         };
@@ -19192,7 +19194,7 @@ impl Workspace {
             && section.is_some_and(|section| !section.is_available_in_local_terminal())
         {
             crate::local_terminal::show_unavailable(ctx);
-            Some(SettingsSection::Features)
+            Some(SettingsSection::LOCAL_TERMINAL_DEFAULT)
         } else {
             section
         };
@@ -24449,7 +24451,7 @@ impl TypedActionView for Workspace {
                 action,
                 ShowSettingsPage(_) | ShowSettingsPageWithSearch { .. }
             ) {
-                self.show_settings_with_section(Some(SettingsSection::Features), ctx);
+                self.show_settings_with_section(Some(SettingsSection::LOCAL_TERMINAL_DEFAULT), ctx);
             }
             return;
         }

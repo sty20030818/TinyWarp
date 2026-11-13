@@ -13,8 +13,8 @@ use http_client::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use super::{LocalRelease, private_dir, root, trusted_path, validate_release};
+use crate::local_terminal::REPOSITORY_URL;
 
-const RELEASES: &str = "https://github.com/sty20030818/TinyWarp/releases";
 const NAMESPACE: &str = "tinywarp-updates";
 const PUBLIC_KEY: &str = include_str!("../../../resources/tinywarp-updates.pub");
 const MAX_DOCUMENT_BYTES: usize = 4096;
@@ -34,7 +34,7 @@ fn manifest_name() -> String {
 fn archive_url(release: &LocalRelease) -> Result<String> {
     validate_release(release)?;
     Ok(format!(
-        "{RELEASES}/download/{}/TinyWarp-{}.zip",
+        "{REPOSITORY_URL}/releases/download/{}/TinyWarp-{}.zip",
         release.version, release.architecture
     ))
 }
@@ -121,7 +121,10 @@ async fn fetch_document(client: &Client, url: &str, allow_missing: bool) -> Resu
 
 pub(super) async fn fetch_release() -> Result<Option<LocalRelease>> {
     let client = Client::new_external();
-    let url = format!("{RELEASES}/latest/download/{}", manifest_name());
+    let url = format!(
+        "{REPOSITORY_URL}/releases/latest/download/{}",
+        manifest_name()
+    );
     let Some(payload) = fetch_document(&client, &url, true).await? else {
         return Ok(None);
     };

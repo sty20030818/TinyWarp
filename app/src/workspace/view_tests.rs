@@ -299,7 +299,7 @@ fn assert_real_local_settings_pane(workspace: &ViewHandle<Workspace>, app: &App)
         assert_eq!(
             pane.snapshot(ctx),
             LeafContents::Settings(SettingsPaneSnapshot::Local {
-                current_page: SettingsSection::Features,
+                current_page: SettingsSection::Appearance,
                 search_query: None,
             })
         );
@@ -315,7 +315,7 @@ fn assert_real_local_settings_pane(workspace: &ViewHandle<Workspace>, app: &App)
         let settings_view = view.as_ref(ctx);
         assert_eq!(
             settings_view.current_settings_section(),
-            SettingsSection::Features
+            SettingsSection::Appearance
         );
     });
 }
@@ -335,6 +335,22 @@ fn local_terminal_show_settings_without_section_opens_real_settings_and_reuses_i
         assert_real_local_settings_pane(&workspace, &app);
         workspace.read(&app, |workspace, _| {
             assert_eq!(workspace.tab_count(), before + 1)
+        });
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(
+                &WorkspaceAction::ShowSettingsPage(SettingsSection::Features),
+                ctx,
+            );
+        });
+        workspace.read(&app, |workspace, ctx| {
+            assert_eq!(
+                workspace
+                    .settings_pane
+                    .as_ref(ctx)
+                    .current_settings_section(),
+                SettingsSection::Features
+            );
         });
 
         workspace.update(&mut app, |workspace, ctx| {

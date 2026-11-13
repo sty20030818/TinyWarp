@@ -13,6 +13,7 @@ use super::settings_page::{
 };
 use crate::appearance::Appearance;
 use crate::channel::ChannelState;
+use crate::local_terminal::REPOSITORY_URL;
 use crate::themes::theme::ColorScheme;
 use crate::workspace::WorkspaceAction;
 
@@ -48,6 +49,7 @@ impl View for AboutPageView {
 #[derive(Default)]
 struct AboutPageWidget {
     copy_version_button_mouse_state: MouseStateHandle,
+    repository_link_mouse_state: MouseStateHandle,
 }
 
 impl SettingsWidget for AboutPageWidget {
@@ -65,8 +67,11 @@ impl SettingsWidget for AboutPageWidget {
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder();
+        let is_local = crate::local_terminal::is_enabled(app);
 
-        let image_path = if theme.inferred_color_scheme() == ColorScheme::LightOnDark {
+        let image_path = if is_local {
+            "bundled/png/tinywarp-logo.png"
+        } else if theme.inferred_color_scheme() == ColorScheme::LightOnDark {
             "bundled/svg/warp-logo-with-light-title.svg"
         } else {
             "bundled/svg/warp-logo-with-dark-title.svg"
@@ -74,7 +79,6 @@ impl SettingsWidget for AboutPageWidget {
 
         let version = ChannelState::app_version().unwrap_or("v#.##.###");
 
-        let is_local = crate::local_terminal::is_enabled(app);
         let display_version = version.to_owned();
         #[cfg(all(feature = "tinywarp_gui", target_os = "macos"))]
         let display_version = if is_local {
@@ -109,32 +113,46 @@ impl SettingsWidget for AboutPageWidget {
                     .finish(),
             ]);
 
-        Align::new(
-            Flex::column()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    ConstrainedBox::new(
-                        Image::new(
-                            AssetSource::Bundled { path: image_path },
-                            CacheOption::BySize,
-                        )
-                        .finish(),
+        let mut content = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(
+                ConstrainedBox::new(
+                    Image::new(
+                        AssetSource::Bundled { path: image_path },
+                        CacheOption::BySize,
                     )
-                    .with_max_height(100.)
-                    .with_max_width(350.)
                     .finish(),
                 )
-                .with_child(version_row.finish())
-                .with_child(
-                    ui_builder
-                        .span("Copyright 2026 Warp")
-                        .build()
-                        .with_margin_top(16.)
-                        .finish(),
-                )
+                .with_max_height(if is_local { 150. } else { 100. })
+                .with_max_width(if is_local { 500. } else { 350. })
                 .finish(),
-        )
-        .finish()
+            )
+            .with_child(version_row.finish())
+            .with_child(
+                ui_builder
+                    .span("Copyright 2026 Warp")
+                    .build()
+                    .with_margin_top(16.)
+                    .finish(),
+            );
+
+        if is_local {
+            content.add_child(
+                ui_builder
+                    .link(
+                        "GitHub 仓库".into(),
+                        Some(REPOSITORY_URL.into()),
+                        None,
+                        self.repository_link_mouse_state.clone(),
+                    )
+                    .soft_wrap(true)
+                    .build()
+                    .with_margin_top(16.)
+                    .finish(),
+            );
+        }
+
+        Align::new(content.finish()).finish()
     }
 }
 

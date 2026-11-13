@@ -381,10 +381,10 @@ pub fn assert_local_settings_pane_is_open_once(
     let settings = panes[0].read(app, |pane, ctx| pane.child(ctx));
     settings.read(app, |view, _| {
         let section = view.current_settings_section();
-        if section.is_available_in_local_terminal() {
+        if section == crate::settings_view::SettingsSection::Appearance {
             AssertionOutcome::Success
         } else {
-            AssertionOutcome::failure(format!("设置应打开可用的本地页面，实际 {section:?}"))
+            AssertionOutcome::failure(format!("普通设置入口应打开外观页面，实际 {section:?}"))
         }
     })
 }

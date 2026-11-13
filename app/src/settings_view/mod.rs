@@ -373,6 +373,8 @@ impl Display for SettingsSection {
 }
 
 impl SettingsSection {
+    pub(crate) const LOCAL_TERMINAL_DEFAULT: Self = Self::Appearance;
+
     pub(crate) fn is_available_in_local_terminal(self) -> bool {
         matches!(
             self,
@@ -1080,7 +1082,7 @@ pub(crate) fn initial_settings_section(
     is_local_terminal: bool,
 ) -> SettingsSection {
     let fallback = if is_local_terminal {
-        SettingsSection::Features
+        SettingsSection::LOCAL_TERMINAL_DEFAULT
     } else {
         SettingsSection::Account
     };
@@ -2227,7 +2229,7 @@ impl SettingsView {
             && !section.is_available_in_local_terminal()
         {
             crate::local_terminal::show_unavailable(ctx);
-            SettingsSection::Features
+            SettingsSection::LOCAL_TERMINAL_DEFAULT
         } else {
             section
         };
