@@ -8,7 +8,7 @@
 
 ## 当前状态
 
-TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.1（构建 4）**，首阶段支持 **macOS Apple Silicon**；Intel Mac、Windows 和 Linux 尚不列入已验证支持范围。
+TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.2（构建 5）**，首阶段支持 **macOS Apple Silicon**；Intel Mac、Windows 和 Linux 尚不列入已验证支持范围。
 
 当前公开包采用 ad hoc 签名，应用内更新使用专用发布公钥验证清单与包哈希。Apple Developer ID、公证和首次浏览器下载的 Gatekeeper 体验尚待完成，当前发布不代表这些分发环节已通过验收。
 
