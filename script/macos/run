@@ -144,6 +144,7 @@ fi
 NO_LICENSES=1 "${REPO_ROOT}/script/prepare_bundled_resources" "$WARP_APP_PATH/Contents/Resources" "$WARP_CHANNEL"
 
 "${REPO_ROOT}/script/compile_icon" "$WARP_CHANNEL" "$WARP_APP_PATH"
+"${REPO_ROOT}/script/macos/bundle_dock_tile_plugin" "$WARP_APP_PATH"
 
 if [[ ",$FEATURES," =~ ",heap_usage_tracking," ]]; then
   echo "Bundling pprof..."

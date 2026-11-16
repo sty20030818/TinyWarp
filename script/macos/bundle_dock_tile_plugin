@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""构建或安装 Dock 图标插件，并检查应用包中的图标切换资源。"""
+import argparse
+import os
+import plistlib
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+PLUGIN_NAME = "WarpDockTilePlugin.docktileplugin"
+
+
+def check(app):
+    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+    if info.get("NSDockTilePlugIn") != PLUGIN_NAME:
+        raise ValueError("应用缺少 NSDockTilePlugIn 注册")
+    plugin = app / "Contents/PlugIns" / PLUGIN_NAME
+    metadata = plistlib.loads((plugin / "Contents/Info.plist").read_bytes())
+    if metadata.get("MainAppBundleIdentifier") != info["CFBundleIdentifier"]:
+        raise ValueError("Dock 插件的主应用身份不匹配")
+    executable = plugin / "Contents/MacOS" / metadata["CFBundleExecutable"]
+    symbols = subprocess.check_output(["nm", "-gU", str(executable)], text=True)
+    if "_OBJC_CLASS_$_" + metadata["NSPrincipalClass"] not in symbols.split():
+        raise ValueError("Dock 插件声明的入口类不存在于二进制")
+    main_executable = app / "Contents/MacOS" / info["CFBundleExecutable"]
+    architectures = subprocess.check_output(["lipo", "-archs", str(main_executable)], text=True).split()
+    subprocess.run(["lipo", str(executable), "-verify_arch", *architectures], check=True)
+    resources = list((ROOT / "app/DockTilePlugin/Resources").glob("*.png"))
+    if not resources:
+        raise ValueError("仓库没有 Dock 图标资源")
+    for resource in resources:
+        data = resource.read_bytes()
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError(f"图标不是 PNG 文件：{resource.name}")
+        if (plugin / "Contents/Resources" / resource.name).read_bytes() != data:
+            raise ValueError(f"应用中的图标资源不匹配：{resource.name}")
+    print(f"Dock 图标插件检查通过：{len(resources)} 份图标，架构 {'/'.join(architectures)}")
+
+
+def install(app, source):
+    destination = app / "Contents/PlugIns" / PLUGIN_NAME
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("目标插件已存在，请使用新组装的应用包")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination, symlinks=True)
+    info_path = app / "Contents/Info.plist"
+    info = plistlib.loads(info_path.read_bytes())
+    metadata_path = destination / "Contents/Info.plist"
+    metadata = plistlib.loads(metadata_path.read_bytes())
+    metadata["MainAppBundleIdentifier"] = info["CFBundleIdentifier"]
+    metadata_path.write_bytes(plistlib.dumps(metadata, sort_keys=False))
+    info["NSDockTilePlugIn"] = PLUGIN_NAME
+    info_path.write_bytes(plistlib.dumps(info, sort_keys=False))
+    check(app)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("app", type=Path)
+    parser.add_argument("prebuilt_plugin", type=Path, nargs="?")
+    parser.add_argument("--check", action="store_true", help="只检查现有应用包，不修改")
+    args = parser.parse_args()
+    try:
+        app = args.app.resolve(strict=True)
+        if args.check:
+            if args.prebuilt_plugin is not None:
+                parser.error("--check 不接受预构建插件")
+            check(app)
+        elif args.prebuilt_plugin is not None:
+            install(app, args.prebuilt_plugin.resolve(strict=True))
+        else:
+            with tempfile.TemporaryDirectory(prefix="tinywarp-dock-plugin-") as temporary:
+                plugin = Path(temporary) / PLUGIN_NAME
+                subprocess.run(
+                    [
+                        "make",
+                        "-C",
+                        str(ROOT / "app/DockTilePlugin"),
+                        f"BUNDLE_NAME={plugin}",
+                        "MACOSX_DEPLOYMENT_TARGET="
+                        + os.environ.get("MACOSX_DEPLOYMENT_TARGET", "10.14"),
+                    ],
+                    check=True,
+                )
+                install(app, plugin)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        parser.exit(1, f"Dock 图标插件检查失败：{error}\n")
+
+
+if __name__ == "__main__":
+    main()

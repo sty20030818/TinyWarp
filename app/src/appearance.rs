@@ -9,8 +9,12 @@ mod macos_app_icon {
     pub use objc2_app_kit::{NSApplication, NSImage, NSWorkspace, NSWorkspaceIconCreationOptions};
     pub use objc2_foundation::{NSBundle, NSString, ns_string};
     pub use warp_core::channel::{Channel, ChannelState};
+    pub use warp_core::safe_warn;
+    pub use warp_core::user_preferences::GetUserPreferences;
 
-    pub use crate::settings::app_icon::{AppIcon, AppIconSettings, AppIconSettingsChangedEvent};
+    pub use crate::settings::app_icon::{
+        AppIcon, AppIconSettings, AppIconSettingsChangedEvent, AppIconState,
+    };
 }
 use anyhow::anyhow;
 #[cfg(target_os = "macos")]
@@ -178,6 +182,12 @@ impl AppearanceManager {
     #[cfg(target_os = "macos")]
     pub fn set_app_icon(&self, app: &AppContext) {
         let icon = *AppIconSettings::as_ref(app).app_icon.value();
+        if let Err(err) = sync_dock_icon_preference(app) {
+            safe_warn!(
+                safe: ("Failed to sync app icon preference for the Dock plugin"),
+                full: ("Failed to sync app icon preference for the Dock plugin: {err:#}")
+            );
+        }
 
         // This function is invoked from multiple call sites, including app
         // startup (before the AppKit event loop drains its ambient pool) and
@@ -215,11 +225,13 @@ impl AppearanceManager {
                 // Reset to nil to use the bundle's default icon.
                 // SAFETY: `setApplicationIconImage:` accepts `nil` to restore the bundled icon.
                 unsafe { ns_app.setApplicationIconImage(None) };
-                workspace.setIcon_forFile_options(
+                if !workspace.setIcon_forFile_options(
                     None,
                     &bundle_path,
                     NSWorkspaceIconCreationOptions::empty(),
-                );
+                ) {
+                    log::warn!("Failed to reset the application bundle icon");
+                }
                 workspace.noteFileSystemChanged_(&bundle_path);
                 return;
             }
@@ -258,11 +270,13 @@ impl AppearanceManager {
             // Override the bundled icon with this new image.
             // SAFETY: `setApplicationIconImage:` accepts a non-nil image.
             unsafe { ns_app.setApplicationIconImage(Some(&image)) };
-            workspace.setIcon_forFile_options(
+            if !workspace.setIcon_forFile_options(
                 Some(&image),
                 &bundle_path,
                 NSWorkspaceIconCreationOptions::empty(),
-            );
+            ) {
+                log::warn!("Failed to set the application bundle icon to: {icon_name}");
+            }
             workspace.noteFileSystemChanged_(&bundle_path);
 
             // `image` is a `Retained<NSImage>` that releases the `+1` retain from
@@ -278,6 +292,15 @@ impl Entity for AppearanceManager {
 }
 
 impl SingletonEntity for AppearanceManager {}
+
+#[cfg(target_os = "macos")]
+fn sync_dock_icon_preference(app: &AppContext) -> anyhow::Result<()> {
+    // Dock 插件无法读取设置文件，native 偏好仅保存当前选择的派生镜像。
+    let icon = AppIconSettings::as_ref(app).app_icon.value();
+    app.private_user_preferences()
+        .write_value(AppIconState::storage_key(), serde_json::to_string(icon)?)?;
+    Ok(())
+}
 
 fn load_default_monospace_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
     warpui::fonts::Cache::handle(ctx).update(ctx, |font_cache, _| {
@@ -448,3 +471,7 @@ pub fn register(app: &mut impl AddSingletonModel) {
     app.add_singleton_model(|ctx| build_appearance(ctx));
     app.add_singleton_model(AppearanceManager::new);
 }
+
+#[cfg(all(test, target_os = "macos"))]
+#[path = "appearance_tests.rs"]
+mod tests;

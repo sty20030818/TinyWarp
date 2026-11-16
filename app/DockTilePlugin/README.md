@@ -5,7 +5,7 @@ The plugin is used to update the dock tile icon when the app icon changes and al
 The plugin is implemented in Objective-C and is built using the `clang` compiler
 with the `-bundle` flag.  See the Makefile for more details.
 
-The plugin is installed into the app bundle at `Contents/PlugIns/WarpDockTilePlugin.docktileplugin` and is bundled using the script/mac/bundle script.  It is built as a universal binary for both arm64 and x86_64.
+插件位于 `Contents/PlugIns/WarpDockTilePlugin.docktileplugin`。`script/macos/run` 与 `script/macos/bundle` 共用 `script/macos/bundle_dock_tile_plugin` 安装并校验插件；前者构建插件，后者使用预构建产物。既有 Makefile 生成 arm64 与 x86_64 通用二进制，插件入口类为 `WarpDockTilePlugIn`。完整验证步骤见 [macOS 构建说明](../../docs/fork/build-macos.md)。
 
 The plugin is a simple Objective-C program that listens for notifications from the main application when the app icon changes. When it receives a notification, it updates the dock tile icon.
 

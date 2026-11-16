@@ -150,3 +150,17 @@ TinyWarp 的 Cargo 参数继续使用 `--no-default-features --features tinywarp
 ## L3C5 的本地 GUI 数据范围
 
 构建参数不变。LocalGui 是按现有本地终端策略选择的启动读取范围，保留 GUI 恢复、历史、本地项目路径与忽略的 shell 建议，不能替换成会跳过 GUI 恢复的 TuiFrontend。原版非本地 GUI／CLI、TUI 和 daemon 的选择不变；完整构建中的 OSS 本地 GUI 也采用 LocalGui。无 schema 或依赖清单调整，详见 [L3C5 交付记录](l3c5-delivery.md)。
+
+## 2026-11-16：Dock 图标插件的打包要求
+
+macOS 的应用图标切换还依赖 Dock 插件，不能只凭设置值已保存或主应用签名有效判断功能可用。`script/macos/run` 与 `script/macos/bundle` 两个打包入口现统一调用 `script/macos/bundle_dock_tile_plugin`，将插件与图标资源放进新候选包，并在后续步骤签名；不要向正在运行的应用包补写这些内容。
+
+只读检查已组装候选：
+
+```bash
+script/macos/bundle_dock_tile_plugin /绝对路径/TinyWarp.app --check
+```
+
+检查覆盖主应用的 `NSDockTilePlugIn` 注册、插件绑定的主应用身份、实际导出的入口类、与主二进制对应的架构，以及内置 PNG 图标与仓库资源一致性。`--check` 不构建或修改应用包；手工组包也应在完成插件安装、签名后核对候选，不跳过该检查。
+
+`script/tinywarp-release` 在读取发布私钥前调用相同检查，缺插件、身份／入口类／架构或资源不匹配时即拒绝发布准备，避免给无法切换图标的包生成签名分发文件。此门禁不代替实际 Dock 图标切换验收；图标修复尚未公开发布，原生候选验证及最终交付结果以 [修复记录](app-icon-fix.md) 为准。

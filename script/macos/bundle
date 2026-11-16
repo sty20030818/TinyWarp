@@ -696,12 +696,8 @@ if [[ "$ARTIFACT" == "app" ]]; then
 
   # Note that the dock tile plugin is pre-built for both arm64 and x86_64 so we don't need to run lipo on it.
   echo "Creating PlugIns directory and copying pre-built DockTilePlugin..."
-  mkdir -p "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/PlugIns"
-  cp -R "$DOCK_TILE_PLUGIN_DIR" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/PlugIns/"
-
-  echo "Updating plist with dock tile plugin entries"
-  plutil -insert NSDockTilePlugIn -string "WarpDockTilePlugin.docktileplugin" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
-  plutil -insert MainAppBundleIdentifier -string "$BUNDLE_ID" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/PlugIns/WarpDockTilePlugin.docktileplugin/Contents/Info.plist
+  "$WORKSPACE_ROOT_DIR/script/macos/bundle_dock_tile_plugin" \
+    "$BUNDLE_DIR/$WARP_APP_NAME.app" "$DOCK_TILE_PLUGIN_DIR"
 
   BUNDLED_RESOURCES_DIR="$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/Resources"
   echo "Preparing bundled resources..."
