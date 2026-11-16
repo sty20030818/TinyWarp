@@ -17,7 +17,7 @@
 
 环境使用仓库固定的 Rust 1.92.0 和 runner 自带的 Python、Xcode／clang／make／lipo；不运行全量 bootstrap，不拉取无需使用的 LFS 模型，不安装上游云工具。初版不保存编译缓存或上传 Actions artifact，避免把大型本地 `target` 搬进 CI 存储。GitHub 的日志仍是核对实际 runner、工具版本和检查结果的依据。
 
-GitHub 官方当前将公共仓库的标准 hosted runner 计算列为免费，`macos-15` 为 ARM64、3 核、7 GB RAM、14 GB 磁盘；larger runner 即使在公共仓库也收费，artifact 与 cache 另有存储规则。因此这里不使用 `-large`／`-xlarge`，也不把小 runner 容量当作全应用冷构建已验证的证据。首次云运行尚须按实际日志验收，不能以工作流文件存在宣称 CI 已通过。
+GitHub 官方当前将公共仓库的标准 hosted runner 计算列为免费，`macos-15` 为 ARM64、3 核、7 GB RAM、14 GB 磁盘；larger runner 即使在公共仓库也收费，artifact 与 cache 另有存储规则。因此这里不使用 `-large`／`-xlarge`，也不把小 runner 容量当作全应用冷构建已验证的证据。[首次云运行已按实际日志验收](https://github.com/sty20030818/TinyWarp/actions/runs/43846390734)，仅覆盖本节的轻量范围，不能以工作流文件存在或 CI 成功宣称全应用已验证。
 
 依据：[标准 runner](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job)、[计费与存储](https://docs.github.com/en/billing/concepts/product-billing/github-actions)、[macOS 15 ARM 镜像](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md)。runner 和计费规则会变化，调整平台或扩展范围前重新核对。
 

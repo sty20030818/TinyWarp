@@ -8,7 +8,9 @@
 
 ## 当前状态
 
-TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.2（构建 5）**，首阶段支持 **macOS Apple Silicon**；Intel Mac、Windows 和 Linux 尚不列入已验证支持范围。
+TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.3（构建 6）**，首阶段支持 **macOS Apple Silicon**；Intel Mac、Windows 和 Linux 尚不列入已验证支持范围。
+
+本版修复应用图标切换，补齐设置与快捷键中文，并支持本地菜单头像。已有用户可通过应用内“检查更新”升级，沿用现有设置与数据；具体变化与验证范围见 [0.1.3 发布记录](docs/fork/0.1.3-settings-avatar.md)。
 
 当前公开包采用 ad hoc 签名，应用内更新使用专用发布公钥验证清单与包哈希。Apple Developer ID、公证和首次浏览器下载的 Gatekeeper 体验尚待完成，当前发布不代表这些分发环节已通过验收。
 
@@ -45,7 +47,7 @@ Tab／分屏布局恢复不等于恢复已退出的进程。2026-11-16，用户�
 
 项目沿用 Rust、WarpUI 和现有锁文件。TinyWarp GUI 使用 `--no-default-features --features tinywarp_gui`，完整环境、当前构建命令与独立候选验证方式见 [macOS 构建说明](docs/fork/build-macos.md)。部分早期文档含历史构建方法，实施时以当前章节为准。
 
-贡献前请阅读 [贡献指南](CONTRIBUTING.md) 与 [工程约定](AGENTS.md)。TinyWarp 的定向 CI 覆盖版本、原生插件打包、依赖边界与中文目录回归；完整应用编译、GUI 和数据保留仍按改动及候选在本机验证。工作流的首次云运行尚待验收，范围与本机发布步骤见 [CI 与发布维护流程](docs/fork/release-process.md)。
+贡献前请阅读 [贡献指南](CONTRIBUTING.md) 与 [工程约定](AGENTS.md)。TinyWarp 的定向 CI 覆盖版本、原生插件打包、依赖边界与中文目录回归；完整应用编译、GUI 和数据保留仍按改动及候选在本机验证。[首次云运行已通过](https://github.com/sty20030818/TinyWarp/actions/runs/43846390734)，范围与本机发布步骤见 [CI 与发布维护流程](docs/fork/release-process.md)。
 
 ## 反馈与路线
 

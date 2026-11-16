@@ -18,7 +18,7 @@ TinyWarp 是面向公众、独立维护的 Warp 终端 fork。首阶段聚焦 ma
 4. 使用 [PR 模板](.github/pull_request_template.md)，说明问题、修改后的行为、实际验证和未验证范围。UI 变更附实际截图；涉及本地数据时说明保留与恢复边界。
 5. 提交信息使用约定式格式，例如 `fix(menu): 修正菜单状态刷新`。保持一次 PR 聚焦一个完整目标。
 
-TinyWarp 的独立轻量工作流面向 `main`，检查版本、插件打包、依赖边界与中文目录，首次云运行尚待验收；它不替代相关应用级测试、GUI 与候选验收。范围及发布步骤见 [维护流程](docs/fork/release-process.md)。本项目未接入上游 Oz 自动分派、评审或发布流程，不依赖上游机器人、内部 runner、Slack 或 `@oss-maintainers` 处理贡献。
+TinyWarp 的独立轻量工作流面向 `main`，检查版本、插件打包、依赖边界与中文目录，[首次云运行已通过](https://github.com/sty20030818/TinyWarp/actions/runs/43846390734)；它不替代相关应用级测试、GUI 与候选验收。范围及发布步骤见 [维护流程](docs/fork/release-process.md)。本项目未接入上游 Oz 自动分派、评审或发布流程，不依赖上游机器人、内部 runner、Slack 或 `@oss-maintainers` 处理贡献。
 
 ## 同步上游
 
