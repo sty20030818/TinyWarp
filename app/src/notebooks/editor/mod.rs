@@ -29,7 +29,7 @@ use crate::workflows::{CloudWorkflow, WorkflowSource, WorkflowType};
 mod block_insertion_menu;
 mod embedded_item;
 mod embedding_model;
-mod find_bar;
+pub(crate) mod find_bar;
 mod interaction_state_model;
 pub mod keys;
 mod link_editor;

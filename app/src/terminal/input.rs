@@ -93,7 +93,7 @@ use warpui::elements::{
 };
 pub use warpui::elements::{ParentElement as _, Stack};
 pub use warpui::geometry::vector::{Vector2F, vec2f};
-use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding, Keystroke};
+use warpui::keymap::{EditableBinding, FixedBinding, Keystroke};
 use warpui::platform::OperatingSystem;
 use warpui::presenter::ChildView;
 use warpui::text_layout::TextStyle;
@@ -1274,6 +1274,7 @@ impl InputAction {
         matches!(
             self,
             Self::ShowAiCommandSearch
+                | Self::ClearAndResetAIContextMenuQuery
                 | Self::ToggleConversationsMenu
                 | Self::StartNewAgentConversation { .. }
                 | Self::ToggleInputAutoDetection
@@ -2158,7 +2159,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::History,
             InputAction::Up,
-            "Show History",
+            bindings::localized_description("keybinding.input.show_history", "Show History"),
             // We need to ensure the workflow info box is not open as the "up" arrow
             // key is used to navigate the environment variables dropdown.
             // Same goes with the LLM menu.
@@ -2176,14 +2177,14 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "input:insert_network_logging_workflow",
-        "Show Warp network log",
+        bindings::localized_description("keybinding.input.network_log", "Show Warp network log"),
         WorkspaceAction::OpenNetworkLogPane,
     )
     .with_enabled(|| ContextFlag::NetworkLogConsole.is_enabled())]);
 
     app.register_editable_bindings([EditableBinding::new(
         "input:clear_screen",
-        "Clear screen",
+        bindings::localized_description("keybinding.input.clear_screen", "Clear screen"),
         InputAction::ClearScreen,
     )
     .with_context_predicate(id!("Input"))
@@ -2192,14 +2193,20 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:scroll_up_one_page",
-            "Scroll terminal output up one page",
+            bindings::localized_description(
+                "terminal.action.scroll_up_page",
+                "Scroll terminal output up one page",
+            ),
             InputAction::PageUp,
         )
         .with_context_predicate(id!("Input") & !id!("IMEOpen"))
         .with_key_binding("pageup"),
         EditableBinding::new(
             "terminal:scroll_down_one_page",
-            "Scroll terminal output down one page",
+            bindings::localized_description(
+                "terminal.action.scroll_down_page",
+                "Scroll terminal output down one page",
+            ),
             InputAction::PageDown,
         )
         .with_context_predicate(id!("Input") & !id!("IMEOpen"))
@@ -2208,8 +2215,11 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:edit_prompt",
-        BindingDescription::new("Edit Prompt")
-            .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Edit Prompt"),
+        bindings::localized_description("keybinding.input.edit_prompt", "Edit Prompt")
+            .with_custom_description(
+                bindings::MAC_MENUS_CONTEXT,
+                warp_i18n::tr("keybinding.input.edit_prompt", "Edit Prompt"),
+            ),
         WorkspaceAction::OpenPromptEditor {
             open_source: PromptEditorOpenSource::CommandPalette,
         },
@@ -2228,7 +2238,10 @@ pub fn init(app: &mut AppContext) {
     {
         app.register_editable_bindings([EditableBinding::new(
             "input:toggle_classic_completions_mode",
-            "(Experimental) Toggle classic completions mode",
+            bindings::localized_description(
+                "keybinding.input.classic_completions",
+                "(Experimental) Toggle classic completions mode",
+            ),
             InputAction::ToggleClassicCompletionsMode,
         )
         .with_context_predicate(id!("Input"))]);
@@ -2238,7 +2251,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:show_command_search",
-            "Command Search",
+            bindings::localized_description("terminal.menu.command_search", "Command Search"),
             WorkspaceAction::ShowCommandSearch(Default::default()),
         )
         // Only show command search if none of the input-related panels are open, and if we aren't
@@ -2253,7 +2266,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::CommandSearch),
         EditableBinding::new(
             "input:search_command_history",
-            "History Search",
+            bindings::localized_description("keybinding.input.history_search", "History Search"),
             WorkspaceAction::ShowCommandSearch(CommandSearchOptions {
                 filter: Some(QueryFilter::History),
                 init_content: Default::default(),
@@ -2263,14 +2276,20 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::HistorySearch),
         EditableBinding::new(
             OPEN_COMPLETIONS_KEYBINDING_NAME,
-            "Open completions menu",
+            bindings::localized_description(
+                "keybinding.input.open_completions",
+                "Open completions menu",
+            ),
             InputAction::MaybeOpenCompletionSuggestions,
         )
         .with_context_predicate(id!("Input"))
         .with_key_binding("tab"),
         EditableBinding::new(
             "workspace:trigger_external_ctrl_t_file_search",
-            "External File Search",
+            bindings::localized_description(
+                "keybinding.input.external_file_search",
+                "External File Search",
+            ),
             WorkspaceAction::TriggerExternalCtrlTFileSearch,
         )
         .with_enabled(|| FeatureFlag::ShellWidgetHandoff.is_enabled())
@@ -2278,7 +2297,10 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-t"),
         EditableBinding::new(
             "workspace:trigger_external_alt_c_directory_search",
-            "External Directory Search",
+            bindings::localized_description(
+                "keybinding.input.external_directory_search",
+                "External Directory Search",
+            ),
             WorkspaceAction::TriggerExternalAltCDirectorySearch,
         )
         .with_enabled(|| FeatureFlag::ShellWidgetHandoff.is_enabled())
@@ -2289,7 +2311,7 @@ pub fn init(app: &mut AppContext) {
     if let Some(custom_action) = workflows::CategoriesView::custom_action() {
         app.register_editable_bindings([EditableBinding::new(
             "input:toggle_workflows",
-            "Workflows",
+            bindings::localized_description("keybinding.input.workflows", "Workflows"),
             InputAction::SelectAndRefreshVoltron(VoltronItem::Workflows),
         )
         .with_context_predicate(id!("Input"))

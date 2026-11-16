@@ -4,13 +4,15 @@
 
 无需 Warp 账号，停用内置 AI／Agent、云同步与团队协作；Codex、Claude Code、SSH 等外部 CLI 仍作为普通终端程序使用。TinyWarp 由独立维护者开发，与 Warp 官方没有隶属关系。
 
-[下载与版本记录](https://github.com/sty20030818/TinyWarp/releases) · [待办与路线](ROADMAP.md) · [参与贡献](CONTRIBUTING.md) · [构建说明](docs/fork/build-macos.md)
+[下载与版本记录](https://github.com/sty20030818/TinyWarp/releases) · [待办与路线](ROADMAP.md) · [使用与支持](SUPPORT.md) · [参与贡献](CONTRIBUTING.md) · [构建说明](docs/fork/build-macos.md)
 
 ## 当前状态
 
 TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.2（构建 5）**，首阶段支持 **macOS Apple Silicon**；Intel Mac、Windows 和 Linux 尚不列入已验证支持范围。
 
 当前公开包采用 ad hoc 签名，应用内更新使用专用发布公钥验证清单与包哈希。Apple Developer ID、公证和首次浏览器下载的 Gatekeeper 体验尚待完成，当前发布不代表这些分发环节已通过验收。
+
+最低 macOS 支持版本仍待稳定系统实测；编译下限不等于兼容承诺。当前环境与分发条件见 [支持说明](SUPPORT.md) 和 [macOS 分发说明](docs/fork/macos-distribution.md)。
 
 ## 保留与精简
 
@@ -35,7 +37,7 @@ TinyWarp 正朝面向公众的正式产品推进。当前已发布 **0.1.2（构
 
 TinyWarp 目前沿用 OSS 身份 `dev.warp.WarpOss`、配置目录 `~/.warp-oss` 和对应本地数据库，与 Warp Preview 分开保存。仓库改名不改变这些身份，也不触发数据迁移。它会与其他使用同一 OSS 身份的安装共享数据，不应把两者当作隔离环境同时运行。
 
-Tab／分屏布局恢复不等于恢复已退出的进程。已有偶发 Tab 丢失反馈，复现和修复列在 [路线](ROADMAP.md) 中；重要工作请保留独立记录。
+Tab／分屏布局恢复不等于恢复已退出的进程。2026-11-16，用户反馈启用“关闭所有窗口后退出”后 Tab 似乎恢复正常，认为此前与设置有关；这属于使用反馈，不是本轮代码修复。退出设置、隔离验证及独立故障风险见 [恢复调查](docs/fork/session-recovery-investigation.md)。
 
 ## 开发与维护
 
@@ -43,11 +45,13 @@ Tab／分屏布局恢复不等于恢复已退出的进程。已有偶发 Tab 丢
 
 项目沿用 Rust、WarpUI 和现有锁文件。TinyWarp GUI 使用 `--no-default-features --features tinywarp_gui`，完整环境、当前构建命令与独立候选验证方式见 [macOS 构建说明](docs/fork/build-macos.md)。部分早期文档含历史构建方法，实施时以当前章节为准。
 
-贡献前请阅读 [贡献指南](CONTRIBUTING.md) 与 [工程约定](AGENTS.md)。TinyWarp 自己的 CI 和可复现发布流程仍在建设，不把继承的 Warp 自动化视为已经可用的验证保障。
+贡献前请阅读 [贡献指南](CONTRIBUTING.md) 与 [工程约定](AGENTS.md)。TinyWarp 的定向 CI 覆盖版本、原生插件打包、依赖边界与中文目录回归；完整应用编译、GUI 和数据保留仍按改动及候选在本机验证。工作流的首次云运行尚待验收，范围与本机发布步骤见 [CI 与发布维护流程](docs/fork/release-process.md)。
 
 ## 反馈与路线
 
 使用 [TinyWarp Issues](https://github.com/sty20030818/TinyWarp/issues) 报告可复现问题或提出需求；请附版本、系统、操作步骤和预期行为，提交日志前移除凭据、命令内容和其他私人信息。
+
+安全漏洞使用 [TinyWarp 私密报告渠道](SECURITY.md)。键盘与读屏的已测范围及缺口见 [可访问性记录](docs/fork/accessibility.md)，目前不宣称全应用已通过可访问性验收。
 
 当前待办、已确认的产品边界以及暂停的研究统一放在 [ROADMAP.md](ROADMAP.md)。历史实现和验收证据保留在 [项目记录](docs/fork/README.md)。
 

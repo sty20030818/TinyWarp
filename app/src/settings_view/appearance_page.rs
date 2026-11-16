@@ -17,9 +17,9 @@ use warpui::elements::{
     Shrinkable, Text, Wrap,
 };
 use warpui::fonts::{FamilyId, FontInfo, Weight};
-use warpui::keymap::{ContextPredicate, FixedBinding};
+use warpui::keymap::{ContextPredicate, EditableBinding, FixedBinding};
 use warpui::platform::{
-    Cursor, FilePickerConfiguration, GraphicsBackend, SystemTheme, WindowBackdrop,
+    Cursor, FilePickerConfiguration, FileType, GraphicsBackend, SystemTheme, WindowBackdrop,
 };
 use warpui::rendering::ThinStrokes;
 use warpui::ui_components::button::ButtonVariant;
@@ -55,6 +55,7 @@ use crate::editor::{
 };
 use crate::features::FeatureFlag;
 use crate::gpu_state::{GPUState, GPUStateEvent};
+use crate::menu_icon::MenuIconManager;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::server::telemetry::{InputUXChangeOrigin, TelemetryEvent};
 use crate::settings::app_icon::{AppIcon, AppIconSettings, ShowDockIconState};
@@ -80,6 +81,7 @@ use crate::terminal::{
 };
 use crate::themes::theme::{self, RespectSystemTheme, SelectedSystemThemes, ThemeKind, WarpTheme};
 use crate::themes::theme_chooser::ThemeChooserMode;
+use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::color_dot::{TAB_COLOR_OPTIONS, render_color_dot};
 use crate::ui_components::icons::Icon;
 use crate::user_config::WarpConfig;
@@ -160,6 +162,34 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     context: &ContextPredicate,
     builder: fn(SettingsAction) -> T,
 ) {
+    if crate::local_terminal::is_enabled(app) {
+        app.register_editable_bindings([
+            EditableBinding::new(
+                "appearance:choose_menu_icon",
+                bindings::localized_description(
+                    "appearance.menu_icon.choose_action",
+                    "Choose menu icon image",
+                ),
+                builder(SettingsAction::AppearancePageToggle(
+                    AppearancePageAction::ChooseMenuIcon,
+                )),
+            )
+            .with_context_predicate(context.clone())
+            .with_group(bindings::BindingGroup::Settings.as_str()),
+            EditableBinding::new(
+                "appearance:reset_menu_icon",
+                bindings::localized_description(
+                    "appearance.menu_icon.reset_action",
+                    "Restore default menu icon",
+                ),
+                builder(SettingsAction::AppearancePageToggle(
+                    AppearancePageAction::ResetMenuIcon,
+                )),
+            )
+            .with_context_predicate(context.clone())
+            .with_group(bindings::BindingGroup::Settings.as_str()),
+        ]);
+    }
     // Add all the toggle settings from the Appearance Page that you want to show up on the Command Palette here.
     let mut toggle_binding_pairs = vec![
         ToggleSettingActionPair::new(
@@ -603,6 +633,9 @@ pub enum AppearancePageAction {
     },
     SetInputType(InputBoxType),
     SetAppIcon(AppIcon),
+    ChooseMenuIcon,
+    ImportMenuIcon(PathBuf),
+    ResetMenuIcon,
     ToggleShowDockIcon,
     SetCursorType(CursorDisplayType),
     SetWorkspaceDecorationVisibility(WorkspaceDecorationVisibility),
@@ -793,6 +826,24 @@ impl TypedActionView for AppearanceSettingsPageView {
             } => self.set_input_mode(*new_mode, *from_binding, ctx),
             SetInputType(input_type) => self.set_input_type(*input_type, ctx),
             SetAppIcon(new_icon) => self.set_app_icon(*new_icon, ctx),
+            ChooseMenuIcon => open_menu_icon_picker(ctx),
+            ImportMenuIcon(path) => {
+                if crate::local_terminal::is_enabled(ctx)
+                    && ctx.has_singleton_model::<MenuIconManager>()
+                {
+                    MenuIconManager::handle(ctx).update(ctx, |manager, ctx| {
+                        manager.import_image(path.clone(), ctx);
+                    });
+                }
+            }
+            ResetMenuIcon => {
+                if crate::local_terminal::is_enabled(ctx)
+                    && ctx.has_singleton_model::<MenuIconManager>()
+                    && !MenuIconManager::as_ref(ctx).is_importing()
+                {
+                    MenuIconManager::handle(ctx).update(ctx, |manager, ctx| manager.reset(ctx));
+                }
+            }
             ToggleShowDockIcon => self.toggle_show_dock_icon(ctx),
             SetCursorType(cursor_display_type) => self.set_cursor_type(*cursor_display_type, ctx),
             OpacitySliderDragged(val) => self.set_opacity(*val, false, ctx),
@@ -1095,6 +1146,9 @@ impl AppearanceSettingsPageView {
             ctx.notify()
         });
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, _, ctx| ctx.notify());
+        if crate::local_terminal::is_enabled(ctx) && ctx.has_singleton_model::<MenuIconManager>() {
+            ctx.observe(&MenuIconManager::handle(ctx), |_, _, ctx| ctx.notify());
+        }
         ctx.subscribe_to_model(&BlockListSettings::handle(ctx), |_, _, _, ctx| ctx.notify());
         ctx.subscribe_to_model(&WindowSettings::handle(ctx), |me, _, evt, ctx| {
             match evt {
@@ -1491,9 +1545,16 @@ impl AppearanceSettingsPageView {
         )];
 
         if AppIconSettings::as_ref(ctx).is_supported_on_current_platform() {
+            let mut icon_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
+                vec![Box::new(CustomAppIconWidget::default())];
+            if crate::local_terminal::is_enabled(ctx)
+                && ctx.has_singleton_model::<MenuIconManager>()
+            {
+                icon_widgets.push(Box::new(MenuIconWidget::default()));
+            }
             categories.push(Category::new(
                 tr("appearance.section.icon", "Icon"),
-                vec![Box::new(CustomAppIconWidget::default())],
+                icon_widgets,
             ));
         }
 
@@ -3195,6 +3256,159 @@ impl SettingsWidget for ThemeSelectWidget {
                     .finish(),
             )
             .finish()
+    }
+}
+
+fn open_menu_icon_picker(ctx: &mut ViewContext<AppearanceSettingsPageView>) {
+    if !crate::local_terminal::is_enabled(ctx)
+        || !ctx.has_singleton_model::<MenuIconManager>()
+        || MenuIconManager::as_ref(ctx).is_importing()
+    {
+        return;
+    }
+    ctx.open_file_picker(
+        |result, ctx| match result {
+            Ok(paths) => {
+                if let Some(path) = paths.first() {
+                    ctx.dispatch_typed_action(&AppearancePageAction::ImportMenuIcon(
+                        PathBuf::from(path),
+                    ));
+                }
+            }
+            Err(_) => crate::local_terminal::show_message(
+                tr(
+                    "appearance.menu_icon.picker_error",
+                    "Could not open the image picker. Please try again.",
+                ),
+                ctx,
+            ),
+        },
+        FilePickerConfiguration::new().set_allowed_file_types(vec![FileType::Image]),
+    );
+}
+
+#[derive(Default)]
+struct MenuIconWidget {
+    choose_mouse_state: MouseStateHandle,
+    reset_mouse_state: MouseStateHandle,
+}
+
+impl SettingsWidget for MenuIconWidget {
+    type View = AppearanceSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "menu icon image avatar png jpg jpeg 菜单 图标 图片 头像 选择 恢复 默认"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        if !app.has_singleton_model::<MenuIconManager>() {
+            return Empty::new().finish();
+        }
+        let manager = MenuIconManager::as_ref(app);
+        let source = manager.image_source();
+        let has_custom_image = source.is_some();
+        let busy = manager.is_importing();
+        let ui = appearance.ui_builder();
+        let mut choose = ui
+            .button(ButtonVariant::Secondary, self.choose_mouse_state.clone())
+            .with_text_label(
+                tr(
+                    if busy {
+                        "appearance.menu_icon.importing"
+                    } else {
+                        "appearance.menu_icon.choose"
+                    },
+                    if busy {
+                        "Importing…"
+                    } else {
+                        "Choose image…"
+                    },
+                )
+                .to_owned(),
+            );
+        if busy {
+            choose = choose.disabled();
+        }
+        let mut reset = ui
+            .button(ButtonVariant::Text, self.reset_mouse_state.clone())
+            .with_text_label(tr("appearance.menu_icon.reset", "Restore default").to_owned());
+        if busy || (source.is_none() && manager.last_error().is_none()) {
+            reset = reset.disabled();
+        }
+        let preview = Avatar::new(
+            source
+                .map(AvatarContent::LocalImage)
+                .unwrap_or(AvatarContent::Icon(Icon::Gear)),
+            UiComponentStyles {
+                width: Some(40.),
+                height: Some(40.),
+                border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
+                background: (!has_custom_image).then(|| appearance.theme().surface_2().into()),
+                font_color: Some(
+                    appearance
+                        .theme()
+                        .font_color(appearance.theme().surface_2())
+                        .into(),
+                ),
+                ..Default::default()
+            },
+        )
+        .build()
+        .finish();
+        let controls = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(preview)
+            .with_child(
+                Container::new(
+                    choose
+                        .build()
+                        .on_click(|ctx, _, _| {
+                            ctx.dispatch_typed_action(AppearancePageAction::ChooseMenuIcon);
+                        })
+                        .finish(),
+                )
+                .with_margin_left(12.)
+                .finish(),
+            )
+            .with_child(
+                Container::new(
+                    reset
+                        .build()
+                        .on_click(|ctx, _, _| {
+                            ctx.dispatch_typed_action(AppearancePageAction::ResetMenuIcon);
+                        })
+                        .finish(),
+                )
+                .with_margin_left(8.)
+                .finish(),
+            )
+            .finish();
+        let mut column = Flex::column().with_child(render_body_item::<AppearancePageAction>(
+            tr("appearance.menu_icon.title", "Menu icon").into(),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            controls,
+            None,
+        ));
+        if let Some(error) = manager.last_error() {
+            column.add_child(
+                ui.paragraph(tr(error.message_key(), error.message()))
+                    .with_style(UiComponentStyles {
+                        font_color: Some(themes::theme::Fill::error().into()),
+                        ..Default::default()
+                    })
+                    .build()
+                    .finish(),
+            );
+        }
+        column.finish()
     }
 }
 

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
 use warp_i18n::tr;
@@ -774,46 +773,7 @@ impl SettingsPageMeta for KeybindingsView {
     fn on_page_selected(&mut self, allow_steal_focus: bool, ctx: &mut ViewContext<Self>) {
         // Reset previous modifying_row state.
         self.modifying_row = None;
-        // `from_editable_lens` materializes any dynamic description resolver
-        // before caching, so the dedup below (which compares descriptions)
-        // sees concrete strings.
-        let lenses: Vec<_> = ctx.editable_bindings().collect();
-        self.bindings = Some(
-            lenses
-                .into_iter()
-                .filter(|lens| {
-                    crate::util::bindings::is_action_available_in_local_terminal(
-                        lens.action.as_ref(),
-                        ctx,
-                    )
-                })
-                .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
-                .sorted_by(|a, b| {
-                    // Sort by description then name so that we can deduplicate bindings by name.
-                    a.description
-                        .in_context(DescriptionContext::Default)
-                        .cmp(b.description.in_context(DescriptionContext::Default))
-                        .then(a.name.cmp(&b.name))
-                })
-                // Effectively, editable bindings can only be used by one view, because the
-                // corresponding context predicate and typed action are view-specific.
-                //
-                // If multiple views need equivalent bindings, we handle this by declaring
-                // duplicates with the same name and description, but different actions and
-                // predicates. Because bindings are saved/loaded by name, changes to one binding
-                // will affect the others. To reduce clutter, only show one binding for a given name
-                // and description.
-                //
-                // There are some bindings with the same name, but different descriptions. Because
-                // we sort by description first, those bindings won't be deduplicated. This is
-                // alright for now, since those bindings have slightly different semantics despite
-                // being linked (e.g. find in block vs. find in terminal).
-                //
-                // TODO: Long-term, we should instead refactor TypedActionView so that common
-                // bindings can be declared once and handled by multiple views.
-                .dedup_by(|a, b| a.name == b.name && a.description == b.description)
-                .collect(),
-        );
+        self.bindings = Some(crate::util::bindings::editable_command_bindings(ctx));
         self.rows = Some(
             self.bindings
                 .iter()

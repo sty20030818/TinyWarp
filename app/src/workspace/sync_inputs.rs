@@ -4,7 +4,7 @@ use warpui::keymap::EditableBinding;
 use warpui::{AppContext, Entity, EntityId, SingletonEntity, WindowId};
 
 use super::WorkspaceAction;
-use crate::util::bindings::{BindingGroup, CustomAction};
+use crate::util::bindings::{BindingGroup, CustomAction, localized_description};
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -12,7 +12,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings(vec![
         EditableBinding::new(
             "workspace:disable_terminal_input_syncing",
-            "Stop Synchronizing Any Panes",
+            localized_description(
+                "keybinding.workspace.stop_input_sync",
+                "Stop Synchronizing Any Panes",
+            ),
             WorkspaceAction::DisableTerminalInputSync,
         )
         .with_context_predicate(id!("Workspace"))
@@ -21,7 +24,10 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::DisableSyncTerminalInputs),
         EditableBinding::new(
             "workspace:toggle_sync_terminal_inputs_in_tab",
-            "Toggle Synchronizing All Panes in Current Tab",
+            localized_description(
+                "keybinding.workspace.sync_input_current_tab",
+                "Toggle Synchronizing All Panes in Current Tab",
+            ),
             WorkspaceAction::ToggleSyncTerminalInputsInTab,
         )
         .with_context_predicate(id!("Workspace"))
@@ -29,7 +35,10 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::ToggleSyncTerminalInputsInCurrentTab),
         EditableBinding::new(
             "workspace:toggle_sync_all_terminal_inputs_in_all_tabs",
-            "Toggle Synchronizing All Panes in All Tabs",
+            localized_description(
+                "keybinding.workspace.sync_input_all_tabs",
+                "Toggle Synchronizing All Panes in All Tabs",
+            ),
             WorkspaceAction::ToggleSyncAllTerminalInputsInAllTabs,
         )
         .with_context_predicate(id!("Workspace"))

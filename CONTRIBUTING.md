@@ -8,7 +8,7 @@ TinyWarp 是面向公众、独立维护的 Warp 终端 fork。首阶段聚焦 ma
 
 需求先说明具体使用问题，再讨论方案。涉及会话、数据、更新协议、品牌、支持平台或大范围重构时，先与维护者确认范围，避免提交无法接纳的大改动。
 
-不要在公开 Issue／PR 中披露尚未修复的漏洞、凭据或私人数据。TinyWarp 自己的私密漏洞报告渠道尚待建立；现有 [SECURITY.md](SECURITY.md) 描述的是 Warp 上游渠道，不代表 Warp 团队负责接收或修复 TinyWarp 特有问题。
+不要在公开 Issue／PR 中披露尚未修复的漏洞、凭据或私人数据。使用 [TinyWarp 安全政策](SECURITY.md) 中的私密漏洞报告入口；本项目的反馈由 TinyWarp 维护者处理。兼容范围与普通问题说明见 [SUPPORT.md](SUPPORT.md)。
 
 ## 开发与 Pull Request
 
@@ -18,7 +18,7 @@ TinyWarp 是面向公众、独立维护的 Warp 终端 fork。首阶段聚焦 ma
 4. 使用 [PR 模板](.github/pull_request_template.md)，说明问题、修改后的行为、实际验证和未验证范围。UI 变更附实际截图；涉及本地数据时说明保留与恢复边界。
 5. 提交信息使用约定式格式，例如 `fix(menu): 修正菜单状态刷新`。保持一次 PR 聚焦一个完整目标。
 
-TinyWarp 尚未建立自己的完整 CI，也未接入上游 Oz 自动分派、评审或发布流程。不要依赖上游机器人、内部 runner、Slack 或 `@oss-maintainers` 处理本项目的贡献。
+TinyWarp 的独立轻量工作流面向 `main`，检查版本、插件打包、依赖边界与中文目录，首次云运行尚待验收；它不替代相关应用级测试、GUI 与候选验收。范围及发布步骤见 [维护流程](docs/fork/release-process.md)。本项目未接入上游 Oz 自动分派、评审或发布流程，不依赖上游机器人、内部 runner、Slack 或 `@oss-maintainers` 处理贡献。
 
 ## 同步上游
 

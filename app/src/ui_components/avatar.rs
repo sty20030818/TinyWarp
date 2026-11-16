@@ -1,6 +1,7 @@
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::external_product_icon::ExternalProductIcon;
 use warp_core::ui::icons::Icon;
+use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{
     self, Align, Border, CacheOption, ChildAnchor, ConstrainedBox, Container, Element, Image,
     OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack, Text,
@@ -15,6 +16,8 @@ pub enum AvatarContent {
 
     /// Renders the icon directly.
     Icon(Icon),
+
+    LocalImage(AssetSource),
 
     ExternalProductIcon(ExternalProductIcon),
 
@@ -72,6 +75,29 @@ impl UiComponent for Avatar {
                 .with_width(icon_size)
                 .with_height(icon_size)
                 .finish()
+            }
+            AvatarContent::LocalImage(source) => {
+                let fallback = || {
+                    let icon_size = styles.height.unwrap_or_default() * 0.66;
+                    ConstrainedBox::new(
+                        elements::Icon::new(
+                            Icon::Gear.into(),
+                            styles.font_color.unwrap_or_default(),
+                        )
+                        .finish(),
+                    )
+                    .with_width(icon_size)
+                    .with_height(icon_size)
+                    .finish()
+                };
+                let mut image = Image::new(source, CacheOption::BySize)
+                    .cover()
+                    .before_load(Align::new(fallback()).finish())
+                    .on_load_failure(Align::new(fallback()).finish());
+                if let Some(radius) = styles.border_radius {
+                    image = image.with_corner_radius(radius);
+                }
+                image.finish()
             }
             AvatarContent::ExternalProductIcon(external_product_icon) => {
                 let icon_size = {

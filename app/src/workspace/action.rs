@@ -947,6 +947,8 @@ impl WorkspaceAction {
             | OpenAgentManagementView
             | ToggleAgentManagementView
             | ToggleNotificationMailbox { .. }
+            | JumpToLatestToast
+            | JoinSlack
             | ViewAgentRunsForEnvironment { .. }
             | ExecuteRewindAIConversation { .. }
             | OpenOrAttachAmbientAgentConversation { .. }

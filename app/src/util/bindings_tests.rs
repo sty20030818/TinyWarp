@@ -263,6 +263,362 @@ fn shortcut_filter_keeps_english_alias_and_original_binding_after_localization()
 }
 
 #[test]
+#[cfg(not(target_family = "wasm"))]
+fn complete_local_keybinding_page_uses_chinese_and_excludes_disabled_actors() {
+    use warpui::keymap::DescriptionContext;
+
+    use crate::auth::AuthStateProvider;
+    use crate::gpu_state::GPUState;
+    use crate::workspaces::user_workspaces::UserWorkspaces;
+
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        crate::test_util::settings::initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(|_| GPUState::new());
+        app.add_singleton_model(|_| AuthStateProvider::new_logged_out_for_test());
+        app.add_singleton_model(UserWorkspaces::default_mock);
+        app.update(crate::register_keybindings);
+        app.update(|ctx| {
+            let raw_count = ctx.editable_bindings().count();
+            let bindings = super::editable_command_bindings(ctx);
+            assert!(bindings.len() > 50, "完整启动注册应保留本地终端动作");
+            assert!(
+                raw_count > bindings.len(),
+                "完整注册包含被本地策略排除的动作"
+            );
+            let missing = bindings
+                .iter()
+                .filter(|binding| {
+                    binding
+                        .description
+                        .in_context(DescriptionContext::Default)
+                        .is_ascii()
+                })
+                .map(|binding| {
+                    format!(
+                        "{} | {} | {}",
+                        binding.name,
+                        binding
+                            .action
+                            .as_ref()
+                            .map(|action| action.as_ref().type_name())
+                            .unwrap_or("无 typed action"),
+                        binding.description.in_context(DescriptionContext::Default)
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                missing.is_empty(),
+                "本地快捷键页仍有英文文案：\n{}",
+                missing.join("\n")
+            );
+            assert!(
+                ctx.editable_bindings().any(|lens| lens
+                    .action
+                    .as_ref()
+                    .as_any()
+                    .is::<crate::ai::ai_document_view::AIDocumentAction>(
+                )),
+                "AI文档原动作仍注册"
+            );
+            for name in [
+                "Close Workflow",
+                "Close Env Var Collection",
+                "ai_assistant_panel:focus_terminal_input",
+                "editor:next_find_match",
+                "editor:previous_find_match",
+                "workspace:link_to_slack",
+                "workspace:jump_to_latest_toast",
+                "project_buttons:create_new_project",
+                "code_view:save",
+            ] {
+                assert!(
+                    !bindings.iter().any(|binding| binding.name == name),
+                    "已停用动作仍在快捷键页：{name}"
+                );
+            }
+            for name in [
+                "editor_view:left",
+                "terminal:paste",
+                "input:clear_screen",
+                "workspace:disable_terminal_input_syncing",
+                "input:toggle_workflows",
+                "appearance:choose_menu_icon",
+                "appearance:reset_menu_icon",
+            ] {
+                assert!(
+                    bindings.iter().any(|binding| binding.name == name),
+                    "保留本地动作：{name}"
+                );
+            }
+            for (name, chinese, english) in [
+                #[cfg(target_os = "macos")]
+                ("workspace:sample_process", "采样当前进程", "Sample Process"),
+                (
+                    "workspace:send_feedback",
+                    "发送反馈（打开外部链接）",
+                    "Send feedback (opens external link)",
+                ),
+            ] {
+                let binding = bindings
+                    .iter()
+                    .find(|binding| binding.name == name)
+                    .expect("保留本地动作");
+                assert_eq!(
+                    binding.description.in_context(DescriptionContext::Default),
+                    chinese
+                );
+                assert!(
+                    binding
+                        .description
+                        .search_aliases()
+                        .contains(&english.to_owned())
+                );
+            }
+        });
+    });
+}
+
+#[test]
+fn localized_registered_shortcuts_preserve_english_search_and_custom_keys() {
+    use warpui::keymap::DescriptionContext;
+
+    use super::{CommandBinding, filter_bindings_including_keystroke};
+
+    App::test((), |mut app| async move {
+        app.update(crate::local_terminal::enable_for_test);
+        app.update(crate::editor::init);
+        app.update(terminal::init);
+        app.update(crate::terminal::input::init);
+        app.update(crate::workspace::sync_inputs::init);
+        app.update(crate::undo_close::init);
+        app.update(crate::root_view::init);
+
+        app.update(|ctx| {
+            for lens in ctx.editable_bindings().filter(|lens| {
+                (lens.name.starts_with("editor_view:") || lens.name.starts_with("editor:"))
+                    && super::is_action_available_in_local_terminal(lens.action.as_ref(), ctx)
+            }) {
+                let binding = CommandBinding::from_editable_lens(lens, ctx);
+                assert!(
+                    !binding
+                        .description
+                        .in_context(DescriptionContext::Default)
+                        .is_ascii(),
+                    "共享编辑器动作应有中文显示文案：{}",
+                    binding.name
+                );
+            }
+            for (name, english, chinese) in [
+                ("editor_view:left", "Move cursor left", "向左移动光标"),
+                (
+                    "editor_view:move_backward_one_word",
+                    "Move backward one word",
+                    "向左移动一个单词",
+                ),
+                ("editor_view:home", "Home", "移至可视行首"),
+                ("terminal:paste", "Paste", "粘贴"),
+                ("input:clear_screen", "Clear screen", "清屏"),
+                ("input:toggle_workflows", "Workflows", "工作流"),
+                (
+                    "terminal:scroll_up_one_page",
+                    "Scroll terminal output up one page",
+                    "将终端输出向上滚动一页",
+                ),
+                (
+                    "workspace:disable_terminal_input_syncing",
+                    "Stop Synchronizing Any Panes",
+                    "停止同步所有窗格的输入",
+                ),
+                (
+                    "app:reopen_closed_session",
+                    "Reopen closed session",
+                    "重新打开已关闭的会话",
+                ),
+                (
+                    "root_view:toggle_fullscreen",
+                    "Toggle fullscreen",
+                    "切换全屏",
+                ),
+            ] {
+                let bindings = ctx
+                    .editable_bindings()
+                    .filter(|lens| lens.name == name)
+                    .map(|lens| {
+                        let id = lens.id;
+                        let binding = CommandBinding::from_editable_lens(lens, ctx);
+                        assert_eq!(binding.id, id);
+                        assert_eq!(binding.name, name);
+                        assert_eq!(
+                            binding.description.in_context(DescriptionContext::Default),
+                            chinese
+                        );
+                        assert!(
+                            binding
+                                .description
+                                .search_aliases()
+                                .contains(&english.to_string())
+                        );
+                        binding
+                    })
+                    .collect::<Vec<_>>();
+                assert!(!bindings.is_empty(), "动作 {name} 必须保留注册");
+                assert!(
+                    bindings
+                        .iter()
+                        .all(|binding| binding.description == bindings[0].description),
+                    "同名动作的本地化描述和英文别名必须一致，避免快捷键页重复行：{name}"
+                );
+                for query in [chinese, english] {
+                    let found = filter_bindings_including_keystroke(
+                        bindings.iter(),
+                        query,
+                        DescriptionContext::Default,
+                    )
+                    .collect::<Vec<_>>();
+                    assert_eq!(found.len(), bindings.len(), "查询 {query}");
+                }
+
+                let custom = Keystroke::parse("cmd-shift-L").unwrap();
+                ctx.set_custom_trigger(name.into(), Trigger::Keystrokes(vec![custom.clone()]));
+                for lens in ctx.editable_bindings().filter(|lens| lens.name == name) {
+                    let binding = CommandBinding::from_editable_lens(lens, ctx);
+                    assert_eq!(binding.name, name);
+                    assert_eq!(binding.trigger.as_ref(), Some(&custom));
+                    assert!(
+                        filter_bindings_including_keystroke(
+                            std::iter::once(&binding),
+                            "cmd shift l",
+                            DescriptionContext::Default,
+                        )
+                        .next()
+                        .is_some()
+                    );
+                }
+            }
+        });
+    });
+}
+
+#[test]
+fn local_terminal_hides_unavailable_view_shortcuts_without_removing_registration() {
+    use super::{CommandBinding, is_action_available_in_local_terminal};
+    use crate::pane_group::pane::view::PaneAction;
+    use crate::workspace::view::right_panel::RightPanelAction;
+
+    App::test((), |mut app| async move {
+        app.update(terminal::init);
+        app.update(crate::terminal::input::init);
+        app.update(|ctx| {
+            ctx.register_editable_bindings([
+                EditableBinding::new("test:share_pane", "Share pane", PaneAction::ShareContents),
+                EditableBinding::new(
+                    "test:maximize_code_review",
+                    "Toggle Maximize Code Review Panel",
+                    RightPanelAction::ToggleMaximize,
+                ),
+            ]);
+            for name in [
+                "test:share_pane",
+                "test:maximize_code_review",
+                "input:clear_and_reset_ai_context_menu_query",
+                "terminal:stop_sharing_current_session",
+            ] {
+                let lens = ctx.get_binding_by_name(name).expect("原动作已注册");
+                assert!(CommandBinding::from_lens(lens, ctx).is_some());
+            }
+            crate::local_terminal::enable_for_test(ctx);
+            for name in [
+                "test:share_pane",
+                "test:maximize_code_review",
+                "input:clear_and_reset_ai_context_menu_query",
+                "terminal:stop_sharing_current_session",
+            ] {
+                let lens = ctx.get_binding_by_name(name).expect("本地策略不删除原注册");
+                assert!(!is_action_available_in_local_terminal(
+                    lens.action.as_ref(),
+                    ctx
+                ));
+                assert!(CommandBinding::from_lens(lens, ctx).is_none());
+            }
+        });
+    });
+}
+
+#[test]
+#[cfg(not(target_family = "wasm"))]
+fn local_terminal_hides_disabled_editor_candidates_without_removing_registration() {
+    use warpui::keymap::DescriptionContext;
+
+    use super::{CommandBinding, is_action_available_in_local_terminal};
+
+    App::test((), |mut app| async move {
+        app.update(crate::editor::init);
+        app.update(crate::notebooks::init);
+        app.update(crate::code::view::init);
+        app.update(|ctx| {
+            let ids = ctx
+                .editable_bindings()
+                .filter(|lens| lens.name == "editor_view:left")
+                .map(|lens| {
+                    assert!(is_action_available_in_local_terminal(
+                        lens.action.as_ref(),
+                        ctx
+                    ));
+                    lens.id
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(ids.len(), 3, "三种编辑器的原始注册都存在");
+            let standalone_bindings = [
+                "code_view:save",
+                "notebookview:increase_font_size",
+                "notebookview:reload_file",
+            ]
+            .map(|name| {
+                let lens = ctx
+                    .get_binding_by_name(name)
+                    .expect("独立编辑器的真实动作已注册");
+                assert!(CommandBinding::from_lens(lens, ctx).is_some());
+                (name, ctx.get_binding_by_name(name).unwrap().id)
+            });
+            crate::local_terminal::enable_for_test(ctx);
+            for (name, id) in standalone_bindings {
+                let lens = ctx
+                    .get_binding_by_name(name)
+                    .expect("本地策略保留原动作注册");
+                assert_eq!(lens.id, id);
+                assert!(!is_action_available_in_local_terminal(
+                    lens.action.as_ref(),
+                    ctx
+                ));
+                assert!(CommandBinding::from_lens(lens, ctx).is_none());
+            }
+            let local_candidates = ctx
+                .editable_bindings()
+                .filter(|lens| lens.name == "editor_view:left")
+                .filter(|lens| is_action_available_in_local_terminal(lens.action.as_ref(), ctx))
+                .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
+                .collect::<Vec<_>>();
+            assert_eq!(local_candidates.len(), 1);
+            assert_eq!(
+                local_candidates[0]
+                    .description
+                    .in_context(DescriptionContext::Default),
+                "向左移动光标"
+            );
+            assert_eq!(
+                ctx.editable_bindings()
+                    .filter(|lens| lens.name == "editor_view:left")
+                    .map(|lens| lens.id)
+                    .collect::<Vec<_>>(),
+                ids,
+                "候选过滤不删除或改变原始注册"
+            );
+        });
+    });
+}
+
+#[test]
 fn local_terminal_hides_account_candidates_without_removing_registered_bindings() {
     use super::{CommandBinding, is_action_available_in_local_terminal};
     use crate::settings_view::{SettingsAction, SettingsSection};

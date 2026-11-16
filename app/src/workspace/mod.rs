@@ -327,7 +327,7 @@ pub fn init(app: &mut AppContext) {
     #[cfg(target_os = "macos")]
     app.register_editable_bindings([EditableBinding::new(
         "workspace:sample_process",
-        "Sample Process",
+        localized_description("keybinding.workspace.sample_process", "Sample Process"),
         WorkspaceAction::SampleProcess,
     )
     .with_context_predicate(id!("Workspace"))]);
@@ -1228,7 +1228,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::LaunchConfigurations.is_enabled()),
         EditableBinding::new(
             "workspace:toggle_files_palette",
-            "Toggle Files Palette",
+            localized_description("keybinding.workspace.files_palette", "Toggle Files Palette"),
             WorkspaceAction::TogglePalette {
                 mode: PaletteMode::Files,
                 source: PaletteSource::Keybinding,
@@ -1294,7 +1294,10 @@ pub fn init(app: &mut AppContext) {
     if !FeatureFlag::AvatarInTabBar.is_enabled() {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:toggle_resource_center",
-            "Toggle resource center",
+            localized_description(
+                "keybinding.workspace.resource_center",
+                "Toggle resource center",
+            ),
             WorkspaceAction::ToggleResourceCenter,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
@@ -1318,14 +1321,20 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:install_cli",
-                "Install Oz CLI globally for use outside of Warp",
+                localized_description(
+                    "keybinding.workspace.install_oz",
+                    "Install Oz CLI globally for use outside of Warp",
+                ),
                 WorkspaceAction::InstallOz,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
             .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:uninstall_cli",
-                "Undo global Oz CLI installation (oz will still work within Warp)",
+                localized_description(
+                    "keybinding.workspace.uninstall_oz",
+                    "Undo global Oz CLI installation (oz will still work within Warp)",
+                ),
                 WorkspaceAction::UninstallOz,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1357,7 +1366,7 @@ pub fn init(app: &mut AppContext) {
             // but without a keybinding when the update toast is not visible.
             EditableBinding::new(
                 "workspace:view_changelog",
-                "View latest changelog",
+                localized_description("keybinding.workspace.changelog", "View latest changelog"),
                 WorkspaceAction::ViewLatestChangelog,
             )
             .with_context_predicate(id!("Workspace") & !id!("UpdateToastVisible"))
@@ -1368,7 +1377,7 @@ pub fn init(app: &mut AppContext) {
             // When the update toast is visible, register the keybinding as well.
             EditableBinding::new(
                 "workspace:view_changelog",
-                "View latest changelog",
+                localized_description("keybinding.workspace.changelog", "View latest changelog"),
                 WorkspaceAction::ViewLatestChangelog,
             )
             .with_context_predicate(id!("Workspace") & id!("UpdateToastVisible"))
@@ -1794,7 +1803,10 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:send_feedback",
-            BindingDescription::new("Send feedback (opens external link)"),
+            localized_description(
+                "keybinding.workspace.send_feedback",
+                "Send feedback (opens external link)",
+            ),
             WorkspaceAction::SendFeedback,
         )
         .with_context_predicate(id!("Workspace")),

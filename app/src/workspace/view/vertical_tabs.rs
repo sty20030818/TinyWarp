@@ -1210,7 +1210,7 @@ impl VerticalTabsPanelState {
                         search_fragments_contain_query(
                             &summary_search_text_fragments(
                                 &summary,
-                                pane_group.custom_title(app).as_deref(),
+                                pane_group.display_custom_title(app).as_deref(),
                             ),
                             &query_lower,
                         )
@@ -1224,7 +1224,7 @@ impl VerticalTabsPanelState {
                         .into_iter()
                         .any(|pane_id| {
                             let title_override = (!uses_outer_group_container(display_granularity))
-                                .then(|| pane_group.custom_title(app))
+                                .then(|| pane_group.display_custom_title(app))
                                 .flatten();
                             let ms = MouseStateHandle::default();
                             PaneProps::new(
@@ -1821,7 +1821,7 @@ fn render_groups(
                         search_fragments_contain_query(
                             &summary_search_text_fragments(
                                 &summary,
-                                pane_group.custom_title(app).as_deref(),
+                                pane_group.display_custom_title(app).as_deref(),
                             ),
                             &query_lower,
                         )
@@ -1829,7 +1829,7 @@ fn render_groups(
                     }
                     VerticalTabsResolvedMode::Panes | VerticalTabsResolvedMode::FocusedSession => {
                         let title_override = (!uses_outer_group_container)
-                            .then(|| pane_group.custom_title(app))
+                            .then(|| pane_group.display_custom_title(app))
                             .flatten();
                         let matching_ids: Vec<PaneId> = pane_ids_for_display_granularity(
                             &visible_pane_ids,
@@ -2179,7 +2179,7 @@ fn render_tab_group_internal(
     let per_pane_colors = color_mode.into_per_pane_colors(&visible_pane_ids);
     let is_being_renamed = is_active && workspace.current_workspace_state.is_tab_being_renamed();
     let rename_editor = workspace.tab_rename_editor.clone();
-    let has_custom_title = pane_group.custom_title(app).is_some();
+    let has_custom_title = pane_group.display_custom_title(app).is_some();
     // In Panes view, tabs inside a group render individual pane rows, so each
     // pane keeps its own generated title. Propagating the tab's custom title as
     // an override here would shadow every pane's title with the same string.
@@ -2190,7 +2190,7 @@ fn render_tab_group_internal(
             None
         } else {
             (!uses_outer_group_container)
-                .then(|| pane_group.custom_title(app))
+                .then(|| pane_group.display_custom_title(app))
                 .flatten()
         };
     let is_menu_open_for_tab = workspace

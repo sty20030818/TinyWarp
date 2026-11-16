@@ -16,12 +16,30 @@ use warpui::keymap::{
 use warpui::platform::OperatingSystem;
 use warpui::{Action, AppContext, SingletonEntity};
 
+use crate::ai::ai_document_view::AIDocumentAction;
+use crate::ai::blocklist::block::cli::CLISubagentAction;
+use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffViewAction;
+use crate::ai::blocklist::inline_action::requested_command::RequestedCommandViewAction;
+use crate::ai_assistant::panel::AIAssistantAction;
+use crate::code::editor::find::view::FindAction as CodeFindAction;
+use crate::code::editor::view::CodeEditorViewAction;
+use crate::code::view::CodeViewAction;
+use crate::code_review::code_review_view::CodeReviewAction;
+use crate::coding_entrypoints::project_buttons::ProjectButtonsAction;
+use crate::env_vars::view::env_var_collection::EnvVarCollectionAction;
 use crate::keyboard::{UserDefinedKeybinding, remove_custom_keybinding, write_custom_keybinding};
+use crate::notebooks::editor::find_bar::FindBarAction as NotebookFindAction;
+use crate::notebooks::editor::view::EditorViewAction as NotebookEditorAction;
+use crate::notebooks::file::FileNotebookAction;
+use crate::notebooks::notebook::NotebookAction;
+use crate::pane_group::pane::view::PaneAction;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
+use crate::workflows::workflow_view::WorkflowAction;
+use crate::workspace::view::right_panel::RightPanelAction;
 
 pub const MAC_MENUS_CONTEXT: DescriptionContext = DescriptionContext::Custom("mac_menus");
 
-/// 候选列表隐藏账户服务动作；原注册和用户快捷键仍交给 handler 安全处理。
+/// 仅过滤本地终端不可用的候选，保留原注册和用户快捷键的处理路径。
 pub(crate) fn is_action_available_in_local_terminal(action: &dyn Action, ctx: &AppContext) -> bool {
     if !crate::local_terminal::is_enabled(ctx) {
         return true;
@@ -50,6 +68,37 @@ pub(crate) fn is_action_available_in_local_terminal(action: &dyn Action, ctx: &A
     {
         return !action.blocked_in_local_terminal();
     }
+    if matches!(
+        action.as_any().downcast_ref::<PaneAction>(),
+        Some(PaneAction::ShareContents)
+    ) || matches!(
+        action.as_any().downcast_ref::<RightPanelAction>(),
+        Some(RightPanelAction::ToggleMaximize)
+    ) || action.as_any().is::<CodeEditorViewAction>()
+        || action.as_any().is::<NotebookEditorAction>()
+        || action.as_any().is::<CodeViewAction>()
+        || action.as_any().is::<NotebookAction>()
+        || action.as_any().is::<FileNotebookAction>()
+        || action.as_any().is::<CodeFindAction>()
+        || action.as_any().is::<NotebookFindAction>()
+        || action.as_any().is::<CLISubagentAction>()
+        || action.as_any().is::<CodeDiffViewAction>()
+        || action.as_any().is::<RequestedCommandViewAction>()
+        || action.as_any().is::<AIAssistantAction>()
+        || action.as_any().is::<AIDocumentAction>()
+        || action.as_any().is::<CodeReviewAction>()
+        || action.as_any().is::<ProjectButtonsAction>()
+        || action.as_any().is::<EnvVarCollectionAction>()
+        || action.as_any().is::<WorkflowAction>()
+        || matches!(
+            action
+                .as_any()
+                .downcast_ref::<crate::root_view::RootViewAction>(),
+            Some(crate::root_view::RootViewAction::DebugEnterOnboardingState)
+        )
+    {
+        return false;
+    }
     #[cfg(feature = "voice_input")]
     if matches!(
         action
@@ -60,6 +109,40 @@ pub(crate) fn is_action_available_in_local_terminal(action: &dyn Action, ctx: &A
         return false;
     }
     true
+}
+
+/// 筛选当前模式可编辑的动作，按显示文案排序并合并等价注册。
+pub(crate) fn editable_command_bindings(ctx: &AppContext) -> Vec<CommandBinding> {
+    let lenses: Vec<_> = ctx.editable_bindings().collect();
+    lenses
+        .into_iter()
+        .filter(|lens| is_action_available_in_local_terminal(lens.action.as_ref(), ctx))
+        .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
+        .sorted_by(|a, b| {
+            // Sort by description then name so that we can deduplicate bindings by name.
+            a.description
+                .in_context(DescriptionContext::Default)
+                .cmp(b.description.in_context(DescriptionContext::Default))
+                .then(a.name.cmp(&b.name))
+        })
+        // Effectively, editable bindings can only be used by one view, because the
+        // corresponding context predicate and typed action are view-specific.
+        //
+        // If multiple views need equivalent bindings, we handle this by declaring
+        // duplicates with the same name and description, but different actions and
+        // predicates. Because bindings are saved/loaded by name, changes to one binding
+        // will affect the others. To reduce clutter, only show one binding for a given name
+        // and description.
+        //
+        // There are some bindings with the same name, but different descriptions. Because
+        // we sort by description first, those bindings won't be deduplicated. This is
+        // alright for now, since those bindings have slightly different semantics despite
+        // being linked (e.g. find in block vs. find in terminal).
+        //
+        // TODO: Long-term, we should instead refactor TypedActionView so that common
+        // bindings can be declared once and handled by multiple views.
+        .dedup_by(|a, b| a.name == b.name && a.description == b.description)
+        .collect()
 }
 
 /// 中文显示文字保留源码英文标签作为搜索别名。

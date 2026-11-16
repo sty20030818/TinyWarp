@@ -967,57 +967,60 @@ void open_file_path_in_explorer(NSString *pathString) {
 
 void open_file_picker(void *callback, NSArray<NSString *> *fileTypes, BOOL allowFiles,
                       BOOL allowFolders, BOOL allowMultiSelection) {
-    // Create an open panel.
-    NSOpenPanel *openPanel = [NSOpenPanel openPanel];
-    // Set restrictions on which types of files users can pick.
-    [openPanel setAllowsMultipleSelection:allowMultiSelection];
-    [openPanel setCanChooseDirectories:allowFolders];
-    [openPanel setCanCreateDirectories:allowFolders];
-    [openPanel setCanChooseFiles:allowFiles];
+    // 面板初始化会同步查询输入法位置，须等 Rust 释放 AppContext 借用后再执行。
+    dispatch_async(dispatch_get_main_queue(), ^{
+      // Create an open panel.
+      NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+      // Set restrictions on which types of files users can pick.
+      [openPanel setAllowsMultipleSelection:allowMultiSelection];
+      [openPanel setCanChooseDirectories:allowFolders];
+      [openPanel setCanCreateDirectories:allowFolders];
+      [openPanel setCanChooseFiles:allowFiles];
 
-    if (@available(macOS 11, *)) {
-        NSMutableArray *contentTypes = [NSMutableArray array];
-        for (NSString *fileType in fileTypes) {
-            if ([fileType isEqualToString:@"Image"]) {
-                [contentTypes addObject:UTTypeImage];
-            } else if ([fileType isEqualToString:@"Markdown"]) {
-                UTType *markdownType = [UTType typeWithFilenameExtension:@"md"];
-                [contentTypes addObject:markdownType];
-            } else if ([fileType isEqualToString:@"Yaml"]) {
-                [contentTypes addObject:UTTypeYAML];
-            }
-        }
+      if (@available(macOS 11, *)) {
+          NSMutableArray *contentTypes = [NSMutableArray array];
+          for (NSString *fileType in fileTypes) {
+              if ([fileType isEqualToString:@"Image"]) {
+                  [contentTypes addObject:UTTypeImage];
+              } else if ([fileType isEqualToString:@"Markdown"]) {
+                  UTType *markdownType = [UTType typeWithFilenameExtension:@"md"];
+                  [contentTypes addObject:markdownType];
+              } else if ([fileType isEqualToString:@"Yaml"]) {
+                  [contentTypes addObject:UTTypeYAML];
+              }
+          }
 
-        [openPanel setAllowedContentTypes:contentTypes];
-    } else {
-        NSMutableArray *contentTypes = [NSMutableArray array];
-        for (NSString *fileType in fileTypes) {
-            if ([fileType isEqualToString:@"Image"]) {
-                [contentTypes addObjectsFromArray:[NSImage imageTypes]];
-            } else if ([fileType isEqualToString:@"Markdown"]) {
-                [contentTypes addObject:@"md"];
-            } else if ([fileType isEqualToString:@"Yaml"]) {
-                [contentTypes addObject:@"yaml"];
-                [contentTypes addObject:@"yml"];
-            }
-        }
-
-        [openPanel setAllowedFileTypes:contentTypes];
-    }
-
-    // Open panel as sheet on main window.
-    [openPanel beginWithCompletionHandler:^(NSInteger result) {
-      // warp_open_panel_file_selected must be called unconditionally to avoid a memory leak
-      if (result == NSModalResponseOK) {
-          dispatch_async(dispatch_get_main_queue(), ^{
-            warp_open_panel_file_selected([openPanel URLs], callback);
-          });
+          [openPanel setAllowedContentTypes:contentTypes];
       } else {
-          dispatch_async(dispatch_get_main_queue(), ^{
-            warp_open_panel_file_selected([NSArray array], callback);
-          });
+          NSMutableArray *contentTypes = [NSMutableArray array];
+          for (NSString *fileType in fileTypes) {
+              if ([fileType isEqualToString:@"Image"]) {
+                  [contentTypes addObjectsFromArray:[NSImage imageTypes]];
+              } else if ([fileType isEqualToString:@"Markdown"]) {
+                  [contentTypes addObject:@"md"];
+              } else if ([fileType isEqualToString:@"Yaml"]) {
+                  [contentTypes addObject:@"yaml"];
+                  [contentTypes addObject:@"yml"];
+              }
+          }
+
+          [openPanel setAllowedFileTypes:contentTypes];
       }
-    }];
+
+      // Open panel as sheet on main window.
+      [openPanel beginWithCompletionHandler:^(NSInteger result) {
+        // warp_open_panel_file_selected must be called unconditionally to avoid a memory leak
+        if (result == NSModalResponseOK) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+              warp_open_panel_file_selected([openPanel URLs], callback);
+            });
+        } else {
+            dispatch_async(dispatch_get_main_queue(), ^{
+              warp_open_panel_file_selected([NSArray array], callback);
+            });
+        }
+      }];
+    });
 }
 
 void open_save_file_picker(void *callback, NSString *defaultFilename, NSString *defaultDirectory) {

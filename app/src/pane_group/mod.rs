@@ -98,12 +98,12 @@ use crate::launch_configs::launch_config::{self, PaneMode, PaneTemplateType};
 use crate::notebooks::file::FileNotebookView;
 use crate::palette::PaletteMode;
 use crate::pane_group::focus_state::PaneGroupFocusEvent;
-use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::pane::get_started_pane::GetStartedPane;
 #[cfg(not(target_family = "wasm"))]
 use crate::pane_group::pane::terminal_pane::{
     host_terminal_shared_session_source_type, inherit_share_for_local_child,
 };
+use crate::pane_group::pane::{ActionOrigin, IPaneType};
 use crate::persistence::ModelEvent;
 use crate::quit_warning::UnsavedStateSummary;
 use crate::resource_center::{
@@ -5281,7 +5281,20 @@ impl PaneGroup {
     /// The resolved display title for this pane group —
     /// custom title if set, otherwise the focused pane's title.
     pub fn display_title(&self, ctx: &AppContext) -> String {
-        self.custom_title(ctx).unwrap_or_else(|| self.title(ctx))
+        self.display_custom_title(ctx)
+            .unwrap_or_else(|| self.title(ctx))
+    }
+
+    pub(crate) fn display_custom_title(&self, ctx: &AppContext) -> Option<String> {
+        // 旧设置标签把默认英文名存进了自定义标题；仅派生显示值，保留原始快照。
+        if self.custom_title.as_deref() == Some("Settings")
+            && self.pane_count() == 1
+            && self.focused_pane_id(ctx).pane_type() == IPaneType::Settings
+        {
+            Some(tr("settings.title", "Settings").to_owned())
+        } else {
+            self.custom_title.clone()
+        }
     }
 
     /// The tab-level custom title, if one has been set via the rename-tab flow.

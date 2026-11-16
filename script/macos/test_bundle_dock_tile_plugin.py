@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""使用实际应用包检查 Dock 插件安装和缺失资源的失败行为。"""
+"""检查 Dock 插件包；可传真实应用，或无参创建最小原生包 fixture。"""
 import argparse
 import os
 import plistlib
@@ -24,10 +24,7 @@ def write_info(path, info):
     path.write_bytes(plistlib.dumps(info, sort_keys=False))
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("app", type=Path)
-    app = parser.parse_args().app.resolve(strict=True)
+def check_cases(app):
     invoke(app, "--check")
     with tempfile.TemporaryDirectory(prefix="tinywarp-icon-package-test-") as temporary:
         fixture = Path(temporary) / "TinyWarp Icon Fixture.app"
@@ -55,6 +52,39 @@ def main():
         neon.unlink()
         invoke(fixture, "--check", error="neon.png")
     print("5 项实际打包检查通过：完整包、预构建安装、重复安装拒绝、入口类错误、缺失图标。")
+
+
+def create_fixture(root):
+    app = root / "TinyWarp CI Fixture.app"
+    contents = app / "Contents"
+    (contents / "MacOS").mkdir(parents=True)
+    write_info(
+        contents / "Info.plist",
+        {
+            "CFBundleIdentifier": "dev.warp.TinyWarp.IconPackageCI",
+            "CFBundleExecutable": "warp-oss",
+        },
+    )
+    source = root / "fixture.c"
+    source.write_text("int main(void) { return 0; }\n")
+    subprocess.run(
+        ["/usr/bin/xcrun", "clang", str(source), "-o", str(contents / "MacOS/warp-oss")],
+        check=True,
+    )
+    invoke(app)
+    return app
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("app", type=Path, nargs="?", help="已有真实应用包；省略时仅验证最小原生包")
+    app = parser.parse_args().app
+    if app is not None:
+        check_cases(app.resolve(strict=True))
+    else:
+        print("使用最小原生包验证插件与资源，不构建或运行 TinyWarp 产品。", flush=True)
+        with tempfile.TemporaryDirectory(prefix="tinywarp-icon-ci-") as temporary:
+            check_cases(create_fixture(Path(temporary)))
 
 
 if __name__ == "__main__":

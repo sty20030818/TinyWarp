@@ -33,7 +33,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:new_tab",
-        "Terminal session",
+        crate::util::bindings::localized_description(
+            "keybinding.terminal.session",
+            "Terminal session",
+        ),
         GetStartedAction::TerminalSession,
     )
     .with_context_predicate(id!("GetStartedView"))

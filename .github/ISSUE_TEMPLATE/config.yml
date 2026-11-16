@@ -1,8 +1,11 @@
 blank_issues_enabled: true
 contact_links:
   - name: TinyWarp 使用与支持范围
-    url: https://github.com/sty20030818/TinyWarp#readme
+    url: https://github.com/sty20030818/TinyWarp/blob/main/SUPPORT.md
     about: 查看安装、内置更新和当前支持平台。
+  - name: 私密报告安全漏洞
+    url: https://github.com/sty20030818/TinyWarp/security/advisories/new
+    about: 未修复的漏洞请私密提交，不要在公开 Issue 中披露细节。
   - name: TinyWarp 待办与路线
     url: https://github.com/sty20030818/TinyWarp/blob/main/ROADMAP.md
     about: 查看已确认方向、待办和验证边界。

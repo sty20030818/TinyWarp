@@ -333,8 +333,12 @@ fn local_terminal_show_settings_without_section_opens_real_settings_and_reuses_i
             workspace.handle_action(&WorkspaceAction::ShowSettings, ctx);
         });
         assert_real_local_settings_pane(&workspace, &app);
-        workspace.read(&app, |workspace, _| {
-            assert_eq!(workspace.tab_count(), before + 1)
+        workspace.read(&app, |workspace, ctx| {
+            assert_eq!(workspace.tab_count(), before + 1);
+            let group = workspace.active_tab_pane_group();
+            let group = group.as_ref(ctx);
+            assert_eq!(group.display_title(ctx), "设置");
+            assert_eq!(group.custom_title(ctx), None);
         });
 
         workspace.update(&mut app, |workspace, ctx| {
@@ -359,6 +363,43 @@ fn local_terminal_show_settings_without_section_opens_real_settings_and_reuses_i
         assert_real_local_settings_pane(&workspace, &app);
         workspace.read(&app, |workspace, _| {
             assert_eq!(workspace.tab_count(), before + 1)
+        });
+    });
+}
+
+#[test]
+fn local_terminal_settings_title_compatibility_preserves_stored_and_user_titles() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(crate::local_terminal::enable_for_test);
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            let terminal = workspace.active_tab_pane_group();
+            terminal.update(ctx, |group, ctx| {
+                group.set_title("Settings", ctx);
+                assert_eq!(group.display_title(ctx), "Settings");
+                assert_eq!(group.custom_title(ctx).as_deref(), Some("Settings"));
+            });
+            workspace.handle_action(&WorkspaceAction::ShowSettings, ctx);
+            workspace.active_tab_pane_group().update(ctx, |group, ctx| {
+                group.set_title("Settings", ctx);
+                assert_eq!(group.display_title(ctx), "设置");
+                assert_eq!(group.display_custom_title(ctx).as_deref(), Some("设置"));
+                assert_eq!(group.custom_title(ctx).as_deref(), Some("Settings"));
+
+                for title in ["数据库维护", "Settings "] {
+                    group.set_title(title, ctx);
+                    assert_eq!(group.display_title(ctx), title);
+                    assert_eq!(group.custom_title(ctx).as_deref(), Some(title));
+                }
+
+                group.set_title("Settings", ctx);
+                group.add_terminal_pane(Direction::Right, None, ctx);
+                assert_eq!(group.pane_count(), 2);
+                assert_eq!(group.display_title(ctx), "Settings");
+                assert_eq!(group.custom_title(ctx).as_deref(), Some("Settings"));
+            });
         });
     });
 }

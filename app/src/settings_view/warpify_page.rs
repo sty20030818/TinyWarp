@@ -22,10 +22,9 @@ use warpui::{
 };
 
 use super::settings_page::{
-    Category, CategoryHeader, HEADER_FONT_SIZE, HEADER_PADDING, LocalOnlyIconState, MatchData,
-    PageType, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
-    ToggleState, add_setting, render_alternating_color_list, render_body_item,
-    render_dropdown_item, render_page_title,
+    Category, CategoryHeader, HEADER_PADDING, LocalOnlyIconState, MatchData, PageTitle, PageType,
+    SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, ToggleState,
+    add_setting, render_alternating_color_list, render_body_item, render_dropdown_item,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
@@ -78,7 +77,7 @@ const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_
 
 const SSH_REUSE_CONTROL_MASTER_DESCRIPTION: &str = "Attach to a live SSH ControlMaster you already have configured for the destination host instead of creating a Warp-owned one. Takes effect in new tabs.";
 
-const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str = "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
+const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str = "Choose whether to ask, install automatically, or skip installation when the SSH extension is missing. The extension runs a helper on the remote host.";
 
 /// This page lets users configure when they get asked to warpify a session. Some shell commands
 /// are recognized by default. Users can add new shell commands, or prevent the default ones from
@@ -166,7 +165,7 @@ impl WarpifyPageView {
         instance
     }
 
-    fn build_page(ctx: &mut ViewContext<Self>) -> PageType<Self> {
+    fn build_page(ctx: &AppContext) -> PageType<Self> {
         let mut categories = vec![
             Category::new("", vec![Box::new(TitleWidget::default())]),
             Category::with_header(
@@ -191,7 +190,10 @@ impl WarpifyPageView {
                 vec![Box::new(SSHWidget::default())],
             ));
         }
-        PageType::new_categorized(categories, None)
+        PageType::new_categorized(
+            categories,
+            Some(PageTitle::new(tr("settings.nav.warpify", "Warpify"))),
+        )
     }
 
     /// This method ensures each command in the SubshellSettings has a matching button state for
@@ -515,8 +517,8 @@ impl TitleWidget {
         let warpify_description = vec![
             FormattedTextFragment::plain_text(tr(
                 "local_settings.configure_whether_warp_attempts_to_warpify_add_support_for_blocks",
-                "Configure whether Warp attempts to “Warpify” (add support for blocks, \
-                    input modes, etc) certain shells. ",
+                "Keep command blocks and input editing when entering subshells or SSH sessions. \
+                    Configure how these sessions are detected and connected. ",
             )),
             FormattedTextFragment::hyperlink(
                 tr("local_settings.learn_more", "Learn more"),
@@ -524,7 +526,7 @@ impl TitleWidget {
             ),
         ];
 
-        let warpify_description = FormattedTextElement::new(
+        FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(warpify_description)]),
             CONTENT_FONT_SIZE,
             appearance.ui_font_family(),
@@ -536,12 +538,7 @@ impl TitleWidget {
         .register_default_click_handlers(|url, _, ctx| {
             ctx.open_url(&url.url);
         })
-        .finish();
-
-        Flex::column()
-            .with_child(render_page_title("Warpify", HEADER_FONT_SIZE, appearance))
-            .with_child(warpify_description)
-            .finish()
+        .finish()
     }
 }
 
@@ -549,7 +546,7 @@ impl SettingsWidget for TitleWidget {
     type View = WarpifyPageView;
 
     fn search_terms(&self) -> &str {
-        "ssh subshell warpify session SSH 子 Shell 增强 会话"
+        "ssh subshell warpify session SSH 子 Shell 与 SSH 增强 会话"
     }
 
     fn render(
@@ -611,7 +608,7 @@ impl SettingsWidget for SubshellsWidget {
     type View = WarpifyPageView;
 
     fn search_terms(&self) -> &str {
-        "warpify subshell 子 Shell 新增命令 排除命令"
+        "warpify subshell 子 Shell 增强 新增命令 识别命令 排除命令 不再提示"
     }
 
     fn render(
@@ -800,3 +797,7 @@ fn ssh_install_mode_label(value: &SshExtensionInstallMode) -> &'static str {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "warpify_page_tests.rs"]
+mod tests;

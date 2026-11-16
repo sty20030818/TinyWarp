@@ -329,7 +329,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:warpify_subshell",
-            "Warpify subshell",
+            bindings::localized_description(
+                "keybinding.terminal.warpify_subshell",
+                "Warpify subshell",
+            ),
             TerminalAction::TriggerSubshellBootstrap,
         )
         .with_key_binding("ctrl-i")
@@ -385,12 +388,20 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal")),
         // Paste is not rebindable on the web.
         #[cfg(not(target_family = "wasm"))]
-        EditableBinding::new("terminal:paste", "Paste", TerminalAction::Paste)
-            .with_custom_action(CustomAction::Paste)
-            .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
-        EditableBinding::new("terminal:copy", "Copy", TerminalAction::Copy)
-            .with_custom_action(CustomAction::Copy)
-            .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
+        EditableBinding::new(
+            "terminal:paste",
+            bindings::localized_description("keybinding.paste", "Paste"),
+            TerminalAction::Paste,
+        )
+        .with_custom_action(CustomAction::Paste)
+        .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
+        EditableBinding::new(
+            "terminal:copy",
+            bindings::localized_description("keybinding.copy", "Copy"),
+            TerminalAction::Copy,
+        )
+        .with_custom_action(CustomAction::Copy)
+        .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             "terminal:reinput_commands",
             crate::util::bindings::localized_description(
@@ -950,7 +961,10 @@ pub fn init(app: &mut AppContext) {
     if FeatureFlag::CommandCorrectionKey.is_enabled() {
         app.register_editable_bindings([EditableBinding::new(
             "input:insert_command_correction",
-            "Insert Command Correction",
+            bindings::localized_description(
+                "keybinding.terminal.insert_correction",
+                "Insert Command Correction",
+            ),
             TerminalAction::InsertMostRecentCommandCorrection,
         )
         .with_context_predicate(id!("Terminal"))]);
@@ -1037,7 +1051,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:open_settings_import_page",
-        "Import External Settings",
+        bindings::localized_description(
+            "keybinding.terminal.import_settings",
+            "Import External Settings",
+        ),
         TerminalAction::ImportSettings,
     )
     .with_context_predicate(id!("Terminal") & id!(flags::HAS_SETTINGS_TO_IMPORT_FLAG))]);
@@ -1154,7 +1171,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_session_recording",
-        "Toggle PTY Recording for Session",
+        bindings::localized_description(
+            "keybinding.terminal.record_session",
+            "Toggle PTY Recording for Session",
+        ),
         TerminalAction::ToggleSessionRecording,
     )
     .with_enabled(|| cfg!(feature = "local_fs") && ChannelState::enable_debug_features())
@@ -1325,7 +1345,10 @@ fn register_input_mode_bindings(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-i"),
         EditableBinding::new(
             SET_INPUT_MODE_TERMINAL_ACTION_NAME,
-            "Set Input Mode to Terminal Mode",
+            bindings::localized_description(
+                "keybinding.terminal.terminal_mode",
+                "Set Input Mode to Terminal Mode",
+            ),
             TerminalAction::SetInputModeTerminal,
         )
         .with_group(bindings::BindingGroup::WarpAi.as_str())

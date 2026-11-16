@@ -482,6 +482,8 @@ impl TerminalAction {
             | ExecuteRewindFromInlineMenu { .. }
             | OpenFileInWarp(..)
             | OpenWorkflowModalForAIWorkflow(..)
+            | OpenWorkflowModal
+            | OnboardingFlow(_)
             | AskAIAssistant { .. }
             | SetInputModeAgent
             | GenerateCodebaseIndex
@@ -547,6 +549,7 @@ impl TerminalAction {
             self,
             Self::OpenShareModal
                 | Self::OpenShareSessionModal { .. }
+                | Self::StopSharingCurrentSession { .. }
                 | Self::CopySharedSessionLink { .. }
                 | Self::OpenSharedSessionOnDesktop { .. }
                 | Self::OpenSharedSessionViewerRoleMenu

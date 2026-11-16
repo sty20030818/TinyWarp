@@ -289,6 +289,7 @@ use crate::menu::{
     Event as MenuEvent, MENU_VERTICAL_PADDING, Menu, MenuItem, MenuItemFields, MenuSelectionSource,
     MenuVariant,
 };
+use crate::menu_icon::MenuIconManager;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::{NetworkStatus, NetworkStatusEvent};
 use crate::notebooks::CloudNotebook;
@@ -2987,6 +2988,10 @@ impl Workspace {
         ctx.observe(&RelaunchModel::handle(ctx), |_, _, ctx| {
             ctx.notify();
         });
+
+        if ctx.has_singleton_model::<MenuIconManager>() {
+            ctx.observe(&MenuIconManager::handle(ctx), |_, _, ctx| ctx.notify());
+        }
 
         let changelog_model = ChangelogModel::handle(ctx);
         ctx.subscribe_to_model(&changelog_model, |me, _, event, ctx| {
@@ -8924,12 +8929,7 @@ impl Workspace {
                 search_query: search_query.map(|s| s.to_owned()),
             }),
         })));
-        self.add_tab_with_pane_layout(
-            panes_layout,
-            Arc::new(HashMap::new()),
-            Some("Settings".to_owned()),
-            ctx,
-        );
+        self.add_tab_with_pane_layout(panes_layout, Arc::new(HashMap::new()), None, ctx);
     }
 
     /// Open a file from the given session as a notebook pane.
@@ -22228,7 +22228,12 @@ impl Workspace {
                 .unwrap_or(DEFAULT_USER_DISPLAY_NAME.to_owned())
         };
 
-        let avatar_content = if is_anonymous {
+        let avatar_content = if is_local
+            && ctx.has_singleton_model::<MenuIconManager>()
+            && let Some(source) = MenuIconManager::as_ref(ctx).image_source()
+        {
+            AvatarContent::LocalImage(source)
+        } else if is_anonymous {
             AvatarContent::Icon(icons::Icon::Gear)
         } else {
             self.auth_state
@@ -22240,6 +22245,7 @@ impl Workspace {
                 .unwrap_or(AvatarContent::DisplayName(display_name.clone()))
         };
 
+        let has_custom_image = matches!(&avatar_content, AvatarContent::LocalImage(_));
         let mut avatar = Avatar::new(
             avatar_content,
             UiComponentStyles {
@@ -22248,7 +22254,7 @@ impl Workspace {
                 border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
                 font_family_id: Some(appearance.ui_font_family()),
                 font_weight: Some(Weight::Bold),
-                background: Some(appearance.theme().accent().into()),
+                background: (!has_custom_image).then(|| appearance.theme().accent().into()),
                 font_size: Some(12.),
                 font_color: Some(ColorU::black()),
                 ..Default::default()
@@ -22279,15 +22285,19 @@ impl Workspace {
                 .with_uniform_padding(2.);
 
             if state.is_mouse_over_element() {
-                if !state.is_clicked() {
+                if !has_custom_image && !state.is_clicked() {
                     container = container.with_background(appearance.theme().surface_2());
                 }
                 // On hover, show tooltip of user's display name (if it exists)
-                if !self.is_user_menu_open && !is_anonymous {
+                if !self.is_user_menu_open && (is_local || !is_anonymous) {
                     stack.add_positioned_overlay_child(
                         appearance
                             .ui_builder()
-                            .tool_tip(display_name.clone())
+                            .tool_tip(if is_local {
+                                tr("workspace.menu.title", "TinyWarp menu").to_owned()
+                            } else {
+                                display_name.clone()
+                            })
                             .with_style(UiComponentStyles {
                                 background: Some(appearance.theme().tooltip_background().into()),
                                 font_color: Some(appearance.theme().background().into_solid()),
@@ -22371,7 +22381,7 @@ impl Workspace {
                 icons::Icon::Gear,
                 &self.mouse_states.settings_icon,
                 WorkspaceAction::ShowSettings,
-                "Settings".to_string(),
+                tr("settings.title", "Settings").to_owned(),
                 self.cached_keybindings[SHOW_SETTINGS_KEYBINDING_NAME].clone(),
                 false,
                 false,

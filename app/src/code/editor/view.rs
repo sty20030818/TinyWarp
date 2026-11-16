@@ -81,7 +81,7 @@ use crate::settings::{AppEditorSettings, CodeEditorLineNumberMode, FontSettings}
 use crate::view_components::find::FindDirection;
 
 mod actions;
-pub(super) use actions::CodeEditorViewAction;
+pub(crate) use actions::CodeEditorViewAction;
 pub use actions::init;
 
 mod vim_handler;

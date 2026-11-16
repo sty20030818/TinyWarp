@@ -1,0 +1,50 @@
+name: TinyWarp CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tinywarp-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-checks:
+    if: github.repository == 'sty20030818/TinyWarp'
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: '0'
+      GIT_LFS_SKIP_SMUDGE: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Prepare the repository Rust toolchain
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Check version and packaging policy
+        run: python3 -B script/test_tinywarp_version.py
+
+      - name: Check native Dock plugin packaging
+        run: python3 -B script/macos/test_bundle_dock_tile_plugin.py
+
+      - name: Check TinyWarp dependency boundaries
+        run: python3 script/check_tinywarp_features
+
+      - name: Test the shared Chinese interface catalog
+        run: cargo test --locked -p warp_i18n
+
+      - name: Lint the shared Chinese interface catalog
+        run: cargo clippy --locked -p warp_i18n --all-targets -- -D warnings
